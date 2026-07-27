@@ -1,0 +1,49 @@
+services:
+  traefik:
+    image: traefik:v3
+    container_name: dev-traefik
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=dev_proxy
+      - --entrypoints.web.address=:80
+    ports:
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dev_proxy
+    restart: unless-stopped
+
+  control-panel:
+    build:
+      context: ..
+      dockerfile: ui/Dockerfile
+    container_name: local-infra-control-panel
+    restart: unless-stopped
+    environment:
+      HOME: ${HOST_HOME}
+      LOCAL_INFRA_ROOT: ${LOCAL_INFRA_ROOT}
+      LOCAL_INFRA_PROJECTS: ${LOCAL_INFRA_PROJECTS}
+      LOCAL_INFRA_UI_HOST: 0.0.0.0
+      LOCAL_INFRA_UI_PORT: "5055"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${LOCAL_INFRA_ROOT}:${LOCAL_INFRA_ROOT}
+      - ${LOCAL_PROJECTS_ROOT}:${LOCAL_PROJECTS_ROOT}
+    expose:
+      - "5055"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dev_proxy
+      - traefik.http.routers.local-infra-ui.rule=Host(`infra.localhost`)
+      - traefik.http.routers.local-infra-ui.entrypoints=web
+      - traefik.http.services.local-infra-ui.loadbalancer.server.port=5055
+    networks:
+      - dev_proxy
+
+networks:
+  dev_proxy:
+    external: true

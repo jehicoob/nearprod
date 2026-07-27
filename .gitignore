@@ -1,0 +1,14 @@
+tmp/
+.DS_Store
+.env
+.stitch/
+projects.yml
+ui/node_modules/
+ui/dist/
+ui/coverage/
+ui/*.tsbuildinfo
+ui/vite.config.js
+ui/vite.config.d.ts
+ui/vitest.config.js
+ui/vitest.config.d.ts
+*.bak-*

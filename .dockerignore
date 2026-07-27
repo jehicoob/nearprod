@@ -1,0 +1,6 @@
+tmp/
+.stitch/
+ui/node_modules/
+ui/dist/
+ui/coverage/
+.DS_Store
