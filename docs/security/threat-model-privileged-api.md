@@ -2,8 +2,9 @@
 
 - **Jira:** NPROD-15
 - **Revisión analizada:** `617a43d8676af0032a7ff358dc1789ecd3a78a47`
-- **Estado:** Propuesto para revisión técnica y de Producto
+- **Estado:** Aprobado como modelo objetivo — controles aún no operativos
 - **Última actualización:** 2026-08-01
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #2 el 2026-08-01
 
 ## Resumen ejecutivo
 
