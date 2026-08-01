@@ -758,7 +758,7 @@ Ejemplo recomendado:
 services:
   frontend:
     build: .
-    command: npm run dev -- --host 0.0.0.0
+    command: pnpm run dev -- --host 0.0.0.0
     expose:
       - "5173"
     labels:
@@ -822,7 +822,7 @@ Puntos importantes:
 ```yaml
 services:
   frontend:
-    command: npm run dev -- --host 0.0.0.0
+    command: pnpm run dev -- --host 0.0.0.0
     expose:
       - "5173"
     labels:
@@ -878,7 +878,7 @@ http://api.pos.localhost
 ```yaml
 services:
   frontend:
-    command: npm run dev -- --host 0.0.0.0
+    command: pnpm run dev -- --host 0.0.0.0
     expose:
       - "5173"
     labels:
@@ -1058,7 +1058,7 @@ https://pos.localhost
 El contenedor debe escuchar en `0.0.0.0`:
 
 ```bash
-npm run dev -- --host 0.0.0.0
+pnpm run dev -- --host 0.0.0.0
 ```
 
 Si HMR falla, configurar `vite.config.ts`:
@@ -1119,7 +1119,7 @@ export default defineConfig({
 Usa:
 
 ```yaml
-command: npm run dev -- -H 0.0.0.0
+command: pnpm run dev -- -H 0.0.0.0
 ```
 
 O en script:
@@ -1734,7 +1734,7 @@ El proceso debe escuchar en `0.0.0.0`, no en `127.0.0.1`.
 Ejemplos:
 
 ```bash
-npm run dev -- --host 0.0.0.0
+pnpm run dev -- --host 0.0.0.0
 php artisan serve --host=0.0.0.0 --port=8000
 next dev -H 0.0.0.0
 ```

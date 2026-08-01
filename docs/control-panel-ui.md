@@ -100,8 +100,8 @@ groups:
 
 ```bash
 cd ~/local-infra/ui
-npm run test
-npm run build
+pnpm run test
+pnpm run build
 ```
 
 ## Tests actuales
