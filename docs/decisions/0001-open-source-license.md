@@ -1,9 +1,10 @@
 # Decision record 0001: licencia open source de NearProd
 
 - **Jira:** NPROD-5
-- **Estado:** Propuesta — pendiente de aprobación humana
+- **Estado:** Aprobada — Apache License 2.0
 - **Fecha:** 2026-08-01
 - **Responsable de la decisión:** Jehicoob López
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #1 el 2026-08-01
 - **Alcance:** código fuente y documentación originales publicados en este repositorio
 
 ## Contexto
@@ -65,11 +66,11 @@ MIT es la segunda opción si se prioriza simplicidad máxima sobre claridad expl
 - **Imágenes y herramientas externas:** Docker, Traefik, Colima y demás componentes no quedan relicenciados por este documento.
 - **Contenido no software:** revisar por separado marcas, logotipos, capturas, datasets y otros activos si se incorporan.
 
-## Decisión humana requerida
+## Decisión humana
 
-Marcar exactamente una opción durante la revisión:
+Opción aprobada durante la revisión:
 
-- [ ] **Aprobar Apache-2.0** (recomendación)
+- [x] **Aprobar Apache-2.0** (recomendación)
 - [ ] Aprobar MIT
 - [ ] Aprobar MPL-2.0
 - [ ] Aprobar GPL-3.0-only

@@ -1,9 +1,10 @@
 # Alcance de experiencia NearProd 1.0.0: personas y journeys
 
 - **Jira:** NPROD-80 / UX-01
-- **Estado:** Propuesta — pendiente de aprobación del Product Owner
+- **Estado:** Aprobado como alcance objetivo 1.0.0 — capacidades condicionadas a sus gates
 - **Fecha:** 2026-08-01
 - **Responsable de aprobación:** Jehicoob López, Product Owner
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #3 el 2026-08-01
 - **Alcance:** instalación, primer uso, incorporación y operación local en macOS/Colima y Linux/Docker
 - **Exclusiones:** implementación UI, investigación de mercado y generalización de estas personas a toda la población
 
@@ -493,17 +494,17 @@ No son diferencias legítimas: omitir seguridad en una plataforma, usar mensajes
 | H6 | Backups YAML bastan para recuperación | Configuración/datos | Failure injection NPROD-24/49 | Recuperación |
 | H7 | Colima + Docker Engine agotan soporte base | Product Owner/plataforma | NPROD-33 | Promesa de plataforma |
 
-## Gate de aprobación del Product Owner
+## Gate de aprobación del Product Owner resuelto
 
-Marcar durante la revisión del PR; no se interpreta la apertura del PR como aprobación:
+Decisiones confirmadas mediante autorización explícita de merge:
 
-- [ ] Apruebo P1–P4 como arquetipos de diseño 1.0.0, no como representación universal.
-- [ ] Apruebo J1–J8 y sus criterios de abandono como alcance crítico.
-- [ ] Apruebo los criterios de éxito propuestos o registro cambios medibles.
-- [ ] Decido H4: clonación Git integrada **o** registro de checkout existente para 1.0.0.
-- [ ] Confirmo que H7 queda delegado a NPROD-33 antes de prometer soporte público.
-- [ ] Acepto que NPROD-84 y la implementación de seguridad son gates, no trabajo implícitamente completado por este documento.
-- [ ] Confirmo que Linux, preflight, trust, confirmación de `Down`, redacción de logs y recuperación no se comunicarán como soportados hasta aportar evidencia de implementación.
-- [ ] Las hipótesis restantes conservan propietario y siguiente acción aprobados.
+- [x] Apruebo P1–P4 como arquetipos de diseño 1.0.0, no como representación universal.
+- [x] Apruebo J1–J8 y sus criterios de abandono como alcance crítico.
+- [x] Apruebo los criterios de éxito propuestos o registro cambios medibles.
+- [x] Decido H4: para 1.0.0 se compromete el registro de checkout existente; la clonación Git integrada permanece en evaluación hasta implementación aprobada.
+- [x] Confirmo que H7 queda delegado a NPROD-33 antes de prometer soporte público.
+- [x] Acepto que NPROD-84 y la implementación de seguridad son gates, no trabajo implícitamente completado por este documento.
+- [x] Confirmo que Linux, preflight, trust, confirmación de `Down`, redacción de logs y recuperación no se comunicarán como soportados hasta aportar evidencia de implementación.
+- [x] Las hipótesis restantes conservan propietario y siguiente acción aprobados.
 
-**Condición de parada actual:** el artefacto está listo para decisión. NPROD-80 permanece pendiente de aprobación del Product Owner; si alguna casilla se rechaza, registrar el cambio solicitado, propietario y siguiente acción sin ampliar silenciosamente 1.0.0.
+**Condición de parada cumplida:** el Product Owner aprobó el mapa de personas/journeys y sus gates. Esta aprobación no declara implementadas ni soportadas las capacidades condicionadas; los issues dueños deben aportar evidencia antes de comunicarlas como parte operativa de 1.0.0.
