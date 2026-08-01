@@ -1,9 +1,10 @@
 # Decision record 0002: frontera de seguridad de la API privilegiada
 
 - **Jira:** NPROD-15
-- **Estado:** Propuesta — pendiente de aprobación técnica y de Producto
+- **Estado:** Aprobada para implementación — controles aún no operativos
 - **Fecha:** 2026-08-01
 - **Responsables de aprobación:** responsable técnico de NearProd y Jehicoob López como Producto
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #2 el 2026-08-01
 - **Threat model asociado:** [`../security/threat-model-privileged-api.md`](../security/threat-model-privileged-api.md)
 
 ## Contexto
@@ -33,7 +34,7 @@ Este ADR es **normativo para la implementación futura**, no evidencia de contro
 | mTLS, Unix socket o integración exclusiva con identidad del OS | Frontera fuerte y sin cookies en algunos clientes | UX, certificados/proxy y portabilidad macOS/Linux complejas; el navegador no consume Unix sockets directamente | Diferida como hardening opcional |
 | **Propietario local + sesión server-side + Host/Origin + CSRF + trust por recurso** | Offline, revocable, compatible con navegador y CLI separado; controles en capas | Requiere bootstrap, estado seguro, expiración y disciplina en cada endpoint | **Recomendada** |
 
-## Decisión propuesta
+## Decisión aprobada
 
 ### 1. Todo `/api/*` es privilegiado
 
@@ -130,18 +131,18 @@ El booleano actual puede conservarse temporalmente para migración visual, pero 
 4. **NPROD-20/NPROD-21:** decisión e implementación de aislamiento Docker; no asumir que la frontera HTTP vuelve seguro el socket.
 5. **NPROD-23:** TTL, timeout, ownership y limpieza de jobs.
 
-## Gate humano
+## Gate humano resuelto para el diseño
 
-Para aprobar, el responsable técnico y Producto deben confirmar:
+El responsable técnico y Producto confirman el diseño normativo; cada implementación conserva sus pruebas y gates independientes:
 
-- [ ] Todo `/api/*` es privilegiado y deny-by-default.
-- [ ] Se acepta sesión server-side para navegador y token separado/scoped para CLI.
-- [ ] Mutaciones navegador exigen Host/Origin exactos y CSRF.
-- [ ] `trusted` queda ligado a identidad/fingerprint y se invalida ante cambios.
-- [ ] Se acepta el riesgo residual de HTTP loopback hasta evaluar TLS local.
-- [ ] NPROD-20 conserva el gate independiente sobre acceso al daemon Docker.
+- [x] Todo `/api/*` es privilegiado y deny-by-default.
+- [x] Se acepta sesión server-side para navegador y token separado/scoped para CLI.
+- [x] Mutaciones navegador exigen Host/Origin exactos y CSRF.
+- [x] `trusted` queda ligado a identidad/fingerprint y se invalida ante cambios.
+- [x] Se acepta el riesgo residual de HTTP loopback hasta evaluar TLS local.
+- [x] NPROD-20 conserva el gate independiente sobre acceso al daemon Docker.
 
-**Estado actual:** bloqueado para implementación hasta aprobación o hasta que se asignen preguntas/cambios concretos al responsable técnico y Producto.
+**Estado actual:** el diseño queda aprobado y desbloquea sus issues de implementación según Sprint, Rank y dependencias. El baseline continúa inseguro y no puede presentarse como operativo o liberable hasta que los controles correspondientes estén implementados y verificados.
 
 ## Fuentes primarias
 
