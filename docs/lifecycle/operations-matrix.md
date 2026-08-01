@@ -2,7 +2,8 @@
 
 - **Jira:** NPROD-87 / LC-01
 - **ADR:** [`../decisions/0003-product-lifecycle-data-ownership.md`](../decisions/0003-product-lifecycle-data-ownership.md)
-- **Estado:** Propuesta — pendiente de aprobación técnica y del Product Owner
+- **Estado:** Aprobada como contrato normativo — implementación pendiente
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #4 el 2026-08-01
 - **Regla global:** código fuente, repositorios, bind mounts y volúmenes del usuario nunca se eliminan por defecto
 
 ## Contrato transversal
@@ -109,9 +110,9 @@ Toda mutación multi-artefacto usa el journal normativo `PREPARED -> SNAPSHOT_WR
 
 Retries con la misma idempotency key reciben la respuesta terminal preservada. Una key nueva se evalúa contra el estado y retorna `ALREADY_IN_TARGET` o `INVALID_TRANSITION` según corresponda.
 
-## Defaults operativos propuestos (LC-H5)
+## Defaults operativos aprobados como baseline (LC-H5)
 
-Hasta aprobación técnica y de seguridad, estos valores son hipótesis de diseño versionadas, no capacidades soportadas: bundle/payload recibido ≤ 32 MiB; contenido expandido acumulado ≤ 128 MiB; ≤ 1.000 entradas; profundidad ≤ 32; ≤ 100 objetos NearProd por import; `planTTL` 5 minutos; reautenticación L3 5 minutos; máximo 3 retries con backoff 1/2/4 segundos únicamente para fallos transitorios antes de conocer un resultado terminal. Los límites se aplican durante streaming/parsing, antes de reservar memoria o escribir destinos; tamaño recibido y expandido se controlan independientemente.
+Estos valores quedan aprobados como baseline sujeto a pruebas, no como capacidades ya soportadas: bundle/payload recibido ≤ 32 MiB; contenido expandido acumulado ≤ 128 MiB; ≤ 1.000 entradas; profundidad ≤ 32; ≤ 100 objetos NearProd por import; `planTTL` 5 minutos; reautenticación L3 5 minutos; máximo 3 retries con backoff 1/2/4 segundos únicamente para fallos transitorios antes de conocer un resultado terminal. Los límites se aplican durante streaming/parsing, antes de reservar memoria o escribir destinos; tamaño recibido y expandido se controlan independientemente.
 
 ## Mensajes mínimos para la persona
 
@@ -152,6 +153,6 @@ Para confirmar, escribe: example_app
 10. Auditoría sin secretos en success, denied, conflict, failure y recovery.
 11. Ejecutar planes L2/L3 con mismo/distinto principal, misma/distinta sesión/factor, revocación y expiración; verificar `FORBIDDEN`/`PLAN_EXPIRED` y regeneración completa.
 
-## Gates pendientes
+## Seguimiento de implementación
 
-Esta matriz se vuelve normativa cuando se aprueba ADR-0003. Permanecen decisiones explícitas LC-H1–LC-H4. Ninguna implementación puede reducir confirmación, retención o recursos protegidos sin nueva decisión humana y actualización coordinada del ADR, matriz y pruebas.
+Esta matriz es normativa tras la aprobación de ADR-0003. LC-H3 conserva pendiente la selección técnica del storage y LC-H4 la duración de auditoría después de purge. Ninguna implementación puede reducir confirmación, retención, límites, ownership o recursos protegidos sin nueva decisión humana y actualización coordinada del ADR, matriz y pruebas.

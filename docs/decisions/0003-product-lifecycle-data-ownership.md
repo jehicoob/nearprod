@@ -1,9 +1,10 @@
 # Decision record 0003: ciclo de vida y propiedad de datos
 
 - **Jira:** NPROD-87 / LC-01
-- **Estado:** Propuesta — pendiente de aprobación técnica y del Product Owner
+- **Estado:** Aprobada como contrato normativo — implementación pendiente
 - **Fecha:** 2026-08-01
 - **Responsables de aprobación:** responsable técnico de NearProd y Jehicoob López como Product Owner
+- **Evidencia de aprobación:** autorización explícita para fusionar el PR #4 el 2026-08-01
 - **Matriz normativa:** [`../lifecycle/operations-matrix.md`](../lifecycle/operations-matrix.md)
 - **Decisiones relacionadas:** [frontera de seguridad de la API](0002-privileged-api-security-boundary.md)
 
@@ -251,26 +252,26 @@ NPROD-24 conserva ownership sobre parser YAML/escrituras atómicas. Lifecycle no
 - Paths/configuración pueden quedar obsoletos durante archive/delete; undo puede requerir remapeo en vez de restauración automática.
 - La política de 30 días y bundle metadata-only requieren aprobación humana.
 
-## Gates e hipótesis abiertas
+## Decisiones aprobadas y seguimiento
 
-- **LC-H1:** retención default 30 días — Product Owner.
-- **LC-H2:** export/import metadata-only — responsable técnico + Product Owner.
+- **LC-H1 aprobada:** retención default de 30 días — Product Owner.
+- **LC-H2 aprobada:** export/import metadata-only — responsable técnico + Product Owner.
 - **LC-H3:** storage concreto (archivos separados, SQLite u otro) no se decide aquí. **Propietario:** responsable técnico. **Siguiente acción:** spike con atomicidad, concurrencia, backup y migración antes de NPROD-88.
 - **LC-H4:** duración de auditoría después de purge. **Propietario:** Product Owner + seguridad. **Siguiente acción:** fijar retención mínima antes de NPROD-90.
-- **LC-H5:** límites operativos iniciales propuestos: bundle/payload recibido ≤ 32 MiB, contenido expandido acumulado ≤ 128 MiB, ≤ 1.000 entradas, profundidad estructural ≤ 32, ≤ 100 objetos NearProd por import, `planTTL` de 5 minutos, reautenticación L3 ≤ 5 minutos y máximo 3 retries con backoff exponencial acotado a 1/2/4 segundos solo para fallos transitorios previos a un resultado terminal. **Propietario:** responsable técnico + seguridad. **Siguiente acción:** validar por pruebas de recursos/abuso y aprobar o reemplazar valores antes de NPROD-88/91/92; hasta entonces son defaults de diseño, no soporte operativo.
+- **LC-H5 aprobada como baseline de implementación:** bundle/payload recibido ≤ 32 MiB, contenido expandido acumulado ≤ 128 MiB, ≤ 1.000 entradas, profundidad estructural ≤ 32, ≤ 100 objetos NearProd por import, `planTTL` de 5 minutos, reautenticación L3 ≤ 5 minutos y máximo 3 retries con backoff exponencial acotado a 1/2/4 segundos solo para fallos transitorios previos a un resultado terminal. **Propietario:** responsable técnico + seguridad. **Siguiente acción:** validar por pruebas de recursos/abuso en NPROD-88/91/92; cualquier reemplazo exige actualizar ADR, matriz y evidencia.
 
-## Gate de aprobación
+## Gate de aprobación resuelto
 
-La apertura del PR no equivale a aprobación. Responsable técnico y Product Owner deben confirmar:
+Responsable técnico y Product Owner confirman:
 
-- [ ] Apruebo los estados `active`, `archived`, `deleted` y sus transiciones.
-- [ ] Apruebo que archive/delete/purge solo afectan metadata NearProd por defecto.
-- [ ] Confirmo que código, repositorios, bind mounts, volúmenes, imágenes y red compartida nunca se eliminan por defecto.
-- [ ] Apruebo confirmaciones L0–L3 y planes single-use fijados por revision/digest.
-- [ ] Apruebo LC-H1 (30 días) o registro un valor alternativo.
-- [ ] Apruebo LC-H2 (bundle metadata-only) o registro el contenido alternativo.
-- [ ] Asigno LC-H3 y LC-H4 con siguiente acción antes de implementar dependencias.
-- [ ] Apruebo o reemplazo los límites LC-H5 antes de implementar import/export y ejecución de planes.
-- [ ] Apruebo la matriz de operaciones asociada como contrato normativo.
+- [x] Apruebo los estados `active`, `archived`, `deleted` y sus transiciones.
+- [x] Apruebo que archive/delete/purge solo afectan metadata NearProd por defecto.
+- [x] Confirmo que código, repositorios, bind mounts, volúmenes, imágenes y red compartida nunca se eliminan por defecto.
+- [x] Apruebo confirmaciones L0–L3 y planes single-use fijados por revision/digest.
+- [x] Apruebo LC-H1: retención default de 30 días.
+- [x] Apruebo LC-H2: bundle metadata-only.
+- [x] Asigno LC-H3 al responsable técnico y LC-H4 a Product Owner + seguridad, con las siguientes acciones registradas arriba.
+- [x] Apruebo los límites LC-H5 como baseline sujeto a verificación por pruebas.
+- [x] Apruebo la matriz de operaciones asociada como contrato normativo.
 
-**Condición de parada:** NPROD-87 entrega diseño y preguntas/gates; no implementa UI/endpoints. Hasta resolver el checklist, las tareas dependientes pueden refinar pruebas/prototipos reversibles, pero no fijar una política distinta ni ejecutar migraciones/destrucción real.
+**Condición de parada cumplida:** NPROD-87 entrega el diseño aprobado y no implementa UI/endpoints. Las tareas dependientes pueden implementar este contrato según Sprint, Rank y dependencias; ninguna puede reducir confirmación, retención, ownership o recursos protegidos sin una nueva decisión humana versionada.
