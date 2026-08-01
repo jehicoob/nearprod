@@ -200,7 +200,9 @@ En el compose del frontend:
 ```yaml
 services:
   frontend:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
     working_dir: /app
     environment:
       - VITE_API_BASE_URL=http://api.mi-producto.localhost
@@ -220,7 +222,7 @@ services:
       - traefik.http.services.mi-producto-frontend.loadbalancer.server.port=5173
     networks:
       - dev_proxy
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    command: pnpm run dev -- --host 0.0.0.0 --port 5173
 
 volumes:
   frontend-node-modules:
@@ -229,6 +231,11 @@ networks:
   dev_proxy:
     external: true
 ```
+
+El `Dockerfile` del frontend debe instalar la versión de pnpm declarada en
+`packageManager` y ejecutar `pnpm install --frozen-lockfile` durante el build;
+no asumas que una imagen base de Node ya incluye el binario ni instales
+dependencias durante el arranque del servicio.
 
 ---
 

@@ -93,8 +93,8 @@ Más detalles:
 
 ```bash
 cd ~/local-infra/ui
-npm run test
-npm run build
+pnpm run test
+pnpm run build
 ```
 
 La UI está componentizada en `ui/src/components`, la lógica de red vive en `ui/src/api`, y los hooks en `ui/src/hooks`.
