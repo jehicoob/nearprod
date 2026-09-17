@@ -1,5 +1,5 @@
 import { api, humanBytes, message } from './api.js';
-import { Modal, Icon, Alert, Skeleton, Field } from './components.js';
+import { Modal, Icon, Alert, Skeleton, Field, LiveStatus } from './components.js';
 const { useState, useEffect, useRef } = React;
 export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }) {
     const [root, setRoot] = useState(roots[0] || ''), [depth, setDepth] = useState('8');
@@ -139,9 +139,10 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify })
             React.createElement("div", null,
                 React.createElement("h1", null, "Runtime y recursos"),
                 React.createElement("p", null, "Colima mantiene una VM compartida. NearProd permanece fuera de ella.")),
-            React.createElement("button", { onClick: () => void load(), disabled: busy || loadingDoctor || loadingMetrics },
+            React.createElement("button", { onClick: () => void load(), disabled: busy || loadingDoctor || loadingMetrics, "aria-busy": loadingDoctor || loadingMetrics },
                 React.createElement(Icon, { name: "refresh" }),
-                loadingDoctor || loadingMetrics ? 'Actualizando…' : 'Actualizar diagnóstico')),
+                "Actualizar diagn\u00F3stico")),
+        React.createElement(LiveStatus, { message: loadingDoctor || loadingMetrics ? 'Actualizando diagnóstico y consumo del runtime.' : '' }),
         error && React.createElement(Alert, { error: true }, error),
         dirtySettings && React.createElement(Alert, null, "Hay cambios de contexto sin guardar. Gu\u00E1rdalos o desc\u00E1rtalos antes de administrar Colima; los datos mostrados siguen correspondiendo al contexto guardado."),
         runtimeBusy && React.createElement(Alert, null, "Hay una operaci\u00F3n global de Colima en curso. Los controles quedan bloqueados hasta que termine; consulta Actividad."),
@@ -170,8 +171,7 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify })
                 runtime.kind !== 'colima' ? React.createElement(Alert, null, "Docker utiliza el kernel de Linux/WSL2. Sus recursos se administran desde el sistema operativo; NearProd no ejecuta sudo.") : !doctor && loadingDoctor ? React.createElement(Skeleton, { label: "Consultando estado y asignaci\u00F3n de Colima", rows: 6 }) : React.createElement(React.Fragment, null,
                     React.createElement("div", { className: "runtime-state", role: "status" },
                         React.createElement("span", { className: colimaRunning ? 'live-dot' : 'offline-dot' }),
-                        React.createElement("strong", null, runtimeBusy ? 'Operación en curso' : colimaRunning ? 'Colima en ejecución' : colimaState === 'stopped' ? 'Colima detenido' : colimaState === 'missing' ? 'Perfil no encontrado' : 'Estado de Colima no comprobado'),
-                        loadingDoctor && React.createElement("span", { className: "hint" }, "Actualizando\u2026")),
+                        React.createElement("strong", null, runtimeBusy ? 'Operación en curso' : colimaRunning ? 'Colima en ejecución' : colimaState === 'stopped' ? 'Colima detenido' : colimaState === 'missing' ? 'Perfil no encontrado' : 'Estado de Colima no comprobado')),
                     React.createElement("p", { className: "field-help" },
                         "El estado de la VM y la conexi\u00F3n con Docker Engine son comprobaciones distintas. ",
                         colimaRunning && !connected ? 'La VM está activa, pero Docker no responde: revisa el diagnóstico, no vuelvas a iniciarla.' : ''),
@@ -206,8 +206,7 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify })
         React.createElement("section", { className: "panel" },
             React.createElement("div", { className: "panel-heading" },
                 React.createElement(Icon, { name: "activity" }),
-                React.createElement("h2", null, "Consumo observado"),
-                loadingMetrics && metrics && React.createElement("span", { className: "hint", role: "status" }, "Actualizando\u2026")),
+                React.createElement("h2", null, "Consumo observado")),
             !metrics && loadingMetrics ? React.createElement(Skeleton, { label: "Cargando consumo de recursos", rows: 4 }) : metrics ? React.createElement(React.Fragment, null,
                 React.createElement("div", { className: "metrics" },
                     React.createElement("div", null,

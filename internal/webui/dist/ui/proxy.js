@@ -1,6 +1,6 @@
 import { suggestedHost } from './route-suggestions.js';
 import { api, message } from './api.js';
-import { Alert, Field, Icon, Modal, Skeleton } from './components.js';
+import { Alert, Field, Icon, LiveStatus, Modal, Skeleton } from './components.js';
 const { useState, useEffect } = React;
 export function RouteEditor({ value, onChange, initialOptions }) {
     const [options, setOptions] = useState(initialOptions), [loading, setLoading] = useState(false), [error, setError] = useState('');
@@ -26,8 +26,8 @@ export function RouteEditor({ value, onChange, initialOptions }) {
     return React.createElement("section", { className: "route-editor" },
         React.createElement("div", { className: "panel-heading" },
             React.createElement(Icon, { name: "link" }),
-            React.createElement("h3", null, "URL de acceso \u2014 Traefik"),
-            loading && React.createElement("span", { className: "hint", role: "status" }, "Leyendo servicios\u2026")),
+            React.createElement("h3", null, "URL de acceso \u2014 Traefik")),
+        React.createElement(LiveStatus, { message: loading ? 'Leyendo servicios para la URL.' : '' }),
         React.createElement("p", null,
             "Configura aqu\u00ED el acceso de la aplicaci\u00F3n. NearProd preparar\u00E1 la ruta y conectar\u00E1 el servicio al proxy al ",
             React.createElement("strong", null, "Iniciar"),

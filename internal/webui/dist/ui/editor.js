@@ -1,6 +1,6 @@
 import { api, message } from './api.js';
 import { RouteEditor } from './proxy.js';
-import { Alert, Field, Icon, Modal, Skeleton } from './components.js';
+import { Alert, Field, Icon, LiveStatus, Modal, Skeleton } from './components.js';
 const { useState, useEffect } = React;
 export const slugify = (v) => v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0, 48) || 'proyecto';
 const blankMode = () => ({ files: [], envFiles: [], profiles: [] });
@@ -103,7 +103,7 @@ function ModeEditor({ title, path, mode, onChange, initialOptions }) {
             React.createElement("div", { className: "profiles-selector" },
                 React.createElement("h4", null, "Servicios opcionales \u2014 perfiles Compose"),
                 React.createElement("p", { className: "field-help" }, "No son grupos de NearProd ni perfiles de Colima. Activan servicios que el proyecto marc\u00F3 como opcionales, por ejemplo un worker o una herramienta de administraci\u00F3n."),
-                loading && React.createElement("span", { className: "hint", role: "status" }, "Actualizando perfiles seg\u00FAn los archivos seleccionados\u2026"),
+                React.createElement(LiveStatus, { message: loading ? 'Actualizando perfiles según los archivos seleccionados.' : '' }),
                 !profiles.length && !mode.profiles.length && !loading && React.createElement("p", { className: "hint" }, "Este conjunto de archivos no declara perfiles. No necesitas configurar nada aqu\u00ED."),
                 profiles.map(p => React.createElement("label", { className: "file-option", key: p.name },
                     React.createElement("input", { type: "checkbox", checked: mode.profiles.includes(p.name), onChange: e => onChange({ ...mode, profiles: e.target.checked ? [...mode.profiles, p.name] : mode.profiles.filter(v => v !== p.name) }) }),

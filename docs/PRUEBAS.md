@@ -1,4 +1,4 @@
-# Pruebas ejecutadas — 0.7.0 Go
+# Pruebas ejecutadas — 0.7.1 Go
 
 ## Resultado final
 
@@ -8,7 +8,7 @@
 | Harness browser opt-in | 1 omitido en suite general; ejecutado aparte | No es una prueba faltante contada como éxito. |
 | Race detector | **Pasa**, sin carreras notificadas en ejecución final | `go test -race -count=1`; se guarda el fallo inicial encontrado y la corrección. No prueba todas las intercalaciones posibles. |
 | go vet / TypeScript / UI build | **Pasan** | Compilación y análisis, no escaneo de vulnerabilidades. |
-| React + agente Go | **24 comprobaciones pasan** | UI real vía puente HTTP/SSE con Engine/Traefik simulado. |
+| React + agente Go | **25 comprobaciones pasan** | UI real vía puente HTTP/SSE con Engine/Traefik simulado. |
 | Instalación/reinstalación nativa | **16 comprobaciones pasan** | Binario Linux instalado realmente, PATH sin Node, HTTP/assets, migración de catálogo3, backup y conservación de metadata. |
 | Navegador nativo | **Bloqueado** | Chromium ERR_BLOCKED_BY_ADMINISTRATOR. No se cambió la política. |
 | Docker y carpeta de datos | **Bloqueados, código77** | TOOL_MISSING; cero comprobaciones de motor/proxy real aprobadas. |
@@ -22,7 +22,7 @@ Cobertura instrumentada Go: **57.6% de sentencias**. No equivale a cobertura de 
 - `go-tests.jsonl`, `go-tests.exit`, `coverage.out`, `coverage.txt`: resultados exactos por caso.
 - `race.txt`, `race.exit`: última comprobación; `history/race-before-fix.txt` conserva la carrera detectada y corregida.
 - `native-package.json/txt`: checksum del binario realmente probado y cada paso.
-- `browser-bridge.json/txt`:24 pasos de UI; capturas tienen datos de runtime SIMULADOS.
+- `browser-bridge.json/txt`: 25 pasos de UI; capturas tienen datos de runtime SIMULADOS.
 - `browser-native.json/txt`: bloqueo del navegador, sin transformarlo en aprobación.
 - `acceptance-real/result.json` y `acceptance-folder/result.json`: intentos reales bloqueados, no mocks.
 - `build-*.txt`, manifiesto y hashes: compilador y destinos de binarios.

@@ -1,6 +1,6 @@
 import { suggestedHost } from './route-suggestions.js';
 import { api, message } from './api.js';
-import { Alert, Field, Icon, Modal, Skeleton } from './components.js';
+import { Alert, Field, Icon, LiveStatus, Modal, Skeleton } from './components.js';
 import type { Catalog, Status, Stack, StackDraft, ProjectOptions, WebRoute, Observed, ProxyPreview, RouteCheck } from './types.js';
 const { useState, useEffect } = React;
 export function RouteEditor({ value, onChange, initialOptions }: {value: StackDraft; onChange: (v: StackDraft) => void; initialOptions: ProjectOptions | null}) {
@@ -17,7 +17,7 @@ export function RouteEditor({ value, onChange, initialOptions }: {value: StackDr
     const hint = options?.httpHints?.find(h => h.suggestedPort), service = hint?.service || options?.services[0] || '';
     onChange({...value,routes:[...routes,{host:suggestedHost(value,service,routes.length),service,port:hint?.suggestedPort || 80}]});
   };
-  return <section className="route-editor"><div className="panel-heading"><Icon name="link"/><h3>URL de acceso — Traefik</h3>{loading && <span className="hint" role="status">Leyendo servicios…</span>}</div>
+  return <section className="route-editor"><div className="panel-heading"><Icon name="link"/><h3>URL de acceso — Traefik</h3></div><LiveStatus message={loading ? 'Leyendo servicios para la URL.' : ''}/>
     <p>Configura aquí el acceso de la aplicación. NearProd preparará la ruta y conectará el servicio al proxy al <strong>Iniciar</strong>, sin editar los Compose originales. Activa el proxy una vez desde <strong>Accesos locales</strong>.</p>
     <p className="field-help">Frontend y API pueden tener URLs distintas aunque estén en el mismo Compose. Bases de datos y workers sin HTTP no necesitan URL. El proxy usa HTTP local; no instala certificados ni modifica DNS.</p>
     {!options && loading && <Skeleton label="Detectando servicios para la URL" rows={2}/>}

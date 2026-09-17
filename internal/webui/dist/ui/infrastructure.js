@@ -1,5 +1,5 @@
 import { api, message } from './api.js';
-import { Alert, Badge, Field, Modal, Skeleton, Icon } from './components.js';
+import { Alert, Badge, Field, Modal, Skeleton, Icon, LiveStatus } from './components.js';
 const { useState, useEffect } = React;
 function Review({ value, onConfirm, onClose, busy }) {
     const def = value.definition;
@@ -101,10 +101,11 @@ export function InfrastructureView({ catalog, status, notify }) {
                 React.createElement("h1", null, "Infraestructura compartida"),
                 React.createElement("p", null, "Un motor, varias bases independientes. Enciende solo lo necesario.")),
             React.createElement("div", { className: "button-row" },
-                React.createElement("button", { onClick: () => void load(), disabled: loading },
+                React.createElement("button", { onClick: () => void load(), disabled: loading, "aria-busy": loading },
                     React.createElement(Icon, { name: "refresh" }),
                     "Actualizar"),
                 React.createElement("button", { className: "primary", disabled: !canMutate, onClick: () => setCreate(true) }, "Crear instancia"))),
+        React.createElement(LiveStatus, { message: data && loading ? 'Actualizando infraestructura. Se conserva la última información.' : '' }),
         React.createElement(Alert, null,
             "PostgreSQL/MySQL separan bases y usuarios por proyecto. Redis se crea dedicado a una aplicaci\u00F3n. ",
             React.createElement("strong", null, "Traefik es un componente central"),
@@ -112,8 +113,6 @@ export function InfrastructureView({ catalog, status, notify }) {
         !status.connected && React.createElement(Alert, { error: true }, "Docker no est\u00E1 conectado. Puedes ver el cat\u00E1logo; inicia/comprueba Colima desde Runtime antes de crear o ejecutar infraestructura."),
         error && React.createElement(Alert, { error: true }, error),
         !data && loading && React.createElement(Skeleton, { label: "Consultando infraestructura", rows: 6 }),
-        " ",
-        data && loading && React.createElement("p", { className: "hint", role: "status" }, "Actualizando\u2026 se conserva la \u00FAltima informaci\u00F3n."),
         data && !data.instances.length && React.createElement("section", { className: "empty" },
             React.createElement(Icon, { name: "cube", size: 32 }),
             React.createElement("h2", null, "Tus servicios reutilizables"),
