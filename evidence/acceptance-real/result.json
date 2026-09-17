@@ -1,0 +1,16 @@
+{
+  "checks": [],
+  "context": "colima",
+  "error": {
+    "code": "TOOL_MISSING",
+    "message": "Docker no está instalado. Cero pruebas reales ejecutadas."
+  },
+  "evidence": "Docker real; no simulación. No prueba launchd, Homebrew ni navegador macOS.",
+  "finishedAt": "2026-09-16T05:21:10.026Z",
+  "folder": false,
+  "infraOnly": false,
+  "runtime": "Go",
+  "startedAt": "2026-09-16T05:21:10.026Z",
+  "state": "blocked",
+  "version": "0.7.0"
+}

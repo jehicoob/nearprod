@@ -1,0 +1,25 @@
+PASS: UI compilada abre contra agente Go sin Engine
+PASS: Acceso inválido rechazado
+PASS: Código de un uso y catálogo offline
+PASS: Agente Go y configuración permanente config/catalog.json visibles
+PASS: Ruta permanente para nuevas instancias de datos visible
+PASS: Backup privado desde UI
+PASS: Descubrimiento recursivo con Docker detenido
+PASS: Registro múltiple en un grupo sin ejecución
+PASS: Selectores Compose/env sin revelar secretos
+PASS: Dominio API corto .localhost
+PASS: Frontend y API conservan servicios y URLs distintas
+PASS: Catálogo escrito atómicamente por UI
+PASS: CLI nativa comparte catálogo del panel, sin Node
+PASS: Preflight y activación gestionada del proxy (Docker simulado)
+PASS: API Laravel: revisión, aprobación e inicio
+PASS: Frontend React: revisión, aprobación e inicio
+PASS: Logs SSE reales del agente, redacción y liberación
+PASS: Creación de instancia persistente (motor simulado)
+PASS: Base y credencial propias del proyecto
+PASS: Credenciales ocultas, revelado explícito y conexiones separadas
+PASS: Vinculación de consumidor aprobada sin editar repositorio
+PASS: Revisión e inicio después de vincular infraestructura
+PASS: Recuperación/detención con YAML inválido
+PASS: Diseño responsive sin desbordamiento horizontal
+{"state": "passed", "checks": 24}

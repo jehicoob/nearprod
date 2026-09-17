@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    expose:
+      - "4000"
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - elixir
+        - -e
+        - '{:ok, s} = :gen_tcp.connect(~c"127.0.0.1", 4000, [:binary, active: false], 2000); :ok = :gen_tcp.send(s, "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"); {:ok, data} = :gen_tcp.recv(s, 0, 2000); if not String.contains?(data, "200 OK"), do: System.halt(1)'
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s

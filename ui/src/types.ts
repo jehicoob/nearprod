@@ -1,106 +1,36 @@
-export type ProjectStatusValue = 'running' | 'partial' | 'stopped' | 'not_created' | 'unknown' | 'manual' | 'external'
-export type Runner = 'docker-compose' | 'dockerfile' | 'manual' | 'external'
-export type ActionName = 'start' | 'stop' | 'down' | 'restart'
+export interface Mode { files: string[]; envFiles: string[]; profiles: string[] }
+export interface Group { id: string; name: string }
+export interface LocalLink { label: string; url: string }
+export interface WebRoute { host: string; service: string; port: number; verify?: {service: string; port: number} }
+export interface ProxyInfo { enabled: boolean; port: number; image: string; state: string; health: string; project: string; network: string; checkedAt: string | null }
+export interface RouteObserved { host: string; url: string; service: string; port: number; state: string; mode: string | null }
+export interface ProxyPreview { port: number; image: string; project: string; network: string; impacted: string[]; blockers: string[]; running: boolean; fingerprint: string; note: string }
+export interface RouteCheck { host: string; url: string; state: string; checkedAt: string; dns: {state: string; addresses: string[]}; response: {status?: number; error?: string; marker?: string}; note: string; hostsEntry: string }
+export interface Stack { routes?: WebRoute[]; links?: LocalLink[]; id: string; uid: string; product: string; slug: string; name: string; path: string; projectName: string; modes: { dev: Mode; verify?: Mode }; activeMode: 'dev' | 'verify' | null; trust: Record<string, {fingerprint: string; allowUnsafe: boolean}>; binding?: {engineId: string; endpoint: string} }
+export interface Operation { id: string; action: string; targets: string[]; state: string; startedAt: string; endedAt?: string; lines: {time: string; text: string; stream: string}[]; error?: {code: string; message: string}; results?: {id: string; state: string; error?: {code: string; message: string}}[] }
+export interface Runtime { kind: 'colima' | 'native'; context: string; profile: string }
+export interface Catalog { proxy?: { enabled: boolean; port: number; image: string }; version: string; roots: string[]; runtime: Runtime; groups: Group[]; stacks: Stack[]; operations: Operation[] }
+export interface Container { id: string; name: string; service: string; state: string; running: boolean; health: string; exitCode: number | null; oom: boolean; image: string; imageId: string; platform: string | null; owned: boolean; ports: {host: string; port: number; url: string | null; container: string}[] }
+export interface Observed { routes?: RouteObserved[]; id: string; execution: string; health: string; containers: Container[]; watch: {state: string; lines: string[]; error?: {message: string}} }
+export interface Status { proxy?: ProxyInfo; connected: boolean; checkedAt: string | null; info?: {version: string; memoryBytes: number; cpus: number; architecture: string}; error?: {code: string; message: string}; stacks: Observed[] }
+export interface Candidate { path: string; relative: string; product: string; slug: string; projectName: string; bases: string[]; files: string[]; suggested: string[]; ambiguous: boolean }
+export interface Preview { routes?: {host: string; service: string; port: number}[]; stack: string; mode: string; fingerprint: string; approved: boolean; files: string[]; envFiles: string[]; profiles: string[]; command: string[]; risks: string[]; warnings: string[]; blockers: string[]; modeChange: boolean; note: string; services: {name: string; image: string | null; platform: string | null; build: boolean; hasHealthcheck: boolean; watch: boolean; mounts: {type: string; source?: string; target: string}[]}[] }
+export interface Doctor { nearprod: string; runtimeLanguage: string; goVersion: string; binary: string; platform: string; tools: {name: string; available: boolean; version: string | null; hint: string; required: boolean; purpose: string; status: string; standaloneVersion?: string}[]; colima: {state: 'running' | 'stopped' | 'unknown' | 'missing' | 'not-applicable'; profile: string | null; message: string}; allocation: {memoryGiB: number; cpus: number; vmType: string; architecture: string; mountType: string} | null; engine: {version: string; architecture: string; id: string; endpoint: string} | null; error?: {message: string}; hostMemoryBytes: number; agentRssBytes: number }
+export interface ResourcePreview { fingerprint: string; memory: number; cpus: number; running: boolean; affected: {id: string; name: string; project: string}[]; warning: string }
+export interface LogLine { time: string; text: string; service: string; stream: string; container: string }
+export interface Metrics { host: {totalBytes: number; freeBytes: number; note: string}; agent: {rssBytes: number}; guest: {totalBytes: number; availableBytes: number; swapTotalBytes: number; swapFreeBytes: number} | null; allocation: {memoryGiB: number; cpus: number} | null; containers: {id: string; name: string; cpu: string; memory: string; memoryPercent: string}[]; note: string }
 
-export interface ContainerInfo {
-  readonly id: string
-  readonly name: string
-  readonly image: string
-  readonly state: string
-  readonly status: string
-  readonly health?: string
-  readonly ports?: string
+export interface ProjectOptions {
+  path: string;
+  composeFiles: {name: string; path: string; base: boolean}[];
+  envFiles: {name: string; path: string; template: boolean; automatic: boolean}[];
+  profiles: {name: string; services: string[]}[];
+  httpHints?: {service: string; ports: number[]; suggestedPort: number | null; note: string}[];
+  services: string[]; defaultServices: string[]; serviceEnvFiles: string[];
+  suggestedFiles: string[]; projectName: string; projectNameSource: string;
+  existingProjects: string[]; warnings: string[]; note: string;
 }
-
-export interface ProjectStatus {
-  readonly id: string
-  readonly label: string
-  readonly role: string
-  readonly runner: Runner | string
-  readonly type: string
-  readonly path: string
-  readonly resolvedPath: string
-  readonly project_name: string
-  readonly urls: Readonly<Record<string, string>>
-  readonly status: ProjectStatusValue
-  readonly exists: boolean
-  readonly running: number
-  readonly total: number
-  readonly containers: readonly ContainerInfo[]
-  readonly error?: string
-}
-
-export interface ProductGroup {
-  readonly id: string
-  readonly label: string
-  readonly description?: string
-  readonly status: ProjectStatusValue
-  readonly quick_links: Readonly<Record<string, string>>
-  readonly components: readonly ProjectStatus[]
-  readonly running: number
-  readonly total: number
-}
-
-export interface DockerSummary {
-  readonly context: string
-  readonly clientVersion?: string
-  readonly serverVersion?: string
-  readonly dockerOk: boolean
-  readonly error?: string | null
-}
-
-export interface DashboardResponse {
-  readonly generatedAt: string
-  readonly root: string
-  readonly projectsFile: string
-  readonly docker: DockerSummary
-  readonly projects: readonly ProjectStatus[]
-  readonly groups: readonly ProductGroup[]
-}
-
-export interface JobInfo {
-  readonly id: string
-  readonly targetId: string
-  readonly targetType: 'project' | 'group'
-  readonly action: ActionName
-  readonly command: string
-  readonly status: 'running' | 'succeeded' | 'failed'
-  readonly exitCode: number | null
-  readonly output: string
-  readonly startedAt: string
-  readonly finishedAt: string | null
-}
-
-export interface DetectResult {
-  readonly inputPath: string
-  readonly resolvedPath: string
-  readonly exists: boolean
-  readonly isDirectory: boolean
-  readonly runnerSuggestion: Runner | string
-  readonly typeSuggestion: string
-  readonly roleSuggestion: string
-  readonly files: Readonly<Record<string, readonly string[]>>
-  readonly warnings: readonly string[]
-}
-
-export interface NewComponentPayload {
-  readonly id: string
-  readonly label: string
-  readonly role: string
-  readonly runner: Runner | string
-  readonly source_type: string
-  readonly path: string
-  readonly project_name: string
-  readonly type: string
-  readonly urls: Readonly<Record<string, string>>
-  readonly git_url?: string
-  readonly trusted?: boolean
-}
-
-export interface NewProductPayload {
-  readonly slug: string
-  readonly label: string
-  readonly description: string
-  readonly quick_links: Readonly<Record<string, string>>
-  readonly components: readonly NewComponentPayload[]
+export interface StackDraft {
+  product: string; groupName?: string; slug: string; name: string; path: string;
+  projectName: string; modes: {dev: Mode; verify?: Mode}; links: LocalLink[]; routes?: WebRoute[];
 }
