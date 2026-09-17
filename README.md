@@ -4,30 +4,29 @@ Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por 
 
 **Estado de entrega: candidata a aceptación, no certificada en macOS/Colima.** Las pruebas ejecutadas y los bloqueos están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
 
-> **Compilador de esta entrega:** los binarios adjuntos se construyeron con Go 1.23.2, el único disponible en el entorno. Esa rama ya no está soportada. No se pudo descargar un compilador vigente por falta de conectividad del entorno de construcción. Antes de promover el binario a uso habitual, recompílalo con una versión actualmente soportada de Go y repite la aceptación. La UI ya está compilada: este paso no necesita Node. Ver [COMPILAR](docs/COMPILAR.md). No se realizó escaneo de vulnerabilidades online, firma de identidad Apple ni notarización.
+> **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
 ## Actualizar desde 0.6.1 sin registrar otra vez tus proyectos
 
 No borres `~/.nearprod`, tus volúmenes ni carpetas de bases. Usa el mismo `NEARPROD_HOME` que antes; cambiarlo abre deliberadamente otro catálogo.
 
-En el Mac M1, desde el ZIP descomprimido. Por la limitación del compilador de esta revisión, recompila primero con un Go actualmente soportado:
+En el Mac M1, desde el archive descomprimido, confirma primero el binario que vas a instalar:
 
 ```bash
-go version
-sh scripts/build.sh
+./nearprod --version
 ```
 
-La UI ya está compilada; no hace falta Node para este paso. Después:
+La UI ya está incluida; no hace falta Go ni Node para este paso. Después:
 
 ```bash
 # 1. Cerrar el agente anterior, NO Colima ni tus contenedores.
 nearprod agent stop
 
 # 2. Examinar la migración. Esto no escribe ni ejecuta Docker.
-./bin/nearprod-darwin-arm64 config migrate --dry-run
+./nearprod config migrate --dry-run
 
 # 3. Instalar el ejecutable estable. No toca el catálogo.
-./bin/nearprod-darwin-arm64 install --configure-shell
+./nearprod install --configure-shell
 ```
 
 Abre otra terminal. Si el comando sigue apuntando a una instalación vieja, usa directamente `~/.local/bin/nearprod` en las siguientes instrucciones.
@@ -38,7 +37,7 @@ nearprod config migrate --yes       # backup + migración; exige agente anterior
 nearprod ui
 ```
 
-Si `nearprod` no era reconocido antes de instalar, ejecuta `./bin/nearprod-darwin-arm64 agent stop`. `AGENT_OFFLINE` significa que ya está cerrado. **No ignores `AGENT_RUNNING`, errores de permisos o migración conflictiva.**
+Si `nearprod` no era reconocido antes de instalar, ejecuta `./nearprod agent stop`. `AGENT_OFFLINE` significa que ya está cerrado. **No ignores `AGENT_RUNNING`, errores de permisos o migración conflictiva.**
 
 La primera apertura también puede realizar la migración. La secuencia explícita anterior permite ver primero el cambio. Las aplicaciones, grupos, nombres Compose, dominios, IDs de volúmenes, credenciales y vínculos se conservan. Hace falta una **nueva revisión/aprobación de la configuración** antes de iniciar con el nuevo controlador; eso no es volver a registrar.
 
@@ -120,3 +119,7 @@ Pruebas opt-in: crean imágenes/contenedores/redes/volúmenes y bases TEMPORALES
 [Inicio rápido](docs/INICIO-RAPIDO.md) · [Migración y almacenamiento](docs/MIGRACION.md) · [Infraestructura](docs/INFRAESTRUCTURA.md) · [CLI](docs/CLI.md) · [Arquitectura/spec](docs/SPEC-0.7.0.md) · [Auditoría](docs/AUDITORIA-0.7.0.md) · [Pruebas](docs/PRUEBAS.md) · [Compilar](docs/COMPILAR.md)
 
 No incluye TLS/DNS administrado, despliegue remoto, adopción automática de proxies externos, actualización mayor in situ de bases, borrado de datos, migración automática de DBs de proyectos ni soporte universal Compose `include`/`extends`. No garantiza ahorro de RAM de los contenedores: Go sustituye el controlador, no la VM Linux.
+
+## Distribución desde GitHub y Homebrew
+
+La preparación de releases, versionado, CI y tap personal se documenta en [docs/DISTRIBUCION.md](docs/DISTRIBUCION.md). Para descargar y ejecutar sin compilar, consulta [docs/INSTALAR-BINARIO.md](docs/INSTALAR-BINARIO.md). NearProd se distribuye bajo licencia MIT. La publicación está deshabilitada por defecto; confirma la visibilidad antes de habilitarla.

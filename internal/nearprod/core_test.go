@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net"
 	"os"
@@ -196,15 +197,28 @@ func TestOperationsConcurrencyCancellationAndBounds(t *testing.T) {
 	close(block)
 	assertPass(t, waitOp(t, f.S, second))
 	last, e := o.Submit("bounded", []string{"a"}, false, false, func(_ context.Context, line func(string, string)) (any, error) {
-		for n := 0; n < 300; n++ {
-			line(strings.Repeat("x", 4000), "stdout")
+		// Exceed both limits without making the race-instrumented test a load test.
+		// Distinct suffixes also verify that eviction preserves the latest lines.
+		payload := strings.Repeat("x", 2100)
+		for n := 0; n < 170; n++ {
+			line(payload+fmt.Sprintf(":%03d", n), "stdout")
 		}
 		return nil, nil
 	})
 	must(t, e)
 	v = waitOp(t, f.S, last)
-	if len(arr(v["lines"])) != 160 || len(str(at(arr(v["lines"])[0], "text"))) > 2000 {
-		t.Fatal("unbounded")
+	lines := arr(v["lines"])
+	if len(lines) != 160 {
+		t.Fatalf("expected 160 retained lines, got %d", len(lines))
+	}
+	for _, entry := range lines {
+		if len(str(at(entry, "text"))) != 2000 {
+			t.Fatal("line truncation did not preserve the 2000-byte limit")
+		}
+	}
+	if !strings.HasSuffix(str(at(lines[0], "text")), ":010") ||
+		!strings.HasSuffix(str(at(lines[len(lines)-1], "text")), ":169") {
+		t.Fatal("line eviction must retain the most recent 160 lines in order")
 	}
 	o.Stop()
 	_, e = o.Submit("after-close", nil, false, false, job)

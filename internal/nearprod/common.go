@@ -22,7 +22,6 @@ import (
 	"time"
 )
 
-const Version = "0.7.0"
 const SchemaVersion = 4
 const TraefikImage = "traefik:v3.7.13"
 

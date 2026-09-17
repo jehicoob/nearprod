@@ -95,9 +95,9 @@ func (s *Startup) Enable(ctx context.Context) (J, error) {
 	if e := privateDir(s.CatalogHome); e != nil {
 		return nil, e
 	}
-	bin := filepath.Join(s.Home, ".local", "bin", "nearprod")
-	if !nativeOwnBinary(bin) {
-		return nil, fail("INSTALL_REQUIRED", "Instala primero el binario: ./nearprod install --configure-shell. No fijaremos rutas temporales de Descargas.", 409)
+	bin, err := s.startupBinary()
+	if err != nil {
+		return nil, err
 	}
 	env := J{}
 	for _, k := range []string{"COLIMA_HOME", "DOCKER_CONFIG", "XDG_CONFIG_HOME", "XDG_DATA_HOME"} {

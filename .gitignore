@@ -8,4 +8,13 @@ nearprod-acceptance-*/
 __pycache__/
 .env
 .env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+id_rsa
+id_ed25519
 .DS_Store
+
+# Generated distribution output (not the embedded UI).
+/dist/
