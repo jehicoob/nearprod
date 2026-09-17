@@ -1,0 +1,62 @@
+name: Actualizar tap personal de NearProd
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      tap:
+        required: true
+        type: string
+    secrets:
+      tap_token:
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: nearprod-homebrew
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Validar repositorio, release vigente y token configurado
+        env:
+          TAG: ${{ inputs.tag }}
+          TAP: ${{ inputs.tap }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$TAP" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/homebrew-[A-Za-z0-9._-]+$ ]]
+          latest=$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name')
+          [[ "$latest" == "$TAG" ]] || { echo 'No se rebaja el tap a una release anterior.' >&2; exit 1; }
+          gh release download "$TAG" --pattern nearprod.rb --pattern SHA256SUMS.txt --dir downloaded
+          (cd downloaded && grep '  nearprod.rb$' SHA256SUMS.txt | sha256sum -c -)
+          ruby -c downloaded/nearprod.rb
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.tap }}
+          token: ${{ secrets.tap_token }}
+          path: tap
+          # Solo se ejecuta git sobre el tap de confianza, nunca su código.
+          persist-credentials: true
+      - name: Actualizar exclusivamente Formula/nearprod.rb
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Formula
+          cp downloaded/nearprod.rb tap/Formula/nearprod.rb
+          cd tap
+          if git ls-files --error-unmatch Formula/nearprod.rb >/dev/null 2>&1 && git diff --quiet -- Formula/nearprod.rb; then
+            echo 'La fórmula ya estaba actualizada.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- Formula/nearprod.rb
+          git commit -m "Actualizar NearProd a $TAG"
+          git push origin HEAD

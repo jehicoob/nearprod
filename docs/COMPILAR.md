@@ -1,5 +1,7 @@
 # Construcción reproducible y frontera de seguridad
 
+> Para el nuevo pipeline de distribución utiliza [DISTRIBUCION.md](DISTRIBUCION.md), `VERSION`, `.go-version` y `.node-version`. La sección siguiente describe los binarios históricos del ZIP original, no un nuevo release verificado.
+
 ## Binarios adjuntos
 
 Se compiló con **Go 1.23.2 linux/amd64** porque era el único toolchain disponible. La descarga del Go vigente falló por resolución/conectividad del entorno. Go 1.23 ya está fuera de soporte; un binario incluye su biblioteca estándar. No se realizó `govulncheck` online. No confundir `go vet` y tests de carreras con un escaneo de vulnerabilidades.

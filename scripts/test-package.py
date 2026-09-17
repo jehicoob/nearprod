@@ -8,7 +8,7 @@ arch={'x86_64':'amd64','aarch64':'arm64','arm64':'arm64'}[platform.machine()];sy
 B=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else R/'bin'/f'nearprod-{system}-{arch}'
 checks=[];report={'platform':platform.platform(),'binarySha256':hashlib.sha256(B.read_bytes()).hexdigest(),'checks':checks,'state':'running','docker':'not used'}
 def ok(s):checks.append(s);print('PASS',s,flush=True)
-with tempfile.TemporaryDirectory(prefix='np-native-install-') as temp:
+with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp:
  h=Path(temp);home=h/'.nearprod';home.mkdir();(h/'.zshrc').write_text('# configuración del usuario\nexport TEST_VALUE=kept\n')
  d=json.loads((R/'tests/fixtures/catalog-0.6.1.json').read_text());legacy=json.dumps(d,ensure_ascii=False,indent=2).encode();(home/'catalog.json').write_bytes(legacy);(home/'catalog.json').chmod(0o600)
  # synthetic legacy vault; never real application credentials
@@ -20,7 +20,8 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-') as temp:
   return p
  installed=h/'.local/bin/nearprod'
  try:
-  assert run('--version').stdout.strip()=='0.7.0';ok('Binario nativo sin Node en PATH')
+  expected_version=sys.argv[2] if len(sys.argv)>2 else (R/'VERSION').read_text().strip()
+  assert run('--version').stdout.strip()==expected_version;ok('Binario nativo sin Node en PATH')
   data=json.loads(run('install','--configure-shell','--json').stdout);assert installed.is_file();ok('Instalación nativa atómica real')
   assert (home/'catalog.json').read_bytes()==legacy;ok('Instalar no modifica ni migra el catálogo')
   assert (h/'.zshrc').read_text().count('# NearProd: comando estable')==1;assert len(list(h.glob('.zshrc.nearprod-*.bak')))==1;ok('Shell conservado con backup privado')

@@ -33,6 +33,25 @@ func safeOwnedDir(p string) error {
 	if !st.IsDir() || !ownedByUser(st) {
 		return fail("DIRECTORY_OWNER", "La carpeta no pertenece a tu usuario.", 409)
 	}
+	current, e := filepath.EvalSymlinks(p)
+	if e != nil {
+		return e
+	}
+	for ; ; current = filepath.Dir(current) {
+		st, e := os.Lstat(current)
+		if e != nil {
+			return e
+		}
+		if !st.IsDir() {
+			return fail("DIRECTORY_OWNER", "La ruta de instalación contiene un elemento que no es una carpeta.", 409)
+		}
+		if st.Mode().Perm()&0022 != 0 && st.Mode()&os.ModeSticky == 0 {
+			return fail("DIRECTORY_PERMISSIONS", "La ruta de instalación contiene una carpeta escribible por otros usuarios.", 409)
+		}
+		if parent := filepath.Dir(current); parent == current {
+			break
+		}
+	}
 	return nil
 }
 func noSymlinkAncestors(p string) error {
@@ -79,6 +98,9 @@ func InstallBinary(home, source string, configureShell bool) (J, error) {
 	source, err := filepath.EvalSymlinks(source)
 	if err != nil {
 		return nil, err
+	}
+	if _, managed := homebrewPrefix(source); managed {
+		return nil, fail("PACKAGE_MANAGED", "NearProd está gestionado por Homebrew. Usa brew upgrade nearprod; no ejecutes nearprod install para crear otra copia.", 409)
 	}
 	if !nativeOwnBinary(source) {
 		return nil, fail("BINARY_INVALID", "No es el ejecutable nativo NearProd de esta distribución.", 400)

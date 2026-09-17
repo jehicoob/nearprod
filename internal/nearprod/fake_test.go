@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"cosmoralabs/nearprod/internal/webui"
+	"nearprod/internal/webui"
 )
 
 type fakeCall struct {

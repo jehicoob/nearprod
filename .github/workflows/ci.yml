@@ -1,0 +1,28 @@
+name: NearProd CI
+on:
+  pull_request:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-build
+      - name: Dependencias bloqueadas del frontend
+        run: npm ci --ignore-scripts
+      - name: TypeScript, UI, Go vet, tests, race y empaquetador
+        run: make check
+      - name: Smoke HTTP/CLI e instalación aislada
+        run: make smoke test-package

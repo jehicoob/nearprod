@@ -3,10 +3,10 @@ package nearprod
 // Opt-in acceptance against a REAL Engine. No runner injection or mock fallback.
 import (
 	"context"
-	"cosmoralabs/nearprod/internal/acceptanceassets"
 	"fmt"
 	"io"
 	"io/fs"
+	"nearprod/internal/acceptanceassets"
 	"net"
 	"net/http"
 	"os"

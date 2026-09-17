@@ -1,0 +1,22 @@
+name: NearProd build toolchain
+description: Toolchains versionados, sin instalar nada para el usuario final
+runs:
+  using: composite
+  steps:
+    - name: Leer la versión exacta de Go
+      id: versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        version=$(tr -d '\r\n' < .go-version)
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        echo "go=$version" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: ${{ steps.versions.outputs.go }}
+        # Este módulo no tiene dependencias Go externas ni go.sum.
+        cache: false
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .node-version
+        package-manager-cache: false

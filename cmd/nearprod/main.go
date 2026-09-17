@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"cosmoralabs/nearprod/internal/nearprod"
-	"cosmoralabs/nearprod/internal/webui"
 	"io/fs"
+	"nearprod/internal/nearprod"
+	"nearprod/internal/webui"
 	"os"
 	"os/signal"
 	"syscall"

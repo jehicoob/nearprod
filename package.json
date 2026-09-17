@@ -1,6 +1,5 @@
 {
   "name": "nearprod-frontend-development",
-  "version": "0.7.0",
   "private": true,
   "description": "Herramientas del frontend TypeScript; NO necesarias para ejecutar NearProd Go",
   "scripts": {
