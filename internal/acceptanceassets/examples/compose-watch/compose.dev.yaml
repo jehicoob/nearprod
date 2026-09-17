@@ -1,0 +1,8 @@
+# Requires Compose supporting sync+restart and watch --no-up --prune=false.
+services:
+  worker:
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app

@@ -1,0 +1,77 @@
+"""Real React/TypeScript UI + Go HTTP agent. Docker is a TEST DOUBLE.
+Default: native browser HTTP. --bridge: explicit memory transport workaround,
+NOT native networking/cookie/CSP validation; never changes browser policy.
+"""
+from pathlib import Path
+import json, os, shutil, subprocess, sys, traceback
+from playwright.sync_api import sync_playwright, expect
+ROOT=Path(__file__).resolve().parents[1];E=ROOT/'evidence';E.mkdir(exist_ok=True)
+(ROOT/'.build').mkdir(exist_ok=True)
+subprocess.run(['go','test','-c','-o',str(ROOT/'.build/nearprod-test'),'./internal/nearprod'],cwd=ROOT,check=True)
+subprocess.run(['go','build','-o',str(ROOT/'.build/nearprod-e2e'),'./cmd/nearprod'],cwd=ROOT,check=True)
+agent=subprocess.Popen([str(ROOT/'.build/nearprod-test'),'-test.run=^TestBrowserAgent$','-test.timeout=8m'],cwd=ROOT,env={**os.environ,'NEARPROD_BROWSER_TEST':'1'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+line=agent.stdout.readline()
+if not line:raise RuntimeError(agent.stderr.read())
+info=json.loads(line);checks=[];errors=[];bridged='--bridge' in sys.argv
+mode='bridge' if bridged else 'native';page=None;bridge=None
+report={'mode':mode,'runtime':'Go real + Docker/Traefik SIMULATED','checks':checks,'errors':errors,'state':'running'}
+def passed(name): checks.append(name);print('PASS:',name,flush=True)
+def control(action):agent.stdin.write(json.dumps({'action':action})+'\n');agent.stdin.flush()
+try:
+ with sync_playwright() as pw:
+    browser=pw.chromium.launch(headless=True,executable_path=shutil.which('chromium') or shutil.which('chromium-browser'),args=['--no-sandbox'] if os.geteuid()==0 else [])
+    context=browser.new_context(viewport={'width':1440,'height':1000},reduced_motion='reduce');page=context.new_page();page.set_default_timeout(8000);page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
+    if bridged:
+        from browser_bridge import LocalBridge
+        bridge=LocalBridge(info['url']);page.set_content('<html lang="es"><head><title>NearProd · Prueba Go (runtime simulado)</title></head><body><div id="root"></div></body></html>');bridge.attach(page)
+        dist=ROOT/'internal/webui/dist';page.add_style_tag(content=(dist/'styles.css').read_text())
+        for v in ['react','react-dom']:page.add_script_tag(content=(dist/f'vendor/{v}.js').read_text())
+        page.add_script_tag(content=subprocess.check_output(['node','scripts/browser-bundle.mjs'],cwd=ROOT,text=True))
+    else:page.goto(info['url'])
+    expect(page.get_by_role('heading',name='Conecta tu consola local')).to_be_visible();passed('UI compilada abre contra agente Go sin Engine')
+    page.get_by_label('Código de acceso').fill('invalid');page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('alert')).to_contain_text('Código inválido');passed('Acceso inválido rechazado')
+    page.get_by_label('Código de acceso').fill(info['code']);page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('heading',name='Tu entorno, en un solo lugar',exact=False)).to_be_visible();passed('Código de un uso y catálogo offline')
+    nav=page.get_by_role('navigation',name='Navegación principal');nav.get_by_role('button',name='Herramientas',exact=True).click();expect(page.get_by_text('Agente nativo:',exact=False)).to_contain_text('Go');expect(page.get_by_text(str(Path(info['home'])/'config/catalog.json'),exact=True)).to_be_visible();passed('Agente Go y configuración permanente config/catalog.json visibles')
+    expect(page.get_by_text(str(Path(info['home'])/'databases'),exact=True)).to_be_visible();passed('Ruta permanente para nuevas instancias de datos visible')
+    page.get_by_role('button',name='Guardar backup de configuración').click();expect(page.get_by_role('status').filter(has_text='config')).to_be_visible();passed('Backup privado desde UI')
+    page.screenshot(path=str(E/'go-configuracion-persistente.png'),full_page=True)
+    nav.get_by_role('button',name='Aplicaciones',exact=False).click();page.get_by_role('button',name='Descubrir aplicaciones',exact=True).click();d=page.get_by_role('dialog',name='Descubrir aplicaciones');d.get_by_label('Carpeta raíz',exact=True).fill(info['root']);d.get_by_role('button',name='Buscar aplicaciones').click();expect(d.get_by_label('Seleccionar Tienda/backend',exact=True)).to_be_visible();passed('Descubrimiento recursivo con Docker detenido')
+    d.get_by_label('Seleccionar Tienda/backend',exact=True).check();d.get_by_label('Seleccionar Tienda/frontend',exact=True).check();d.get_by_role('button',name='Configurar selección').click();ed=page.get_by_role('dialog',name='Registrar selección en un grupo');ed.get_by_label('Nombre del nuevo grupo',exact=True).fill('Máximo Puntaje');ed.get_by_role('button',name='Revisar aplicaciones').click();passed('Registro múltiple en un grupo sin ejecución')
+    ed.get_by_label('Nombre de la aplicación',exact=True).fill('API Laravel');expect(ed.locator('.file-option').filter(has_text='compose.dev.yaml')).to_be_visible();ed.locator('.file-option').filter(has_text='Elegir archivos de entorno').get_by_role('radio').check();ed.locator('.file-option').filter(has_text='.env.local').get_by_role('checkbox').check();expect(ed.locator('.file-option').filter(has_text='.env.example')).to_contain_text('Plantilla');assert 'private123' not in ed.inner_text();passed('Selectores Compose/env sin revelar secretos')
+    ed.get_by_role('button',name='Crear URL sugerida').click();expect(ed.get_by_label('Dominio local 1',exact=True)).to_have_value('api-maximo-puntaje.localhost');passed('Dominio API corto .localhost')
+    ed.get_by_role('button',name='Continuar',exact=True).click();ed.get_by_label('Nombre de la aplicación',exact=True).fill('Frontend React');ed.get_by_role('button',name='Crear URL sugerida').click();expect(ed.get_by_label('Dominio local 1',exact=True)).to_have_value('maximo-puntaje.localhost');ed.get_by_role('button',name='Continuar',exact=True).click();passed('Frontend y API conservan servicios y URLs distintas')
+    ed.get_by_role('button',name='Registrar grupo sin ejecutar').click();expect(page.locator('.stack')).to_have_count(2);passed('Catálogo escrito atómicamente por UI')
+    result=subprocess.run([str(ROOT/'.build/nearprod-e2e'),'--home',info['home'],'list','--json'],capture_output=True,text=True,check=True);assert len(json.loads(result.stdout)['stacks'])==2;passed('CLI nativa comparte catálogo del panel, sin Node')
+    control('connect');page.get_by_role('button',name='Actualizar estado',exact=True).click();nav.get_by_role('button',name='Accesos locales',exact=True).click();page.get_by_label('Puerto de acceso local',exact=True).fill(str(info['proxyPort']));page.get_by_role('button',name='Revisar activación de Traefik').click();page.get_by_role('dialog',name='Activar o actualizar Traefik').get_by_role('button',name='Confirmar y activar Traefik').click();expect(page.get_by_role('heading',name='Traefik activo',exact=True)).to_be_visible();passed('Preflight y activación gestionada del proxy (Docker simulado)')
+    nav.get_by_role('button',name='Aplicaciones',exact=False).click()
+    for name in ['API Laravel','Frontend React']:
+        card=page.locator('.stack').filter(has=page.get_by_role('heading',name=name,exact=False));card.get_by_role('button',name='Revisar y aprobar').click();review=page.get_by_role('dialog');expect(review.get_by_role('button',name='Aprobar esta configuración')).to_be_visible()
+        boxes=review.get_by_role('checkbox')
+        for n in range(boxes.count()): boxes.nth(n).check()
+        review.get_by_role('button',name='Aprobar esta configuración').click();card.get_by_role('button',name='Iniciar',exact=True).click();expect(card.locator('.badge-running').first).to_be_visible();passed(name+': revisión, aprobación e inicio')
+    api=page.locator('.stack').filter(has=page.get_by_role('heading',name='API Laravel',exact=False));api.get_by_role('button',name='Logs',exact=True).click();logs=page.get_by_role('region',name='Logs en tiempo real');expect(logs.locator('.logs-output')).to_contain_text('fixture log');assert 'private123' not in logs.inner_text();logs.get_by_role('button',name='Pausar',exact=True).click();logs.get_by_role('button',name='Cerrar logs').click();passed('Logs SSE reales del agente, redacción y liberación')
+    page.screenshot(path=str(E/'go-aplicaciones-urls.png'),full_page=True)
+    nav.get_by_role('button',name='Infraestructura',exact=True).click();page.get_by_role('button',name='Crear instancia',exact=True).click();cr=page.get_by_role('dialog',name='Crear instancia de datos');cr.get_by_label('Nombre visible',exact=True).fill('PostgreSQL compartido');cr.get_by_role('button',name='Revisar creación').click();rv=page.get_by_role('dialog',name='Revisar cambio de infraestructura');rv.get_by_role('button',name='Confirmar y aplicar').click();expect(page.get_by_role('heading',name='PostgreSQL compartido',exact=True)).to_be_visible();passed('Creación de instancia persistente (motor simulado)')
+    instance=page.locator('.infra-instance').filter(has=page.get_by_role('heading',name='PostgreSQL compartido'));instance.get_by_role('button',name='Crear base + usuario').click();db=page.get_by_role('dialog',name='Crear base y usuario');db.get_by_label('Nombre de la base / aplicación').fill('maximo_dev');db.get_by_role('button',name='Crear y comprobar').click();row=instance.get_by_role('row').filter(has_text='maximo_dev');expect(row).to_contain_text('Lista');passed('Base y credencial propias del proyecto')
+    row.get_by_role('button',name='Credenciales').click();cred=page.get_by_role('dialog',name='Datos de conexión');expect(cred.get_by_label('Contraseña',exact=True)).to_have_attribute('type','password');cred.get_by_role('button',name='Revelar credencial').click();expect(cred.get_by_label('Contraseña',exact=True)).to_have_attribute('type','text');cred.get_by_role('button',name='Ocultar secreto').click();cred.get_by_role('button',name='Cerrar diálogo',exact=True).click();passed('Credenciales ocultas, revelado explícito y conexiones separadas')
+    row.get_by_role('button',name='Vincular proyecto').click();bind=page.get_by_role('dialog',name='Vincular con un proyecto');cat=json.loads(subprocess.check_output([str(ROOT/'.build/nearprod-e2e'),'--home',info['home'],'list','--json'],text=True));target=next(s['id'] for s in cat['stacks'] if s['name']=='API Laravel');bind.get_by_label('Aplicación registrada',exact=True).select_option(target);bind.get_by_label('api',exact=True).check();bind.get_by_role('button',name='Revisar vinculación').click();page.get_by_role('dialog',name='Revisar cambio de infraestructura').get_by_role('button',name='Confirmar y aplicar').click();expect(page.get_by_text(target,exact=True).last).to_be_visible();passed('Vinculación de consumidor aprobada sin editar repositorio')
+    page.screenshot(path=str(E/'go-infraestructura.png'),full_page=True)
+    nav.get_by_role('button',name='Aplicaciones',exact=False).click();api=page.locator('.stack').filter(has=page.get_by_role('heading',name='API Laravel',exact=False));api.get_by_role('button',name='Revisar y aprobar').click();review=page.get_by_role('dialog');expect(review.get_by_role('button',name='Aprobar esta configuración')).to_be_visible();boxes=review.get_by_role('checkbox');
+    for n in range(boxes.count()): boxes.nth(n).check()
+    review.get_by_role('button',name='Aprobar esta configuración').click();api.get_by_role('button',name='Iniciar',exact=True).click();expect(api.locator('.badge-running').first).to_be_visible();passed('Revisión e inicio después de vincular infraestructura')
+    control('break-compose');api.get_by_role('button',name='Detener',exact=True).click();expect(api.locator('.badge-stopped').first).to_be_visible();passed('Recuperación/detención con YAML inválido')
+    page.set_viewport_size({'width':430,'height':900});assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1');page.screenshot(path=str(E/'go-responsive.png'),full_page=True);passed('Diseño responsive sin desbordamiento horizontal')
+    if errors:raise AssertionError(errors)
+    report['state']='passed';browser.close()
+except Exception as exc:
+ report['state']='blocked' if 'ERR_BLOCKED_BY_ADMINISTRATOR' in str(exc) else 'failed';report['failure']=str(exc);traceback.print_exc()
+ if page:
+    try:page.screenshot(path=str(E/f'e2e-{mode}-failure.png'),full_page=True);(E/f'e2e-{mode}-text.txt').write_text(page.locator('body').inner_text())
+    except Exception:pass
+finally:
+ if bridge:
+    for k in list(bridge.streams):bridge.close(k)
+ try:control('shutdown');agent.wait(timeout=8)
+ except Exception:agent.kill()
+ (E/f'browser-{mode}.json').write_text(json.dumps(report,indent=2,ensure_ascii=False));print(json.dumps({'state':report['state'],'checks':len(checks)}),flush=True)
+if report['state']!='passed':sys.exit(77 if report['state']=='blocked' else 1)

@@ -1,0 +1,8 @@
+services:
+  web:
+    volumes:
+      - ./src:/var/www/html:ro
+      - ./php-dev.ini:/usr/local/etc/php/conf.d/zz-dev.ini:ro
+  worker:
+    volumes:
+      - ./worker:/opt/worker:ro

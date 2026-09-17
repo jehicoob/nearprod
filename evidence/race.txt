@@ -1,0 +1,4 @@
+?   	cosmoralabs/nearprod/cmd/nearprod	[no test files]
+?   	cosmoralabs/nearprod/internal/acceptanceassets	[no test files]
+?   	cosmoralabs/nearprod/internal/webui	[no test files]
+ok  	cosmoralabs/nearprod/internal/nearprod	19.879s

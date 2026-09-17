@@ -1,0 +1,5 @@
+--- FAIL: TestExplicitRebuildAndChangedApproval (0.02s)
+    service_test.go:47: build missing
+FAIL
+FAIL	cosmoralabs/nearprod/internal/nearprod	1.090s
+FAIL

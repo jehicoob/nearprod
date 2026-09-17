@@ -1,0 +1,24 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "binarySha256": "3a51ad96e70156f0c2696eefe44e9a9450c9b857f768d9ee5b8f5c11bc616fcc",
+  "checks": [
+    "Binario nativo sin Node en PATH",
+    "Instalación nativa atómica real",
+    "Instalar no modifica ni migra el catálogo",
+    "Shell conservado con backup privado",
+    "Vista previa no escribe ni ejecuta Docker",
+    "Migración preserva proyectos URLs credenciales referencias y grupos",
+    "Writer antiguo bloqueado sin reubicar vault ni volumen",
+    "Backup original byte por byte y journal finalizado",
+    "Agente nativo real y bootstrap local",
+    "Assets React/TypeScript servidos por HTTP del binario",
+    "CLI y HTTP conservan catálogo migrado sin Docker",
+    "Backup de configuración incluye vault sin copiar datos físicos",
+    "Parada nativa sin tocar Docker",
+    "Reinstalación conserva catálogo y configuración shell única",
+    "Reinicio/reinstalación sin registrar nuevamente",
+    "Instalador rechaza reemplazar un comando ajeno"
+  ],
+  "state": "passed",
+  "docker": "not used"
+}

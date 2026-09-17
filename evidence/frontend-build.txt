@@ -1,0 +1,5 @@
+
+> nearprod-frontend-development@0.7.0 build:ui
+> tsc -p ui/tsconfig.json && node scripts/copy-ui.mjs
+
+UI estática lista para go:embed; se conservan vendor React y licencias.

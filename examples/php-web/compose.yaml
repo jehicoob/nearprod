@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:${NEARPROD_DEMO_PORT:-18082}:80"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1/') === false ? 1 : 0);"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  worker:
+    build: .
+    command: ["php", "/opt/worker/run.php"]
+    init: true
+    mem_limit: 64m
