@@ -1,0 +1,7 @@
+# cosmoralabs/nearprod/internal/nearprod [cosmoralabs/nearprod/internal/nearprod.test]
+internal/nearprod/service_test.go:21:82: undefined: mustJSON
+internal/nearprod/service_test.go:22:96: undefined: mustJSON
+internal/nearprod/service_test.go:70:30: undefined: mustJSON
+internal/nearprod/service_test.go:71:117: undefined: mustJSON
+FAIL	cosmoralabs/nearprod/internal/nearprod [build failed]
+FAIL

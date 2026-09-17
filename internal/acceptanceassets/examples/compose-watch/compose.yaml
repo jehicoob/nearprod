@@ -1,0 +1,5 @@
+services:
+  worker:
+    build: .
+    init: true
+    mem_limit: 64m

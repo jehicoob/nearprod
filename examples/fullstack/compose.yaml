@@ -1,0 +1,24 @@
+x-health: &health
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+services:
+  frontend:
+    build: .
+    environment:
+      ROLE: frontend
+      API_URL: ${API_URL:-http://api-demo.localhost}
+    expose: ["3000"]
+    healthcheck: *health
+    depends_on:
+      api:
+        condition: service_healthy
+  api:
+    build: .
+    environment:
+      ROLE: api
+      FRONTEND_URL: ${FRONTEND_URL:-http://demo.localhost}
+    expose: ["3000"]
+    healthcheck: *health

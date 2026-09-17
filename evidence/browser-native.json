@@ -1,0 +1,8 @@
+{
+  "mode": "native",
+  "runtime": "Go real + Docker/Traefik SIMULATED",
+  "checks": [],
+  "errors": [],
+  "state": "blocked",
+  "failure": "Page.goto: net::ERR_BLOCKED_BY_ADMINISTRATOR at http://127.0.0.1:42809/\nCall log:\n  - navigating to \"http://127.0.0.1:42809/\", waiting until \"load\"\n"
+}

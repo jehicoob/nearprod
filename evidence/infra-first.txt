@@ -1,0 +1,12 @@
+--- FAIL: TestPersistentVolumeMissingBlocksReinitialization (0.00s)
+    infra_test.go:123: want DATA_VOLUME_MISSING, got <nil>
+--- FAIL: TestFolderPersistenceAndSecretPermissions (0.02s)
+    --- FAIL: TestFolderPersistenceAndSecretPermissions/postgres:17 (0.01s)
+        infra_test.go:186: missing folder reinitialized
+    --- FAIL: TestFolderPersistenceAndSecretPermissions/postgres:18 (0.01s)
+        infra_test.go:186: missing folder reinitialized
+    --- FAIL: TestFolderPersistenceAndSecretPermissions/mysql:8.4 (0.01s)
+        infra_test.go:186: missing folder reinitialized
+FAIL
+FAIL	cosmoralabs/nearprod/internal/nearprod	1.270s
+FAIL

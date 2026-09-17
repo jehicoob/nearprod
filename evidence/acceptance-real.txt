@@ -1,0 +1,7 @@
+{
+  "checks": 0,
+  "report": "/mnt/data/NearProd-0.7.0/evidence/acceptance-real/result.json",
+  "state": "blocked",
+  "version": "0.7.0"
+}
+TOOL_MISSING: Docker no está instalado. Cero pruebas reales ejecutadas.

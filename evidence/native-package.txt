@@ -1,0 +1,16 @@
+PASS Binario nativo sin Node en PATH
+PASS Instalación nativa atómica real
+PASS Instalar no modifica ni migra el catálogo
+PASS Shell conservado con backup privado
+PASS Vista previa no escribe ni ejecuta Docker
+PASS Migración preserva proyectos URLs credenciales referencias y grupos
+PASS Writer antiguo bloqueado sin reubicar vault ni volumen
+PASS Backup original byte por byte y journal finalizado
+PASS Agente nativo real y bootstrap local
+PASS Assets React/TypeScript servidos por HTTP del binario
+PASS CLI y HTTP conservan catálogo migrado sin Docker
+PASS Backup de configuración incluye vault sin copiar datos físicos
+PASS Parada nativa sin tocar Docker
+PASS Reinstalación conserva catálogo y configuración shell única
+PASS Reinicio/reinstalación sin registrar nuevamente
+PASS Instalador rechaza reemplazar un comando ajeno

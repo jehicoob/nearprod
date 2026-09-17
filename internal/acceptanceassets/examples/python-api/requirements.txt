@@ -1,0 +1,4 @@
+# Deliberate reproducible example pins, not a claim of latest/security-certified versions.
+uvicorn==0.35.0
+click==8.1.8
+h11==0.16.0

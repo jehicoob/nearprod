@@ -1,0 +1,24 @@
+{
+  "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+  "binarySha256": "e2381d07de5d2341f731a0b3825a8f9654b69420f80b3f63e19826daf6fe1ca3",
+  "checks": [
+    "Binario nativo sin Node en PATH",
+    "Instalación nativa atómica real",
+    "Instalar no modifica ni migra el catálogo",
+    "Shell conservado con backup privado",
+    "Vista previa no escribe ni ejecuta Docker",
+    "Migración preserva proyectos URLs credenciales referencias y grupos",
+    "Writer antiguo bloqueado sin reubicar vault ni volumen",
+    "Backup original byte por byte y journal finalizado",
+    "Agente nativo real y bootstrap local",
+    "Assets React/TypeScript servidos por HTTP del binario",
+    "CLI y HTTP conservan catálogo migrado sin Docker",
+    "Backup de configuración incluye vault sin copiar datos físicos",
+    "Parada nativa sin tocar Docker",
+    "Reinstalación conserva catálogo y configuración shell única",
+    "Reinicio/reinstalación sin registrar nuevamente",
+    "Instalador rechaza reemplazar un comando ajeno"
+  ],
+  "state": "passed",
+  "docker": "not used"
+}

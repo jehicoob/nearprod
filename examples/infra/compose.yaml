@@ -1,0 +1,30 @@
+# No HTTP, domains or Traefik required. Credentials are local disposable examples.
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: nearprod_demo
+      POSTGRES_USER: nearprod_demo
+      POSTGRES_PASSWORD: local_demo_only_not_for_production
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nearprod_demo -d nearprod_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    mem_limit: 96m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  postgres_data: {}
+  redis_data: {}

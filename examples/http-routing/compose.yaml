@@ -1,0 +1,11 @@
+# Two demonstration HTTP services in one Compose, no host port publications.
+# Not a real frontend/API framework. Use to learn URL -> service -> internal port.
+services:
+  frontend:
+    image: traefik/whoami:v1.11.0
+    command: ["--name=nearprod-demo-frontend", "--port=8080"]
+    expose: ["8080"]
+  api:
+    image: traefik/whoami:v1.11.0
+    command: ["--name=nearprod-demo-api", "--port=8080"]
+    expose: ["8080"]

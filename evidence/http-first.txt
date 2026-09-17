@@ -1,0 +1,5 @@
+--- FAIL: TestHTTPNativeAssetsAndStorage (0.00s)
+    http_test.go:119: asset /ui/infra.js 404
+FAIL
+FAIL	cosmoralabs/nearprod/internal/nearprod	1.275s
+FAIL

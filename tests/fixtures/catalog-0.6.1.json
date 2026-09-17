@@ -1,0 +1,119 @@
+{
+  "version": 3,
+  "owner": "fixture-v061-owner_12345",
+  "roots": [
+    "/Users/example/Projects"
+  ],
+  "runtime": {
+    "kind": "colima",
+    "context": "colima",
+    "profile": "default"
+  },
+  "groups": [
+    {
+      "id": "maximo-puntaje",
+      "name": "Máximo Puntaje"
+    }
+  ],
+  "stacks": [
+    {
+      "id": "maximo-puntaje/api",
+      "product": "maximo-puntaje",
+      "slug": "api",
+      "uid": "fixture-stack-v061",
+      "name": "API",
+      "path": "/Users/example/Projects/api",
+      "projectName": "maximo-puntaje-api",
+      "modes": {
+        "dev": {
+          "files": [
+            "/Users/example/Projects/api/compose.yaml"
+          ],
+          "envFiles": [],
+          "profiles": []
+        }
+      },
+      "routes": [
+        {
+          "host": "api-maximo-puntaje.localhost",
+          "service": "caddy",
+          "port": 80
+        }
+      ],
+      "links": [],
+      "trust": {
+        "dev": {
+          "fingerprint": "retain-but-not-valid-in-0.7",
+          "allowUnsafe": false
+        }
+      },
+      "binding": {
+        "endpoint": "unix:///Users/example/.colima/default/docker.sock",
+        "engineId": "legacy-engine",
+        "adoptedIds": []
+      }
+    }
+  ],
+  "operations": [],
+  "toolPaths": {},
+  "infra": {
+    "instances": [
+      {
+        "id": "mysql-main",
+        "name": "MySQL principal",
+        "engine": "mysql",
+        "requestedImage": "mysql:8.4",
+        "hostPort": 13306,
+        "memoryMiB": 768,
+        "maxConnections": 32,
+        "persistence": {
+          "kind": "volume"
+        },
+        "uid": "1060a242615a809f",
+        "projectName": "np-infra-fc999281-1060a242615a809f",
+        "network": "np-data-fc999281-1060a242615a809f",
+        "hostname": "np-mysql-1060a242615a809f",
+        "volume": "np-data-fc999281-1060a242615a809f",
+        "createdAt": "2026-09-16T05:01:53.077Z",
+        "binding": {
+          "endpoint": "unix:///Users/example/.colima/default/docker.sock",
+          "engineId": "legacy-engine"
+        },
+        "resolvedImage": null,
+        "initialized": false
+      }
+    ],
+    "databases": [
+      {
+        "id": "mysql-main-alpha",
+        "instanceUid": "1060a242615a809f",
+        "name": "alpha_dev",
+        "username": "alpha_user",
+        "state": "ready"
+      }
+    ],
+    "bindings": [
+      {
+        "id": "binding-0123456789abcdefabcd",
+        "databaseId": "mysql-main-alpha",
+        "stackUid": "fixture-stack-v061",
+        "mode": "dev",
+        "services": [
+          "php"
+        ],
+        "mapping": {
+          "url": "DATABASE_URL"
+        }
+      }
+    ]
+  },
+  "proxy": {
+    "enabled": true,
+    "port": 80,
+    "image": "traefik:v3.7.13",
+    "binding": {
+      "endpoint": "unix:///Users/example/.colima/default/docker.sock",
+      "engineId": "legacy-engine"
+    }
+  }
+}

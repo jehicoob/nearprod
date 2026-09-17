@@ -1,0 +1,32 @@
+{
+  "mode": "bridge",
+  "runtime": "Go real + Docker/Traefik SIMULATED",
+  "checks": [
+    "UI compilada abre contra agente Go sin Engine",
+    "Acceso inválido rechazado",
+    "Código de un uso y catálogo offline",
+    "Agente Go y configuración permanente config/catalog.json visibles",
+    "Ruta permanente para nuevas instancias de datos visible",
+    "Backup privado desde UI",
+    "Descubrimiento recursivo con Docker detenido",
+    "Registro múltiple en un grupo sin ejecución",
+    "Selectores Compose/env sin revelar secretos",
+    "Dominio API corto .localhost",
+    "Frontend y API conservan servicios y URLs distintas",
+    "Catálogo escrito atómicamente por UI",
+    "CLI nativa comparte catálogo del panel, sin Node",
+    "Preflight y activación gestionada del proxy (Docker simulado)",
+    "API Laravel: revisión, aprobación e inicio",
+    "Frontend React: revisión, aprobación e inicio",
+    "Logs SSE reales del agente, redacción y liberación",
+    "Creación de instancia persistente (motor simulado)",
+    "Base y credencial propias del proyecto",
+    "Credenciales ocultas, revelado explícito y conexiones separadas",
+    "Vinculación de consumidor aprobada sin editar repositorio",
+    "Revisión e inicio después de vincular infraestructura",
+    "Recuperación/detención con YAML inválido",
+    "Diseño responsive sin desbordamiento horizontal"
+  ],
+  "errors": [],
+  "state": "passed"
+}

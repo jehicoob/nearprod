@@ -1,0 +1,113 @@
+name: NearProd Release
+on:
+  push:
+    tags: ['v*']
+  # Ejecución manual: construye y valida; NUNCA publica.
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nearprod-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+  package:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-build
+      - run: npm ci --ignore-scripts
+      - name: Build fresco, cuatro plataformas, fórmula y SHA256
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == push ]]; then
+            python3 scripts/release.py --tag "$TAG" --output dist/release
+          else
+            python3 scripts/release.py --output dist/release
+          fi
+      - name: Verificar archives y ejecutar el binario realmente empaquetado
+        run: |
+          set -euo pipefail
+          (cd dist/release && sha256sum -c SHA256SUMS.txt)
+          version=$(cat VERSION)
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          tar -xzf "dist/release/nearprod_${version}_linux_amd64.tar.gz" -C "$work"
+          python3 scripts/smoke-binary.py "$work/nearprod" --expected "$version"
+          ruby -c dist/release/nearprod.rb
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nearprod-release-${{ github.sha }}
+          path: dist/release/*
+          retention-days: 7
+          if-no-files-found: error
+      - name: Explicar el bloqueo de publicación
+        if: github.event_name != 'push' || vars.NEARPROD_PUBLISH_RELEASES != 'true'
+        run: echo 'Solo validación. Para publicar hay que confirmar la visibilidad, activar NEARPROD_PUBLISH_RELEASES=true y publicar un tag válido.' >> "$GITHUB_STEP_SUMMARY"
+  publish:
+    needs: package
+    if: github.event_name == 'push' && vars.NEARPROD_PUBLISH_RELEASES == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      # No checkout ni ejecución del proyecto en el job con permisos de publicación.
+      - name: Descargar artefactos del MISMO run y verificar SHA256
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --name "nearprod-release-$GITHUB_SHA" --dir dist/release
+          (cd dist/release && sha256sum -c SHA256SUMS.txt)
+      - name: Validar metadatos contra el tag y el commit
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          m = json.loads(Path('dist/release/build-info.json').read_text())
+          assert re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', m['version'])
+          assert 'v' + m['version'] == os.environ['TAG']
+          assert m['commit'] == os.environ['GITHUB_SHA']
+          assert m['snapshot'] is False and m['prebuiltUI'] is False
+          assert set(m['targets']) == {'darwin/arm64', 'darwin/amd64', 'linux/arm64', 'linux/amd64'}
+          PY
+      - name: Crear draft completo y después publicarlo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'La release ya existe. No se sobrescriben versiones publicadas ni drafts previos.' >&2
+            exit 1
+          fi
+          gh release create "$TAG" dist/release/*.tar.gz \
+            dist/release/SHA256SUMS.txt dist/release/build-info.json dist/release/nearprod.rb \
+            dist/release/RELEASE_NOTES.md \
+            --verify-tag --draft --title "NearProd $TAG" \
+            --notes-file dist/release/RELEASE_NOTES.md
+          gh release edit "$TAG" --draft=false
+  homebrew:
+    needs: publish
+    if: vars.NEARPROD_HOMEBREW_TAP != ''
+    uses: ./.github/workflows/homebrew.yml
+    with:
+      tag: ${{ github.ref_name }}
+      tap: ${{ vars.NEARPROD_HOMEBREW_TAP }}
+    secrets:
+      tap_token: ${{ secrets.NEARPROD_HOMEBREW_TOKEN }}

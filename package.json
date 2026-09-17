@@ -1,0 +1,16 @@
+{
+  "name": "nearprod-frontend-development",
+  "private": true,
+  "description": "Herramientas del frontend TypeScript; NO necesarias para ejecutar NearProd Go",
+  "scripts": {
+    "typecheck": "tsc -p ui/tsconfig.json --noEmit",
+    "build:ui": "tsc -p ui/tsconfig.json && node scripts/copy-ui.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@types/prop-types": "15.7.15",
+    "csstype": "3.2.3"
+  }
+}

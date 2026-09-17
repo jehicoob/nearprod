@@ -1,0 +1,1 @@
+ok  	cosmoralabs/nearprod/internal/nearprod	0.873s
