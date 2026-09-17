@@ -65,6 +65,9 @@ export function Alert({ children, error = false }) { return React.createElement(
 export function Busy() { return React.createElement("div", { className: "busy" },
     React.createElement("span", { className: "spinner" }),
     " Consultando\u2026"); }
+export function LiveStatus({ message }) {
+    return React.createElement("span", { className: "sr-only", role: "status", "aria-live": "polite", "aria-atomic": "true" }, message);
+}
 export function OperationsView({ operations, cancel }) {
     if (!operations.length)
         return React.createElement("div", { className: "empty small" },

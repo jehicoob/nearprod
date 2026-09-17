@@ -1,6 +1,6 @@
 {
   "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
-  "binarySha256": "e2381d07de5d2341f731a0b3825a8f9654b69420f80b3f63e19826daf6fe1ca3",
+  "binarySha256": "6e373d32a0e6523efa26c5773d50a12ec93622e4c905b1f6577967b310aed3d5",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",

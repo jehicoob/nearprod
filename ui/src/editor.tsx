@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { api, message } from './api.js';
 import { RouteEditor } from './proxy.js';
-import { Alert, Field, Icon, Modal, Skeleton } from './components.js';
+import { Alert, Field, Icon, LiveStatus, Modal, Skeleton } from './components.js';
 import type { Candidate, Group, Mode, ProjectOptions, Stack, StackDraft } from './types.js';
 const { useState, useEffect } = React;
 export const slugify = (v: string) => v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0,48) || 'proyecto';
@@ -58,7 +58,7 @@ function ModeEditor({ title, path, mode, onChange, initialOptions }: {title: str
         {!!options?.serviceEnvFiles.length && <p className="hint">El YAML ya declara <code>env_file</code>: {options.serviceEnvFiles.join(', ')}. Compose se encarga de esos archivos; no hace falta seleccionarlos otra vez aquí.</p>}
       </div>
       <div className="profiles-selector"><h4>Servicios opcionales — perfiles Compose</h4><p className="field-help">No son grupos de NearProd ni perfiles de Colima. Activan servicios que el proyecto marcó como opcionales, por ejemplo un worker o una herramienta de administración.</p>
-        {loading && <span className="hint" role="status">Actualizando perfiles según los archivos seleccionados…</span>}
+        <LiveStatus message={loading ? 'Actualizando perfiles según los archivos seleccionados.' : ''}/>
         {!profiles.length && !mode.profiles.length && !loading && <p className="hint">Este conjunto de archivos no declara perfiles. No necesitas configurar nada aquí.</p>}
         {profiles.map(p => <label className="file-option" key={p.name}><input type="checkbox" checked={mode.profiles.includes(p.name)} onChange={e => onChange({...mode,profiles:e.target.checked ? [...mode.profiles,p.name] : mode.profiles.filter(v => v !== p.name)})}/><span><code>{p.name}</code><small>Activa: {p.services.join(', ')}</small></span></label>)}
         {mode.profiles.filter(p => !profiles.some(v => v.name === p)).map(p => <label className="file-option" key={p}><input type="checkbox" checked onChange={() => onChange({...mode,profiles:mode.profiles.filter(v => v !== p)})}/><span>{p}<small>No detectado en la lectura estática; revisar con Compose.</small></span></label>)}

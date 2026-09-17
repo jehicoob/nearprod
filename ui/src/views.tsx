@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { api, humanBytes, message } from './api.js';
-import { Modal, Icon, Alert, Skeleton, Field } from './components.js';
+import { Modal, Icon, Alert, Skeleton, Field, LiveStatus } from './components.js';
 import type { Candidate, Runtime, Doctor, ResourcePreview, Metrics, Stack, Observed, LogLine, Operation, Group } from './types.js';
 const { useState, useEffect, useRef } = React;
 export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }: {roots: string[]; stacks: Stack[]; onClose: () => void; onSelect: (candidates: Candidate[]) => void; onRoots: () => void}) {
@@ -60,7 +60,8 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify }:
   const cannotChange = busy || runtimeBusy || loadingDoctor || dirtySettings;
   const colimaState = doctor?.colima?.state;
   const colimaRunning = colimaState === 'running';
-  return <div className="runtime-view"><div className="section-heading"><div><h1>Runtime y recursos</h1><p>Colima mantiene una VM compartida. NearProd permanece fuera de ella.</p></div><button onClick={() => void load()} disabled={busy || loadingDoctor || loadingMetrics}><Icon name="refresh"/>{loadingDoctor || loadingMetrics ? 'Actualizando…' : 'Actualizar diagnóstico'}</button></div>
+  return <div className="runtime-view"><div className="section-heading"><div><h1>Runtime y recursos</h1><p>Colima mantiene una VM compartida. NearProd permanece fuera de ella.</p></div><button onClick={() => void load()} disabled={busy || loadingDoctor || loadingMetrics} aria-busy={loadingDoctor || loadingMetrics}><Icon name="refresh"/>Actualizar diagnóstico</button></div>
+    <LiveStatus message={loadingDoctor || loadingMetrics ? 'Actualizando diagnóstico y consumo del runtime.' : ''}/>
     {error && <Alert error>{error}</Alert>}{dirtySettings && <Alert>Hay cambios de contexto sin guardar. Guárdalos o descártalos antes de administrar Colima; los datos mostrados siguen correspondiendo al contexto guardado.</Alert>}
     {runtimeBusy && <Alert>Hay una operación global de Colima en curso. Los controles quedan bloqueados hasta que termine; consulta Actividad.</Alert>}
     <div className="runtime-grid"><section className="panel"><div className="panel-heading"><Icon name="settings"/><h2>Dónde se ejecutan tus contenedores</h2></div>
@@ -72,7 +73,7 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify }:
       </form>
     </section><section className="panel"><div className="panel-heading"><Icon name="cube"/><h2>Máquina virtual de Colima</h2></div>
       {runtime.kind !== 'colima' ? <Alert>Docker utiliza el kernel de Linux/WSL2. Sus recursos se administran desde el sistema operativo; NearProd no ejecuta sudo.</Alert> : !doctor && loadingDoctor ? <Skeleton label="Consultando estado y asignación de Colima" rows={6}/> : <>
-        <div className="runtime-state" role="status"><span className={colimaRunning ? 'live-dot' : 'offline-dot'}/><strong>{runtimeBusy ? 'Operación en curso' : colimaRunning ? 'Colima en ejecución' : colimaState === 'stopped' ? 'Colima detenido' : colimaState === 'missing' ? 'Perfil no encontrado' : 'Estado de Colima no comprobado'}</strong>{loadingDoctor && <span className="hint">Actualizando…</span>}</div>
+        <div className="runtime-state" role="status"><span className={colimaRunning ? 'live-dot' : 'offline-dot'}/><strong>{runtimeBusy ? 'Operación en curso' : colimaRunning ? 'Colima en ejecución' : colimaState === 'stopped' ? 'Colima detenido' : colimaState === 'missing' ? 'Perfil no encontrado' : 'Estado de Colima no comprobado'}</strong></div>
         <p className="field-help">El estado de la VM y la conexión con Docker Engine son comprobaciones distintas. {colimaRunning && !connected ? 'La VM está activa, pero Docker no responde: revisa el diagnóstico, no vuelvas a iniciarla.' : ''}</p>
         {colimaState === 'stopped' && connected && <Alert>Docker responde pero el diagnóstico del perfil indica que está detenido. Actualiza el diagnóstico antes de actuar.</Alert>}
         <div className="metric-pair"><div><span>RAM asignada a toda la VM</span><strong>{doctor?.allocation ? `${doctor.allocation.memoryGiB} GiB` : 'Sin datos'}</strong></div><div><span>CPU virtuales</span><strong>{doctor?.allocation?.cpus ?? '—'}</strong></div></div>
@@ -84,7 +85,7 @@ export function RuntimeView({ runtime, connected, operations, onSaved, notify }:
         </div><p className="hint">La revisión muestra TODAS las cargas afectadas antes de aplicar un cambio; cerrar NearProd no detiene Colima.</p>
       </>}
     </section></div>
-    <section className="panel"><div className="panel-heading"><Icon name="activity"/><h2>Consumo observado</h2>{loadingMetrics && metrics && <span className="hint" role="status">Actualizando…</span>}</div>
+    <section className="panel"><div className="panel-heading"><Icon name="activity"/><h2>Consumo observado</h2></div>
       {!metrics && loadingMetrics ? <Skeleton label="Cargando consumo de recursos" rows={4}/> : metrics ? <><div className="metrics"><div><span>Memoria física del host</span><strong>{humanBytes(metrics.host.totalBytes)}</strong></div><div><span>Proceso NearProd</span><strong>{humanBytes(metrics.agent.rssBytes)}</strong></div><div><span>Disponible en Linux invitado</span><strong>{humanBytes(metrics.guest?.availableBytes)}</strong></div><div><span>Swap usado en invitado</span><strong>{metrics.guest ? humanBytes(metrics.guest.swapTotalBytes - metrics.guest.swapFreeBytes) : 'Sin datos'}</strong></div></div><p className="hint">{metrics.note} La pestaña del navegador no está incluida en el RSS del agente. No sumes VM y contenedores como consumos independientes.</p>
         {metrics.containers.length ? <div className="table-wrap"><table><thead><tr><th>Contenedor</th><th>CPU</th><th>RAM / límite</th></tr></thead><tbody>{metrics.containers.map(c => <tr key={c.id}><td>{c.name}</td><td>{c.cpu}</td><td>{c.memory}</td></tr>)}</tbody></table></div> : <p className="hint">{connected ? 'No hay métricas de contenedores activos.' : 'Docker no está conectado. Las métricas de contenedores no están disponibles.'}</p>}</> : <Alert>No fue posible cargar las métricas. Vuelve a consultar el diagnóstico.</Alert>}
     </section>
