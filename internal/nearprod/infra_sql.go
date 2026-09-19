@@ -290,7 +290,7 @@ func (i *Infrastructure) Client(ctx context.Context, db, r J, query string, redi
 		env["MYSQL_PWD"] = password
 		input = strings.NewReader(query)
 	} else {
-		cmd = append([]string{"redis-cli", "--host", str(r["hostname"]), "--user", str(db["username"])}, redisArgs...)
+		cmd = append([]string{"redis-cli", "-h", str(r["hostname"]), "--user", str(db["username"])}, redisArgs...)
 		env["REDISCLI_AUTH"] = password
 	}
 	return i.Helper(ctx, r, cmd, HelperOptions{RunOptions: RunOptions{Input: input, Env: env}})

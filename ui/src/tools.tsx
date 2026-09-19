@@ -12,9 +12,17 @@ interface Tool {
     available: boolean;
     purpose: string;
     required: boolean;
+    supported: boolean;
 }
 interface Inventory {
     platform: string;
+    packageManagement: {
+        provider: string;
+        displayName: string;
+        managed: boolean;
+        canInstall: boolean;
+        canCheckUpdates: boolean;
+    };
     managers: {
         id: string;
         scope: string;
@@ -48,34 +56,216 @@ interface Plan {
     note: string;
     [key: string]: unknown;
 }
-export function ToolsView({ notify, operations }: {
-    notify: (m: string, e?: boolean) => void;
-    operations: Operation[];
+export function ToolsView({
+  notify,
+  operations,
+}: {
+  notify: (m: string, e?: boolean) => void;
+  operations: Operation[];
 }) {
-    const [data, setData] = useState<Inventory | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false), [selected, setSelected] = useState<Tool | null>(null), [startup, setStartup] = useState<{
-        supported: boolean;
-        enabled: boolean;
-        loaded?: boolean;
-        message: string;
+  const [data, setData] = useState<Inventory | null>(null),
+    [error, setError] = useState(""),
+    [loading, setLoading] = useState(false),
+    [selected, setSelected] = useState<Tool | null>(null),
+    [startup, setStartup] = useState<{
+      supported: boolean;
+      enabled: boolean;
+      loaded?: boolean;
+      message: string;
     } | null>(null);
-    async function load() { setLoading(true); try {
-        setData(await api<Inventory>('/tools'));
-        setStartup(await api('/startup'));
-        setError('');
+  async function load() {
+    setLoading(true);
+    try {
+      setData(await api<Inventory>("/tools"));
+      setStartup(await api("/startup"));
+      setError("");
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setLoading(false);
     }
-    catch (e) {
-        setError(message(e));
-    }
-    finally {
-        setLoading(false);
-    } }
-    useEffect(() => { void load(); }, []);
-    const active = operations.some(o => o.state === 'running');
-    return <><div className="section-heading"><div><span className="eyebrow">DEPENDENCIAS Y ARRANQUE</span><h1>Herramientas del equipo</h1><p>Detectar primero. Conservar lo que ya funciona. Instalar solo con una revisión explícita.</p></div><button disabled={loading} onClick={() => void load()}><Icon name="refresh"/>Actualizar inventario</button></div>{error && <Alert error>{error}</Alert>}{!data && loading && <Skeleton label="Detectando gestores y herramientas" rows={7}/>} {data && <><Alert>{data.recommendation}</Alert><section className="panel"><h2>Tu entorno detectado</h2><p>Agente nativo: <strong>{data.binary.language}</strong> · compilador: <strong>{data.binary.version}</strong></p><code className="break-all">{data.binary.path}</code><p className="hint">NearProd no necesita Node, npm ni un gestor de versiones para ejecutarse. Los gestores detectados pertenecen a tus proyectos y se conservan sin cambios.</p><div className="table-wrap"><table><thead><tr><th>Gestor</th><th>Ámbito / evidencia</th><th>Ruta</th><th>Instalación guiada</th></tr></thead><tbody>{data.managers.map((m, i) => <tr key={`${m.id}-${i}`}><td>{m.id}</td><td>{{system:'Herramientas del sistema',node:'Node.js',runtimes:'Runtimes','node-packages':'Paquetes Node'}[m.scope]||m.scope} · {{executable:'ejecutable encontrado','shell-file':'archivo de shell','pinned-runtime-path':'ruta del Node fijado'}[m.evidence]||m.evidence}</td><td className="mono break-all">{m.path}</td><td>{m.managed ? 'Homebrew disponible' : 'Solo detección'}</td></tr>)}</tbody></table></div></section><div className="tool-cards">{data.tools.map(t => <section className="panel" key={t.id}><div className="panel-heading"><Icon name="terminal"/><h2>{t.name}</h2><span className={`badge ${t.available ? 'badge-healthy' : 'badge-unknown'}`}>{t.available ? 'Disponible' : t.status === 'plugin-not-registered' ? 'Plugin sin registrar' : 'No disponible'}</span></div><p>{t.purpose}</p><p className="mono break-all">{t.version || 'Versión sin comprobar'}<br />{t.path || 'No localizado'}</p><small>Origen: {{existing:'Instalación existente',homebrew:'Homebrew',none:'No detectado'}[t.provider]||t.provider} · {t.required ? 'Necesario para operar' : 'Necesario al construir, no para leer logs'}</small><div className="modal-actions"><button disabled={active || data.platform !== 'darwin'} onClick={() => setSelected(t)}>Versiones / instalar / reparar</button></div></section>)}</div><section className="panel"><h2>Traefik · componente central</h2><p>Traefik proporciona las URLs <code>proyecto.localhost</code>. Se aprovisiona en la VM existente desde <strong>Accesos locales</strong>. No se instala mediante Homebrew ni se mezcla con los motores de datos opcionales.</p></section></>}
-    <StoragePanel/>
-    <section className="panel"><h2>Iniciar NearProd al entrar en macOS</h2>{startup ? <p>{startup.message}</p> : <Skeleton label="Comprobando inicio automático" rows={2}/>}<pre className="console">nearprod startup enable<br />nearprod startup status<br />nearprod startup disable</pre><p>Ejecuta estos comandos como tu usuario, sin sudo. Se inicia el agente después del inicio de sesión, no antes de desbloquear el equipo. No abre el navegador ni enciende Colima, Traefik o proyectos automáticamente.</p><p className="hint">Deshabilitar impide próximos arranques y conserva el agente actual. Para cerrarlo usa nearprod agent stop. El instalador nativo no depende de Node ni de fnm.</p></section>
-    {selected && <ToolDialog tool={selected} onClose={() => setSelected(null)} onSubmitted={id => { setSelected(null); notify(`Operación ${id} iniciada. Consulta Actividad y vuelve a comprobar el inventario al terminar.`); }}/>}
-  </>;
+  }
+  useEffect(() => {
+    void load();
+  }, []);
+  const active = operations.some((o) => o.state === "running");
+  return (
+    <>
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">DEPENDENCIAS Y ARRANQUE</span>
+          <h1>Herramientas del equipo</h1>
+          <p>
+            Detectar primero. Conservar lo que ya funciona. Instalar solo con
+            una revisión explícita.
+          </p>
+        </div>
+        <button disabled={loading} onClick={() => void load()}>
+          <Icon name="refresh" />
+          Actualizar inventario
+        </button>
+      </div>
+      {error && <Alert error>{error}</Alert>}
+      {!data && loading && (
+        <Skeleton label="Detectando gestores y herramientas" rows={7} />
+      )}{" "}
+      {data && (
+        <>
+          <Alert>{data.recommendation}</Alert>
+          <section className="panel">
+            <h2>Tu entorno detectado</h2>
+            <p>
+              Agente nativo: <strong>{data.binary.language}</strong> ·
+              compilador: <strong>{data.binary.version}</strong>
+            </p>
+            <code className="break-all">{data.binary.path}</code>
+            <p className="hint">
+              NearProd no necesita Node, npm ni un gestor de versiones para
+              ejecutarse. Los gestores detectados pertenecen a tus proyectos y
+              se conservan sin cambios.
+            </p>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Gestor</th>
+                    <th>Ámbito / evidencia</th>
+                    <th>Ruta</th>
+                    <th>Administración</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.managers.map((m, i) => (
+                    <tr key={`${m.id}-${i}`}>
+                      <td>{m.id}</td>
+                      <td>
+                        {{
+                          system: "Herramientas del sistema",
+                          node: "Node.js",
+                          runtimes: "Runtimes",
+                          "node-packages": "Paquetes Node",
+                        }[m.scope] || m.scope}{" "}
+                        ·{" "}
+                        {{
+                          executable: "ejecutable encontrado",
+                          "shell-file": "archivo de shell",
+                          "pinned-runtime-path": "ruta del Node fijado",
+                        }[m.evidence] || m.evidence}
+                      </td>
+                      <td className="mono break-all">{m.path}</td>
+                      <td>
+                        {m.managed ? "Homebrew disponible" : "Solo detección"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <div className="tool-cards">
+            {data.tools.filter((t) => t.supported).map((t) => (
+              <section className="panel" key={t.id}>
+                <div className="panel-heading">
+                  <Icon name="terminal" />
+                  <h2>{t.name}</h2>
+                  <span
+                    className={`badge ${t.available ? "badge-healthy" : "badge-unknown"}`}
+                  >
+                    {t.available
+                      ? "Disponible"
+                      : t.status === "plugin-not-registered"
+                        ? "Plugin sin registrar"
+                        : "No disponible"}
+                  </span>
+                </div>
+                <p>{t.purpose}</p>
+                <p className="mono break-all">
+                  {t.version || "Versión sin comprobar"}
+                  <br />
+                  {t.path || "No localizado"}
+                </p>
+                <small>
+                  Origen:{" "}
+                  {{
+                    existing: "Instalación existente",
+                    homebrew: "Homebrew",
+                    none: "No detectado",
+                  }[t.provider] || t.provider}{" "}
+                  ·{" "}
+                  {t.required
+                    ? "Necesario para operar"
+                    : "Necesario al construir, no para leer logs"}
+                </small>
+                {data.packageManagement.canInstall && (
+                  <div className="modal-actions">
+                    <button disabled={active} onClick={() => setSelected(t)}>
+                      Versiones / instalar / reparar
+                    </button>
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+          <section className="panel">
+            <h2>Traefik · componente central</h2>
+            <p>
+              Traefik proporciona las URLs <code>proyecto.localhost</code>. Se
+              aprovisiona dentro de Docker desde{" "}
+              <strong>Accesos locales</strong>. Se administra como componente
+              central, no como paquete del host ni como motor de datos opcional.
+            </p>
+          </section>
+        </>
+      )}
+      <StoragePanel />
+      <section className="panel">
+        <h2>
+          {startup?.supported
+            ? "Iniciar NearProd al entrar en macOS"
+            : "Inicio automático"}
+        </h2>
+        {startup ? (
+          <p>{startup.message}</p>
+        ) : (
+          <Skeleton label="Comprobando inicio automático" rows={2} />
+        )}
+        {startup?.supported && (
+          <>
+            <pre className="console">
+              nearprod startup enable
+              <br />
+              nearprod startup status
+              <br />
+              nearprod startup disable
+            </pre>
+            <p>
+              Ejecuta estos comandos como tu usuario, sin sudo. Se inicia el
+              agente después del inicio de sesión, no antes de desbloquear el
+              equipo. No abre el navegador ni enciende Colima, Traefik o
+              proyectos automáticamente.
+            </p>
+            <p className="hint">
+              Deshabilitar impide próximos arranques y conserva el agente actual.
+              Para cerrarlo usa nearprod agent stop. El instalador nativo no
+              depende de Node ni de fnm.
+            </p>
+          </>
+        )}
+      </section>
+      {selected && (
+        <ToolDialog
+          tool={selected}
+          onClose={() => setSelected(null)}
+          onSubmitted={(id) => {
+            setSelected(null);
+            notify(
+              `Operación ${id} iniciada. Consulta Actividad y vuelve a comprobar el inventario al terminar.`,
+            );
+          }}
+        />
+      )}
+    </>
+  );
 }
 function ToolDialog({ tool, onClose, onSubmitted }: {
     tool: Tool;

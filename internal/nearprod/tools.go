@@ -22,6 +22,9 @@ func (t *ToolsManager) platform() string {
 	if t.Platform != "" {
 		return t.Platform
 	}
+	if t.Runtime != nil {
+		return t.Runtime.platform()
+	}
 	return runtime.GOOS
 }
 func locate(name string) J {
@@ -66,6 +69,7 @@ func formulaName(id string) string {
 var formulaRE = regexp.MustCompile(`^(docker|docker-compose|docker-buildx|colima)(@\d+(?:\.\d+)*)?$`)
 
 func (t *ToolsManager) Inventory(ctx context.Context) J {
+	capabilities := platformCapabilitiesFor(t.Store.Get(), t.platform(), runtime.GOARCH, "")
 	managers := A{}
 	for _, pair := range [][2]string{{"brew", "system"}, {"fnm", "node"}, {"volta", "node"}, {"asdf", "runtimes"}, {"mise", "runtimes"}, {"n", "node"}, {"npm", "node-packages"}, {"pnpm", "node-packages"}, {"port", "system"}, {"nix", "system"}, {"apt-get", "system"}} {
 		if f := locate(pair[0]); f != nil {
@@ -80,10 +84,10 @@ func (t *ToolsManager) Inventory(ctx context.Context) J {
 		managers = append(managers, J{"id": "nvm", "scope": "node", "path": filepath.Join(nvm, "nvm.sh"), "evidence": "shell-file", "managed": false})
 	}
 	tools := A{}
-	statuses := t.Runtime.ToolStatus(ctx)
+	statuses := t.Runtime.toolStatus(ctx, t.platform())
 	for n, d := range toolDefinitions {
 		v := obj(statuses[n])
-		selected := str(at(t.Store.Get(), "toolPaths", d.Command))
+		selected := platformToolPath(t.Store.Get(), t.platform(), d.Command)
 		f := locate(text(selected, d.Command))
 		provider := "none"
 		if f != nil {
@@ -102,7 +106,11 @@ func (t *ToolsManager) Inventory(ctx context.Context) J {
 	if f := locate("node"); f != nil {
 		node = merge(f, J{"manager": nodeManager(str(f["realPath"])), "required": false, "note": "Node solo para tus proyectos/desarrollar la UI; no ejecuta NearProd."})
 	}
-	return J{"platform": t.platform(), "managers": managers, "binary": J{"language": "Go", "version": runtime.Version(), "path": binaryPath(), "requiresNode": false}, "projectNode": node, "tools": tools, "traefik": J{"category": "core-proxy", "managedBy": "nearprod", "message": "Traefik se administra desde Accesos locales, dentro de Docker."}, "recommendation": "NearProd es un binario Go, independiente de fnm/nvm. Conserva tus gestores; la instalación guiada de herramientas usa Homebrew en macOS.", "checkedAt": now()}
+	recommendation := "NearProd es un binario Go, independiente de fnm/nvm. Conserva tus gestores; en Linux/WSL2 NearProd detecta herramientas, pero no instala ni actualiza paquetes del sistema."
+	if t.platform() == "darwin" {
+		recommendation = "NearProd es un binario Go, independiente de fnm/nvm. Conserva tus gestores; la instalación guiada de herramientas usa Homebrew en macOS."
+	}
+	return J{"platform": t.platform(), "packageManagement": capabilities["packageManagement"], "managers": managers, "binary": J{"language": "Go", "version": runtime.Version(), "path": binaryPath(), "requiresNode": false}, "projectNode": node, "tools": tools, "traefik": J{"category": "core-proxy", "managedBy": "nearprod", "message": "Traefik se administra desde Accesos locales, dentro de Docker."}, "recommendation": recommendation, "checkedAt": now()}
 }
 func (t *ToolsManager) Brew() (J, error) {
 	if t.platform() != "darwin" {
@@ -272,7 +280,7 @@ func (t *ToolsManager) Preview(ctx context.Context, req J) (J, error) {
 		config, configHash = file, h
 	}
 	warnings := A{}
-	current := locate(text(at(t.Store.Get(), "toolPaths", d.Command), d.Command))
+	current := locate(text(platformToolPath(t.Store.Get(), t.platform(), d.Command), d.Command))
 	if current != nil && !strings.Contains(str(current["realPath"]), "/Cellar/") {
 		warnings = append(warnings, "Existe una instalación ajena: no se elimina ni cambia el PATH global. Se seleccionará Homebrew para NearProd.")
 	}

@@ -44,7 +44,7 @@ export function RouteEditor({ value, onChange, initialOptions }) {
                     React.createElement("select", { required: true, value: route.service, onChange: e => { const hint = options?.httpHints?.find(v => v.service === e.target.value); update(i, { service: e.target.value, port: hint?.suggestedPort || route.port }); } },
                         React.createElement("option", { value: "" }, "Seleccionar servicio"),
                         [...new Set([...(options?.services || []), route.service].filter(Boolean))].map(s => React.createElement("option", { value: s, key: s }, s)))),
-                React.createElement(Field, { label: `Puerto HTTP interno ${i + 1}`, help: "Puerto DENTRO del contenedor: por ejemplo 8000 para Uvicorn o 80 para Nginx. No es el puerto publicado en macOS. El servidor debe escuchar en 0.0.0.0." },
+                React.createElement(Field, { label: `Puerto HTTP interno ${i + 1}`, help: "Puerto DENTRO del contenedor: por ejemplo 8000 para Uvicorn o 80 para Nginx. No es el puerto publicado en el host. El servidor debe escuchar en 0.0.0.0." },
                     React.createElement("input", { type: "number", required: true, min: 1, max: 65535, value: route.port || '', onChange: e => update(i, { port: Number(e.target.value) }) }))),
             options?.httpHints?.find(v => v.service === route.service)?.note.includes('FPM') && React.createElement(Alert, { error: true }, "PHP-FPM habla FastCGI, no HTTP. Debes seleccionar un servicio web delante de FPM."),
             value.modes.verify && React.createElement("details", { className: "advanced" },
@@ -129,49 +129,88 @@ export function RouteLinks({ stack, observed, proxyPort = 80 }) {
         }),
         error && React.createElement(Alert, { error: true }, error));
 }
-export function ProxyView({ catalog, status, notify, onSaved, onConfigure }) {
-    const [port, setPort] = useState(catalog.proxy?.port || 80), [preview, setPreview] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
-    const proxy = status.proxy, active = catalog.operations.some(o => o.state === 'running'), stacks = catalog.stacks.filter(s => s.routes?.length);
-    const titles = { 'not-created': 'Aún no creado', unknown: 'Estado sin comprobar', running: 'Traefik activo', starting: 'Iniciando o sin salud confirmada', unhealthy: 'No saludable', stopped: 'Traefik detenido', conflict: 'Conflicto de identidad' };
-    async function task(f) { setBusy(true); setError(''); try {
-        await f();
+export function ProxyView({ catalog, status, notify, onSaved, onConfigure, }) {
+    const [port, setPort] = useState(catalog.proxy?.port || 80), [preview, setPreview] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+    const proxy = status.proxy, active = catalog.operations.some((o) => o.state === "running"), stacks = catalog.stacks.filter((s) => s.routes?.length);
+    const titles = {
+        "not-created": "Aún no creado",
+        unknown: "Estado sin comprobar",
+        running: "Traefik activo",
+        starting: "Iniciando o sin salud confirmada",
+        unhealthy: "No saludable",
+        stopped: "Traefik detenido",
+        conflict: "Conflicto de identidad",
+    };
+    async function task(f) {
+        setBusy(true);
+        setError("");
+        try {
+            await f();
+        }
+        catch (e) {
+            setError(message(e));
+        }
+        finally {
+            setBusy(false);
+        }
     }
-    catch (e) {
-        setError(message(e));
-    }
-    finally {
-        setBusy(false);
-    } }
-    return React.createElement("div", { className: "runtime-view" },
+    return (React.createElement("div", { className: "runtime-view" },
         React.createElement("div", { className: "section-heading" },
             React.createElement("div", null,
                 React.createElement("h1", null, "Accesos locales"),
-                React.createElement("p", null, "Una URL por servicio web. Un solo Traefik compartido, en tu Colima existente.")),
-            React.createElement("button", { disabled: busy, onClick: () => void task(async () => { await api('/status?refresh=1'); onSaved(); }) },
+                React.createElement("p", null,
+                    "Una URL por servicio web. Un solo Traefik compartido dentro de ",
+                    " ",
+                    catalog.host.runtime.displayName,
+                    ".")),
+            React.createElement("button", { disabled: busy, onClick: () => void task(async () => {
+                    await api("/status?refresh=1");
+                    onSaved();
+                }) },
                 React.createElement(Icon, { name: "refresh" }),
                 "Actualizar estado")),
         React.createElement("section", { className: "panel" },
             React.createElement("div", { className: "panel-heading" },
                 React.createElement(Icon, { name: "link" }),
-                React.createElement("h2", null, proxy ? titles[proxy.state] || proxy.state : 'Comprobando proxy')),
-            !proxy ? React.createElement(Skeleton, { label: "Consultando Traefik", rows: 3 }) : React.createElement(React.Fragment, null,
+                React.createElement("h2", null, proxy ? titles[proxy.state] || proxy.state : "Comprobando proxy")),
+            !proxy ? (React.createElement(Skeleton, { label: "Consultando Traefik", rows: 3 })) : (React.createElement(React.Fragment, null,
                 React.createElement("p", null,
                     "NearProd administra ",
                     React.createElement("code", null, proxy.image),
-                    " sin instalar Traefik en macOS. El panel sigue en el host; el proxy no crea otra VM."),
+                    " como contenedor. El panel se ejecuta en ",
+                    catalog.host.displayName,
+                    "; el proxy no crea ni administra otra m\u00E1quina virtual."),
                 React.createElement("div", { className: "form-grid" },
                     React.createElement(Field, { label: "Puerto de acceso local", help: "80 permite URLs sin puerto. Si otro proxy lo ocupa o no tienes permisos, usa 8080: los enlaces incluir\u00E1n :8080. No se detienen servicios ajenos." },
-                        React.createElement("input", { type: "number", min: 1, max: 65535, value: port, onChange: e => setPort(Number(e.target.value)) })),
+                        React.createElement("input", { type: "number", min: 1, max: 65535, value: port, onChange: (e) => setPort(Number(e.target.value)) })),
                     React.createElement("div", { className: "proxy-explainer" },
                         React.createElement("strong", null, "Dominios recomendados"),
                         React.createElement("code", null, "proyecto.localhost"),
                         React.createElement("code", null, "api-proyecto.localhost"),
                         React.createElement("span", null, "Accesos locales cortos: proyecto.localhost y api-proyecto.localhost."))),
                 React.createElement("div", { className: "button-row" },
-                    React.createElement("button", { className: "primary", disabled: busy || active || !status.connected, onClick: () => void task(async () => setPreview(await api('/proxy/preview', { port }))) }, proxy.state === 'running' ? 'Revisar cambio / reparar proxy' : 'Revisar activación de Traefik'),
-                    React.createElement("button", { disabled: busy || active || !status.connected || !['running', 'starting', 'unhealthy'].includes(proxy.state), onClick: () => { if (window.confirm('¿Detener Traefik? Todas sus URLs dejarán de responder. Tus aplicaciones y datos se conservan.'))
-                            void task(async () => { await api('/proxy/actions', { action: 'stop', confirm: true }); notify('Detención del proxy solicitada. Las aplicaciones no se detienen.'); }); } }, "Detener proxy"))),
-            !status.connected && React.createElement(Alert, null, "Inicia el runtime desde Runtime y recursos. Registrar URLs no requiere Engine, pero activar Traefik s\u00ED."),
+                    React.createElement("button", { className: "primary", disabled: busy || active || !status.connected || !catalog.host.proxy.supported, onClick: () => void task(async () => setPreview(await api("/proxy/preview", { port }))) }, proxy.state === "running"
+                        ? "Revisar cambio / reparar proxy"
+                        : "Revisar activación de Traefik"),
+                    React.createElement("button", { disabled: busy ||
+                            active ||
+                            !status.connected ||
+                            !catalog.host.proxy.supported ||
+                            !["running", "starting", "unhealthy"].includes(proxy.state), onClick: () => {
+                            if (window.confirm("¿Detener Traefik? Todas sus URLs dejarán de responder. Tus aplicaciones y datos se conservan."))
+                                void task(async () => {
+                                    await api("/proxy/actions", {
+                                        action: "stop",
+                                        confirm: true,
+                                    });
+                                    notify("Detención del proxy solicitada. Las aplicaciones no se detienen.");
+                                });
+                        } }, "Detener proxy")))),
+            !status.connected && (React.createElement(Alert, null, "Inicia el runtime desde Runtime y recursos. Registrar URLs no requiere Engine, pero activar Traefik s\u00ED.")),
+            !catalog.host.proxy.supported && (React.createElement(Alert, { error: true },
+                "El proxy local no est\u00E1 soportado en ",
+                catalog.host.displayName,
+                ".")),
             React.createElement("p", { className: "hint" }, "HTTP local, enlace de escucha 127.0.0.1. Sin dashboard expuesto, sin socket Docker dentro del proxy, sin cambios en /etc/hosts, DNS o certificados. La red compartida solo se a\u00F1ade a los servicios HTTP elegidos; esos servicios pueden comunicarse entre s\u00ED."),
             error && React.createElement(Alert, { error: true }, error)),
         React.createElement("section", { className: "panel" },
@@ -182,18 +221,20 @@ export function ProxyView({ catalog, status, notify, onSaved, onConfigure }) {
                 "Define la URL desde ",
                 React.createElement("strong", null, "Configurar \u2192 URL de acceso"),
                 ". Despu\u00E9s revisa, aprueba e inicia esa aplicaci\u00F3n para aplicar la conexi\u00F3n. Guardar una URL no recrea contenedores silenciosamente."),
-            stacks.length ? stacks.map(s => React.createElement("div", { className: "proxy-stack", key: s.id },
+            stacks.length ? (stacks.map((s) => (React.createElement("div", { className: "proxy-stack", key: s.id },
                 React.createElement("div", { className: "panel-heading" },
                     React.createElement("h3", null, s.name),
                     React.createElement("code", null, s.id),
                     React.createElement("button", { onClick: () => onConfigure(s) }, "Configurar URLs")),
-                React.createElement(RouteLinks, { stack: s, observed: status.stacks.find(v => v.id === s.id), proxyPort: catalog.proxy?.port }))) : React.createElement(Alert, null, "A\u00FAn no hay URLs administradas. Configura una aplicaci\u00F3n web; DB/Redis/workers sin HTTP no necesitan una."),
-            catalog.stacks.filter(s => !s.routes?.length).map(s => React.createElement("div", { className: "proxy-pending", key: s.id },
+                React.createElement(RouteLinks, { stack: s, observed: status.stacks.find((v) => v.id === s.id), proxyPort: catalog.proxy?.port }))))) : (React.createElement(Alert, null, "A\u00FAn no hay URLs administradas. Configura una aplicaci\u00F3n web; DB/Redis/workers sin HTTP no necesitan una.")),
+            catalog.stacks
+                .filter((s) => !s.routes?.length)
+                .map((s) => (React.createElement("div", { className: "proxy-pending", key: s.id },
                 React.createElement("span", null,
                     s.name,
                     React.createElement("small", null, s.id)),
-                React.createElement("button", { onClick: () => onConfigure(s) }, "Configurar acceso")))),
-        preview && React.createElement(Modal, { title: "Activar o actualizar Traefik", subtitle: "Cambio global del punto de acceso local, no de la VM.", onClose: () => setPreview(null) },
+                React.createElement("button", { onClick: () => onConfigure(s) }, "Configurar acceso"))))),
+        preview && (React.createElement(Modal, { title: "Activar o actualizar Traefik", subtitle: "Cambio global del punto de acceso local, no del runtime.", onClose: () => setPreview(null) },
             React.createElement("p", null, preview.note),
             React.createElement("p", null,
                 React.createElement("strong", null, preview.image),
@@ -201,13 +242,23 @@ export function ProxyView({ catalog, status, notify, onSaved, onConfigure }) {
                 preview.port),
             React.createElement("p", null,
                 preview.impacted.length,
-                " aplicaciones con URL: ",
-                preview.impacted.join(', ') || 'ninguna todavía',
+                " aplicaciones con URL:",
+                " ",
+                preview.impacted.join(", ") || "ninguna todavía",
                 "."),
             React.createElement(Alert, null, "La primera activaci\u00F3n descarga la imagen. Activar/reparar recrea el proxy y puede interrumpir brevemente todas las URLs; cambiar el puerto tambi\u00E9n cambia los enlaces y obliga a actualizar URLs de API/CORS en tus aplicaciones; NearProd no modifica esas variables."),
-            preview.blockers.map(b => React.createElement(Alert, { error: true, key: b }, b)),
+            preview.blockers.map((b) => (React.createElement(Alert, { error: true, key: b }, b))),
             error && React.createElement(Alert, { error: true }, error),
             React.createElement("div", { className: "modal-actions" },
                 React.createElement("button", { onClick: () => setPreview(null) }, "Cancelar"),
-                React.createElement("button", { className: "primary", disabled: busy || active || Boolean(preview.blockers.length), onClick: () => void task(async () => { await api('/proxy/actions', { ...preview, action: 'start', confirm: true }); setPreview(null); notify('Traefik solicitado. Consulta Actividad y comprueba el estado antes de abrir las URLs.'); onSaved(); }) }, "Confirmar y activar Traefik"))));
+                React.createElement("button", { className: "primary", disabled: busy || active || Boolean(preview.blockers.length), onClick: () => void task(async () => {
+                        await api("/proxy/actions", {
+                            ...preview,
+                            action: "start",
+                            confirm: true,
+                        });
+                        setPreview(null);
+                        notify("Traefik solicitado. Consulta Actividad y comprueba el estado antes de abrir las URLs.");
+                        onSaved();
+                    }) }, "Confirmar y activar Traefik"))))));
 }

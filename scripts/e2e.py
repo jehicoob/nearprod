@@ -7,8 +7,9 @@ import json, os, shutil, subprocess, sys, traceback
 from playwright.sync_api import sync_playwright, expect
 ROOT=Path(__file__).resolve().parents[1];E=ROOT/'evidence';E.mkdir(exist_ok=True)
 (ROOT/'.build').mkdir(exist_ok=True)
-subprocess.run(['go','test','-c','-o',str(ROOT/'.build/nearprod-test'),'./internal/nearprod'],cwd=ROOT,check=True)
-subprocess.run(['go','build','-o',str(ROOT/'.build/nearprod-e2e'),'./cmd/nearprod'],cwd=ROOT,check=True)
+if os.environ.get('NEARPROD_E2E_SKIP_BUILD') != '1':
+ subprocess.run(['go','test','-c','-o',str(ROOT/'.build/nearprod-test'),'./internal/nearprod'],cwd=ROOT,check=True)
+ subprocess.run(['go','build','-o',str(ROOT/'.build/nearprod-e2e'),'./cmd/nearprod'],cwd=ROOT,check=True)
 agent=subprocess.Popen([str(ROOT/'.build/nearprod-test'),'-test.run=^TestBrowserAgent$','-test.timeout=8m'],cwd=ROOT,env={**os.environ,'NEARPROD_BROWSER_TEST':'1'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
 line=agent.stdout.readline()
 if not line:raise RuntimeError(agent.stderr.read())
@@ -32,6 +33,10 @@ try:
     page.get_by_label('Código de acceso').fill('invalid');page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('alert')).to_contain_text('Código inválido');passed('Acceso inválido rechazado')
     page.get_by_label('Código de acceso').fill(info['code']);page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('heading',name='Tu entorno, en un solo lugar',exact=False)).to_be_visible();passed('Código de un uso y catálogo offline')
     nav=page.get_by_role('navigation',name='Navegación principal');nav.get_by_role('button',name='Herramientas',exact=True).click();expect(page.get_by_text('Agente nativo:',exact=False)).to_contain_text('Go');expect(page.get_by_text(str(Path(info['home'])/'config/catalog.json'),exact=True)).to_be_visible();passed('Agente Go y configuración permanente config/catalog.json visibles')
+    if info['host']['os']=='linux':
+        assert page.get_by_role('heading',name='Colima',exact=True).count()==0;assert page.get_by_role('button',name='Versiones / instalar / reparar',exact=True).count()==0;assert page.get_by_text('nearprod startup enable',exact=False).count()==0;passed('Herramientas Linux ocultan Colima, Homebrew administrado y launchd')
+        nav.get_by_role('button',name='Runtime y recursos',exact=True).click();expect(page.locator('h2').filter(has_text='Docker nativo en').first).to_be_visible();assert page.get_by_role('button',name='Iniciar Colima',exact=True).count()==0;passed('Runtime Linux/WSL2 usa Docker nativo sin controles de VM')
+        nav.get_by_role('button',name='Herramientas',exact=True).click()
     expect(page.get_by_text(str(Path(info['home'])/'databases'),exact=True)).to_be_visible();passed('Ruta permanente para nuevas instancias de datos visible')
     page.get_by_role('button',name='Guardar backup de configuración').click();expect(page.get_by_role('status').filter(has_text='config')).to_be_visible();passed('Backup privado desde UI')
     page.screenshot(path=str(E/'go-configuracion-persistente.png'),full_page=True)

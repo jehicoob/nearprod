@@ -112,7 +112,7 @@ func (i *Infrastructure) List(obs J) J {
 		}
 		out = append(out, merge(merge(r, stackState(cs, []string{"database"}, truth(obs["connected"]))), J{"containers": cs, "consumers": i.Consumers(r), "databases": dbs, "location": location, "internalHost": r["hostname"], "internalPort": at(engineOptions, str(r["engine"]), "port")}))
 	}
-	return J{"defaultDataRoot": filepath.Join(i.Store.Home, "databases"), "engines": engineOptions, "instances": out, "bindings": list(infra["bindings"]), "connected": truth(obs["connected"]), "checkedAt": obs["checkedAt"], "note": "Datos persistentes por instancia. Actualizar NearProd no los mueve. Traefik pertenece a Accesos locales."}
+	return J{"defaultDataRoot": filepath.Join(i.Store.Home, "databases"), "engines": engineOptions, "folderUnsupportedImages": folderUnsupportedImages(i.Store.Get()), "folderRestrictions": folderRestrictions(i.Store.Get()), "instances": out, "bindings": list(infra["bindings"]), "connected": truth(obs["connected"]), "checkedAt": obs["checkedAt"], "note": "Datos persistentes por instancia. Actualizar NearProd no los mueve. Traefik pertenece a Accesos locales."}
 }
 func (i *Infrastructure) Ports(ctx context.Context, req J) (J, error) {
 	start := 15432
@@ -191,6 +191,9 @@ func (i *Infrastructure) Ports(ctx context.Context, req J) (J, error) {
 func (i *Infrastructure) Preview(ctx context.Context, input J) (J, error) {
 	def, e := normalizeInstance(input, i.Store.Home)
 	if e != nil {
+		return nil, e
+	}
+	if e = validateFolderPlatform(i.Store.Get(), def); e != nil {
 		return nil, e
 	}
 	for _, v := range arr(i.State()["instances"]) {
@@ -534,7 +537,7 @@ func (i *Infrastructure) Render(r J) (string, error) {
 		return "", e
 	}
 	engine := str(r["engine"])
-	major := integer(regexp.MustCompile(`\d+`).FindString(strings.Split(str(r["requestedImage"]), ":")[1]))
+	major := imageMajor(str(r["requestedImage"]))
 	target := "/data"
 	if engine == "mysql" {
 		target = "/var/lib/mysql"
@@ -622,6 +625,9 @@ func (i *Infrastructure) Render(r J) (string, error) {
 func (i *Infrastructure) Start(ctx context.Context, id string, line func(string, string)) (J, error) {
 	r, e := i.Instance(id)
 	if e != nil {
+		return nil, e
+	}
+	if e = validateFolderPlatform(i.Store.Get(), r); e != nil {
 		return nil, e
 	}
 	if _, e = i.Verify(ctx, r); e != nil {

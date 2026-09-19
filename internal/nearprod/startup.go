@@ -56,7 +56,7 @@ func launchXML(label, bin, home, catalog string, environment J) string {
 }
 func (s *Startup) Status(ctx context.Context) (J, error) {
 	if s.Platform != "darwin" {
-		return J{"supported": false, "enabled": false, "message": "Inicio automático administrado disponible para macOS. No se instala systemd/WSL automáticamente."}, nil
+		return J{"supported": false, "enabled": false, "manager": "none", "actions": A{}, "message": "NearProd no instala ni administra systemd o el inicio de WSL automáticamente."}, nil
 	}
 	st, e := regularOrMissing(s.File())
 	if e != nil {
@@ -80,7 +80,7 @@ func (s *Startup) Status(ctx context.Context) (J, error) {
 	if st != nil {
 		message = "Se inicia SOLO NearProd al entrar en macOS; no Colima ni recursos."
 	}
-	return J{"supported": true, "enabled": st != nil, "loaded": loaded, "label": s.Label(), "file": s.File(), "scope": "login", "version": Version, "message": message}, nil
+	return J{"supported": true, "enabled": st != nil, "loaded": loaded, "manager": "launchd", "actions": A{"enable", "disable", "status"}, "label": s.Label(), "file": s.File(), "scope": "login", "version": Version, "message": message}, nil
 }
 func (s *Startup) Enable(ctx context.Context) (J, error) {
 	if s.Platform != "darwin" {

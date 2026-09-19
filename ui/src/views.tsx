@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { api, humanBytes, message } from './api.js';
 import { Modal, Icon, Alert, Skeleton, Field, LiveStatus } from './components.js';
-import type { Candidate, Runtime, Doctor, ResourcePreview, Metrics, Stack, Observed, LogLine, Operation, Group } from './types.js';
+import type { Candidate, Runtime, HostCapabilities, Doctor, ResourcePreview, Metrics, Stack, Observed, LogLine, Operation, Group } from './types.js';
 const { useState, useEffect, useRef } = React;
 export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }: {roots: string[]; stacks: Stack[]; onClose: () => void; onSelect: (candidates: Candidate[]) => void; onRoots: () => void}) {
   const [root,setRoot] = useState(roots[0] || ''), [depth,setDepth] = useState('8');
@@ -39,64 +39,684 @@ export function GroupDialog({ group, onClose, onSaved }: {group?: Group; onClose
     {error && <Alert error>{error}</Alert>}<div className="modal-actions"><button type="button" onClick={onClose}>Cancelar</button><button className="primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar grupo'}</button></div>
   </form></Modal>;
 }
-export function RuntimeView({ runtime, connected, operations, onSaved, notify }: {runtime: Runtime; connected: boolean; operations: Operation[]; onSaved: () => void; notify: (value: string, error?: boolean) => void}) {
-  const [doctor,setDoctor] = useState<Doctor | null>(null), [metrics,setMetrics] = useState<Metrics | null>(null);
-  const [loadingDoctor,setLoadingDoctor] = useState(true), [loadingMetrics,setLoadingMetrics] = useState(true), [busy,setBusy] = useState(false), [error,setError] = useState('');
-  const [settings,setSettings] = useState(runtime), [memory,setMemory] = useState('2'), [cpus,setCpus] = useState('2');
-  const [preview,setPreview] = useState<ResourcePreview | null>(null), [updates,setUpdates] = useState<{status:string;message:string;items:{name:string;installed:string[];latestKnown:string;command:string}[]} | null>(null);
+export function RuntimeView({
+  runtime,
+  host,
+  connected,
+  operations,
+  onSaved,
+  notify,
+}: {
+  runtime: Runtime;
+  host: HostCapabilities;
+  connected: boolean;
+  operations: Operation[];
+  onSaved: () => void;
+  notify: (value: string, error?: boolean) => void;
+}) {
+  const [doctor, setDoctor] = useState<Doctor | null>(null),
+    [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [loadingDoctor, setLoadingDoctor] = useState(true),
+    [loadingMetrics, setLoadingMetrics] = useState(true),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const [settings, setSettings] = useState(runtime),
+    [memory, setMemory] = useState("2"),
+    [cpus, setCpus] = useState("2");
+  const [preview, setPreview] = useState<ResourcePreview | null>(null),
+    [updates, setUpdates] = useState<{
+      status: string;
+      message: string;
+      items: {
+        name: string;
+        installed: string[];
+        latestKnown: string;
+        command: string;
+      }[];
+    } | null>(null);
   const requests = useRef<AbortController | null>(null);
-  const operationKey = operations.filter(o => o.action.startsWith('runtime-')).slice(0,3).map(o => `${o.id}:${o.state}`).join('|');
-  const runtimeBusy = operations.some(o => o.state === 'running' && o.action.startsWith('runtime-'));
+  const operationKey = operations
+    .filter((o) => o.action.startsWith("runtime-"))
+    .slice(0, 3)
+    .map((o) => `${o.id}:${o.state}`)
+    .join("|");
+  const runtimeBusy = operations.some(
+    (o) => o.state === "running" && o.action.startsWith("runtime-"),
+  );
   const dirtySettings = JSON.stringify(settings) !== JSON.stringify(runtime);
   async function load() {
-    requests.current?.abort(); const ctrl = new AbortController(); requests.current = ctrl; setLoadingDoctor(true);setLoadingMetrics(true);setError('');
+    requests.current?.abort();
+    const ctrl = new AbortController();
+    requests.current = ctrl;
+    setLoadingDoctor(true);
+    setLoadingMetrics(true);
+    setError("");
     await Promise.allSettled([
-      api<Doctor>('/doctor',undefined,ctrl.signal).then(d => {if (!ctrl.signal.aborted) {setDoctor(d);if(d.allocation){setMemory(String(d.allocation.memoryGiB));setCpus(String(d.allocation.cpus));}}}).catch(e => {if (!ctrl.signal.aborted) setError(message(e));}).finally(() => {if (!ctrl.signal.aborted) setLoadingDoctor(false);}),
-      api<Metrics>('/metrics',undefined,ctrl.signal).then(m => {if (!ctrl.signal.aborted) setMetrics(m);}).catch(e => {if (!ctrl.signal.aborted) setError(message(e));}).finally(() => {if (!ctrl.signal.aborted) setLoadingMetrics(false);}),
+      api<Doctor>("/doctor", undefined, ctrl.signal)
+        .then((d) => {
+          if (!ctrl.signal.aborted) {
+            setDoctor(d);
+            if (d.allocation) {
+              setMemory(String(d.allocation.memoryGiB));
+              setCpus(String(d.allocation.cpus));
+            }
+          }
+        })
+        .catch((e) => {
+          if (!ctrl.signal.aborted) setError(message(e));
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setLoadingDoctor(false);
+        }),
+      api<Metrics>("/metrics", undefined, ctrl.signal)
+        .then((m) => {
+          if (!ctrl.signal.aborted) setMetrics(m);
+        })
+        .catch((e) => {
+          if (!ctrl.signal.aborted) setError(message(e));
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setLoadingMetrics(false);
+        }),
     ]);
   }
-  useEffect(() => {setSettings(runtime);void load(); return () => requests.current?.abort();}, [runtime.kind,runtime.context,runtime.profile,connected,operationKey]);
-  async function task(work: () => Promise<void>) {setBusy(true);setError('');try {await work();} catch(e) {setError(message(e));} finally {setBusy(false);}}
+  useEffect(() => {
+    setSettings(
+      host.runtime.supported
+        ? runtime
+        : {
+            ...runtime,
+            kind: host.runtime.supportedKinds[0] || runtime.kind,
+          },
+    );
+    void load();
+    return () => requests.current?.abort();
+  }, [runtime.kind, runtime.context, runtime.profile, connected, operationKey, host.runtime.supported]);
+  async function task(work: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    try {
+      await work();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   const cannotChange = busy || runtimeBusy || loadingDoctor || dirtySettings;
+  const managedVirtualMachine = host.runtime.managedVirtualMachine;
   const colimaState = doctor?.colima?.state;
-  const colimaRunning = colimaState === 'running';
-  return <div className="runtime-view"><div className="section-heading"><div><h1>Runtime y recursos</h1><p>Colima mantiene una VM compartida. NearProd permanece fuera de ella.</p></div><button onClick={() => void load()} disabled={busy || loadingDoctor || loadingMetrics} aria-busy={loadingDoctor || loadingMetrics}><Icon name="refresh"/>Actualizar diagnóstico</button></div>
-    <LiveStatus message={loadingDoctor || loadingMetrics ? 'Actualizando diagnóstico y consumo del runtime.' : ''}/>
-    {error && <Alert error>{error}</Alert>}{dirtySettings && <Alert>Hay cambios de contexto sin guardar. Guárdalos o descártalos antes de administrar Colima; los datos mostrados siguen correspondiendo al contexto guardado.</Alert>}
-    {runtimeBusy && <Alert>Hay una operación global de Colima en curso. Los controles quedan bloqueados hasta que termine; consulta Actividad.</Alert>}
-    <div className="runtime-grid"><section className="panel"><div className="panel-heading"><Icon name="settings"/><h2>Dónde se ejecutan tus contenedores</h2></div>
-      <form onSubmit={e => {e.preventDefault();void task(async () => {await api('/runtime/settings',settings);onSaved();notify('Contexto guardado. No se cambió el contexto global de Docker.');});}}>
-        <Field label="Tipo de runtime" help="En Mac, Colima ejecuta Docker en Linux. Docker local corresponde a Linux/WSL2; no elimina la necesidad de VM en macOS."><select disabled={runtimeBusy} value={settings.kind} onChange={e => setSettings({...settings,kind:e.target.value as Runtime['kind']})}><option value="colima">Colima (macOS)</option><option value="native">Docker local (Linux / WSL2, experimental)</option></select></Field>
-        <Field label="Contexto Docker" help="Nombre de la conexión que utilizará NearProd. Puedes verlo con docker context ls; no cambies este valor para crear una VM nueva."><input required disabled={runtimeBusy} value={settings.context} onChange={e => setSettings({...settings,context:e.target.value})}/></Field>
-        {settings.kind === 'colima' && <Field label="Perfil Colima" help="Identifica la VM existente; normalmente default. No es un perfil de servicios Compose."><input required disabled={runtimeBusy} value={settings.profile} onChange={e => setSettings({...settings,profile:e.target.value})}/></Field>}
-        <div className="inline-actions"><button disabled={busy || runtimeBusy || !dirtySettings}>Guardar contexto</button>{dirtySettings && <button type="button" onClick={() => setSettings(runtime)}>Descartar cambios</button>}</div><p className="hint">Solo conexiones locales por socket Unix. Un catálogo vinculado no se cambia a otro Engine silenciosamente.</p>
-      </form>
-    </section><section className="panel"><div className="panel-heading"><Icon name="cube"/><h2>Máquina virtual de Colima</h2></div>
-      {runtime.kind !== 'colima' ? <Alert>Docker utiliza el kernel de Linux/WSL2. Sus recursos se administran desde el sistema operativo; NearProd no ejecuta sudo.</Alert> : !doctor && loadingDoctor ? <Skeleton label="Consultando estado y asignación de Colima" rows={6}/> : <>
-        <div className="runtime-state" role="status"><span className={colimaRunning ? 'live-dot' : 'offline-dot'}/><strong>{runtimeBusy ? 'Operación en curso' : colimaRunning ? 'Colima en ejecución' : colimaState === 'stopped' ? 'Colima detenido' : colimaState === 'missing' ? 'Perfil no encontrado' : 'Estado de Colima no comprobado'}</strong></div>
-        <p className="field-help">El estado de la VM y la conexión con Docker Engine son comprobaciones distintas. {colimaRunning && !connected ? 'La VM está activa, pero Docker no responde: revisa el diagnóstico, no vuelvas a iniciarla.' : ''}</p>
-        {colimaState === 'stopped' && connected && <Alert>Docker responde pero el diagnóstico del perfil indica que está detenido. Actualiza el diagnóstico antes de actuar.</Alert>}
-        <div className="metric-pair"><div><span>RAM asignada a toda la VM</span><strong>{doctor?.allocation ? `${doctor.allocation.memoryGiB} GiB` : 'Sin datos'}</strong></div><div><span>CPU virtuales</span><strong>{doctor?.allocation?.cpus ?? '—'}</strong></div></div>
-        <p className="hint">VM: {doctor?.allocation?.vmType || 'sin comprobar'} · montaje: {doctor?.allocation?.mountType || 'sin comprobar'}</p>
-        <div className="form-grid"><Field label="RAM de la VM (GiB)" help="Límite compartido por Linux, Docker y todos los contenedores; no es una asignación por aplicación."><input disabled={cannotChange} type="number" step="0.5" min="0.5" value={memory} onChange={e => setMemory(e.target.value)}/></Field><Field label="CPU virtuales" help="Número de CPU disponibles en la VM. Cambiar recursos puede requerir reiniciarla."><input disabled={cannotChange} type="number" min="1" value={cpus} onChange={e => setCpus(e.target.value)}/></Field></div>
-        <div className="inline-actions"><button disabled={cannotChange || !doctor?.allocation || !['running','stopped'].includes(colimaState || '')} onClick={() => void task(async () => setPreview(await api<ResourcePreview>('/runtime/preview',{memory:Number(memory),cpus:Number(cpus)})))}>Revisar cambio y alcance</button>
-          {colimaState === 'stopped' && !connected && <button className="primary" disabled={cannotChange} onClick={() => {if(window.confirm('¿Iniciar el perfil Colima existente? No se creará otra VM ni se cambiará el contexto global.')) void task(async () => {await api('/runtime/actions',{action:'start',confirm:true});notify('Inicio de Colima solicitado. Consulta Actividad.');});}}><Icon name="play"/>Iniciar Colima</button>}
-          {colimaRunning && !runtimeBusy && <span className="runtime-ok"><Icon name="check" size={16}/>Ya está iniciado</span>}
-        </div><p className="hint">La revisión muestra TODAS las cargas afectadas antes de aplicar un cambio; cerrar NearProd no detiene Colima.</p>
-      </>}
-    </section></div>
-    <section className="panel"><div className="panel-heading"><Icon name="activity"/><h2>Consumo observado</h2></div>
-      {!metrics && loadingMetrics ? <Skeleton label="Cargando consumo de recursos" rows={4}/> : metrics ? <><div className="metrics"><div><span>Memoria física del host</span><strong>{humanBytes(metrics.host.totalBytes)}</strong></div><div><span>Proceso NearProd</span><strong>{humanBytes(metrics.agent.rssBytes)}</strong></div><div><span>Disponible en Linux invitado</span><strong>{humanBytes(metrics.guest?.availableBytes)}</strong></div><div><span>Swap usado en invitado</span><strong>{metrics.guest ? humanBytes(metrics.guest.swapTotalBytes - metrics.guest.swapFreeBytes) : 'Sin datos'}</strong></div></div><p className="hint">{metrics.note} La pestaña del navegador no está incluida en el RSS del agente. No sumes VM y contenedores como consumos independientes.</p>
-        {metrics.containers.length ? <div className="table-wrap"><table><thead><tr><th>Contenedor</th><th>CPU</th><th>RAM / límite</th></tr></thead><tbody>{metrics.containers.map(c => <tr key={c.id}><td>{c.name}</td><td>{c.cpu}</td><td>{c.memory}</td></tr>)}</tbody></table></div> : <p className="hint">{connected ? 'No hay métricas de contenedores activos.' : 'Docker no está conectado. Las métricas de contenedores no están disponibles.'}</p>}</> : <Alert>No fue posible cargar las métricas. Vuelve a consultar el diagnóstico.</Alert>}
-    </section>
-    <section className="panel"><div className="panel-heading"><Icon name="terminal"/><h2>Herramientas y versiones</h2></div><p className="field-help">Son herramientas distintas, no VMs adicionales. Docker puede responder aunque falte un plugin del cliente.</p>
-      {!doctor && loadingDoctor ? <Skeleton label="Comprobando herramientas de Docker" rows={4}/> : doctor && <><p className="hint">NearProd {doctor.nearprod} · Go {doctor.goVersion} · {doctor.platform}</p><div className="tool-list">{doctor.tools.map(t => <div key={t.name} className="tool"><Icon name={t.available ? 'check' : 'warning'}/><strong>{t.name}</strong><span className="tool-status">{t.available ? 'Disponible' : t.status === 'plugin-not-registered' ? 'Instalado, pero Docker no encuentra el plugin' : 'No disponible para NearProd'}</span><code>{t.version}</code><p className="field-help">{t.purpose} <strong>{t.required ? 'Requerido para su función.' : 'No bloquea estado, logs ni detención.'}</strong></p>{!t.available && <p className="hint">{t.hint}</p>}</div>)}</div>{doctor.error && <Alert error>{doctor.error.message}</Alert>}
-      {doctor.tools.some(t => !t.available && ['Compose','Buildx'].includes(t.name)) && <details className="advanced"><summary>Cómo reparar plugins instalados con Homebrew</summary><p>Primero comprueba si funcionan en tu terminal. Si allí funcionan pero NearProd no los detecta, reinicia el agente desde esa terminal para actualizar su entorno.</p><pre className="console">{'docker compose version\ndocker buildx version\n\n# Solo si faltan:\nbrew install docker-compose docker-buildx\n\n# Obtener la ruta de plugins:\necho "$(brew --prefix)/lib/docker/cli-plugins"'}</pre><p>En <code>~/.docker/config.json</code> añade esa ruta absoluta a <code>cliPluginsExtraDirs</code> sin eliminar otras claves. En Apple Silicon suele ser <code>/opt/homebrew/lib/docker/cli-plugins</code>.</p><pre className="console">{'"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]'}</pre><p>El fragmento es una propiedad JSON, no reemplaza el archivo entero. Después ejecuta <code>nearprod agent stop</code> y <code>nearprod ui</code>; no detienen tus contenedores.</p></details>}</>}
-      <button disabled={busy} onClick={() => void task(async () => setUpdates(await api('/updates',{})))}>Comprobar actualizaciones conocidas</button><p className="hint">Consulta metadatos locales de Homebrew. No instala paquetes ni actualiza dependencias de proyectos.</p>
-      {updates && <div className="update-results"><p>{updates.message}</p>{updates.items.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Herramienta</th><th>Instalada</th><th>Versión conocida</th><th>Comando manual</th></tr></thead><tbody>{updates.items.map(i => <tr key={i.name}><td>{i.name}</td><td>{i.installed.join(', ')}</td><td>{i.latestKnown}</td><td><code>{i.command}</code></td></tr>)}</tbody></table></div> : <p className="hint">No hay actualizaciones registradas en esta consulta; no confirma que los metadatos estén al día.</p>}</div>}
-    </section>
-    {preview && <Modal title="Confirmar cambio global de Colima" subtitle="La operación afecta a toda la VM, no solo a NearProd." onClose={() => setPreview(null)}><Alert error>{preview.warning}</Alert><p>Asignación solicitada: <strong>{preview.memory} GiB · {preview.cpus} CPU</strong></p><h3>Contenedores activos afectados</h3>{preview.affected.length ? <ul className="hints">{preview.affected.map(c => <li key={c.id}>{c.name} · {c.project || 'fuera de Compose'}</li>)}</ul> : <p>No se observaron contenedores activos en esta revisión.</p>}<div className="modal-actions"><button onClick={() => setPreview(null)}>Cancelar</button><button className="danger" disabled={busy || runtimeBusy} onClick={() => void task(async () => {await api('/runtime/actions',{...preview,action:'configure',confirm:true});setPreview(null);notify('Cambio global solicitado. Consulta el resultado en Actividad.');})}>Aplicar cambio global</button></div></Modal>}
-  </div>;
+  const colimaRunning = colimaState === "running";
+  return (
+    <div className="runtime-view">
+      <div className="section-heading">
+        <div>
+          <h1>Runtime y recursos</h1>
+          <p>
+            {managedVirtualMachine
+              ? "Colima mantiene una VM compartida. NearProd permanece fuera de ella."
+              : `NearProd usa Docker nativo en ${host.displayName}; no crea ni administra otra VM.`}
+          </p>
+        </div>
+        <button
+          onClick={() => void load()}
+          disabled={busy || loadingDoctor || loadingMetrics}
+          aria-busy={loadingDoctor || loadingMetrics}
+        >
+          <Icon name="refresh" />
+          Actualizar diagnóstico
+        </button>
+      </div>
+      <LiveStatus
+        message={
+          loadingDoctor || loadingMetrics
+            ? "Actualizando diagnóstico y consumo del runtime."
+            : ""
+        }
+      />
+      {error && <Alert error>{error}</Alert>}
+      {!host.runtime.supported && (
+        <Alert error>
+          El runtime guardado no está disponible en {host.displayName}. Guarda
+          una opción soportada antes de operar Docker.
+        </Alert>
+      )}
+      {dirtySettings && (
+        <Alert>
+          Hay cambios de contexto sin guardar. Guárdalos o descártalos antes de
+          administrar el runtime; los datos mostrados siguen correspondiendo al
+          contexto guardado.
+        </Alert>
+      )}
+      {runtimeBusy && (
+        <Alert>
+          Hay una operación global del runtime en curso. Los controles quedan
+          bloqueados hasta que termine; consulta Actividad.
+        </Alert>
+      )}
+      <div className="runtime-grid">
+        <section className="panel">
+          <div className="panel-heading">
+            <Icon name="settings" />
+            <h2>Dónde se ejecutan tus contenedores</h2>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void task(async () => {
+                await api("/runtime/settings", settings);
+                onSaved();
+                notify(
+                  "Contexto guardado. No se cambió el contexto global de Docker.",
+                );
+              });
+            }}
+          >
+            <Field
+              label="Tipo de runtime"
+              help={`Opciones soportadas por este binario en ${host.displayName}. No se infieren desde el navegador.`}
+            >
+              {host.runtime.supportedKinds.length === 1 ? (
+                <input readOnly value={host.runtime.displayName} />
+              ) : (
+                <select
+                  disabled={runtimeBusy}
+                  value={settings.kind}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      kind: e.target.value as Runtime["kind"],
+                    })
+                  }
+                >
+                  {host.runtime.supportedKinds.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {kind === "colima" ? "Colima (macOS)" : "Docker nativo"}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field
+              label="Contexto Docker"
+              help="Nombre de la conexión que utilizará NearProd. Puedes verlo con docker context ls; no cambies este valor para crear una VM nueva."
+            >
+              <input
+                required
+                disabled={runtimeBusy}
+                value={settings.context}
+                onChange={(e) =>
+                  setSettings({ ...settings, context: e.target.value })
+                }
+              />
+            </Field>
+            {settings.kind === "colima" && (
+              <Field
+                label="Perfil Colima"
+                help="Identifica la VM existente; normalmente default. No es un perfil de servicios Compose."
+              >
+                <input
+                  required
+                  disabled={runtimeBusy}
+                  value={settings.profile}
+                  onChange={(e) =>
+                    setSettings({ ...settings, profile: e.target.value })
+                  }
+                />
+              </Field>
+            )}
+            <div className="inline-actions">
+              <button disabled={busy || runtimeBusy || !dirtySettings}>
+                Guardar contexto
+              </button>
+              {dirtySettings && (
+                <button type="button" onClick={() => setSettings(runtime)}>
+                  Descartar cambios
+                </button>
+              )}
+            </div>
+            <p className="hint">
+              Solo conexiones locales por socket Unix. Un catálogo vinculado no
+              se cambia a otro Engine silenciosamente.
+            </p>
+          </form>
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <Icon name="cube" />
+            <h2>
+              {managedVirtualMachine
+                ? "Máquina virtual de Colima"
+                : `Docker nativo en ${host.displayName}`}
+            </h2>
+          </div>
+          {!managedVirtualMachine ? (
+            <>
+              <div className="runtime-state" role="status">
+                <span className={connected ? "live-dot" : "offline-dot"} />
+                <strong>
+                  {connected ? "Docker Engine conectado" : "Docker Engine no disponible"}
+                </strong>
+              </div>
+              <p className="field-help">
+                Docker utiliza el kernel de {host.displayName}. La memoria y CPU
+                globales se administran fuera de NearProd; no se ejecuta sudo ni
+                se instala systemd automáticamente.
+              </p>
+            </>
+          ) : !doctor && loadingDoctor ? (
+            <Skeleton
+              label="Consultando estado y asignación de Colima"
+              rows={6}
+            />
+          ) : (
+            <>
+              <div className="runtime-state" role="status">
+                <span className={colimaRunning ? "live-dot" : "offline-dot"} />
+                <strong>
+                  {runtimeBusy
+                    ? "Operación en curso"
+                    : colimaRunning
+                      ? "Colima en ejecución"
+                      : colimaState === "stopped"
+                        ? "Colima detenido"
+                        : colimaState === "missing"
+                          ? "Perfil no encontrado"
+                          : "Estado de Colima no comprobado"}
+                </strong>
+              </div>
+              <p className="field-help">
+                El estado de la VM y la conexión con Docker Engine son
+                comprobaciones distintas.{" "}
+                {colimaRunning && !connected
+                  ? "La VM está activa, pero Docker no responde: revisa el diagnóstico, no vuelvas a iniciarla."
+                  : ""}
+              </p>
+              {colimaState === "stopped" && connected && (
+                <Alert>
+                  Docker responde pero el diagnóstico del perfil indica que está
+                  detenido. Actualiza el diagnóstico antes de actuar.
+                </Alert>
+              )}
+              <div className="metric-pair">
+                <div>
+                  <span>RAM asignada a toda la VM</span>
+                  <strong>
+                    {doctor?.allocation
+                      ? `${doctor.allocation.memoryGiB} GiB`
+                      : "Sin datos"}
+                  </strong>
+                </div>
+                <div>
+                  <span>CPU virtuales</span>
+                  <strong>{doctor?.allocation?.cpus ?? "—"}</strong>
+                </div>
+              </div>
+              <p className="hint">
+                VM: {doctor?.allocation?.vmType || "sin comprobar"} · montaje:{" "}
+                {doctor?.allocation?.mountType || "sin comprobar"}
+              </p>
+              <div className="form-grid">
+                <Field
+                  label="RAM de la VM (GiB)"
+                  help="Límite compartido por Linux, Docker y todos los contenedores; no es una asignación por aplicación."
+                >
+                  <input
+                    disabled={cannotChange}
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    value={memory}
+                    onChange={(e) => setMemory(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="CPU virtuales"
+                  help="Número de CPU disponibles en la VM. Cambiar recursos puede requerir reiniciarla."
+                >
+                  <input
+                    disabled={cannotChange}
+                    type="number"
+                    min="1"
+                    value={cpus}
+                    onChange={(e) => setCpus(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="inline-actions">
+                <button
+                  disabled={
+                    cannotChange ||
+                    !doctor?.allocation ||
+                    !["running", "stopped"].includes(colimaState || "")
+                  }
+                  onClick={() =>
+                    void task(async () =>
+                      setPreview(
+                        await api<ResourcePreview>("/runtime/preview", {
+                          memory: Number(memory),
+                          cpus: Number(cpus),
+                        }),
+                      ),
+                    )
+                  }
+                >
+                  Revisar cambio y alcance
+                </button>
+                {colimaState === "stopped" && !connected && (
+                  <button
+                    className="primary"
+                    disabled={cannotChange}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "¿Iniciar el perfil Colima existente? No se creará otra VM ni se cambiará el contexto global.",
+                        )
+                      )
+                        void task(async () => {
+                          await api("/runtime/actions", {
+                            action: "start",
+                            confirm: true,
+                          });
+                          notify(
+                            "Inicio de Colima solicitado. Consulta Actividad.",
+                          );
+                        });
+                    }}
+                  >
+                    <Icon name="play" />
+                    Iniciar Colima
+                  </button>
+                )}
+                {colimaRunning && !runtimeBusy && (
+                  <span className="runtime-ok">
+                    <Icon name="check" size={16} />
+                    Ya está iniciado
+                  </span>
+                )}
+              </div>
+              <p className="hint">
+                La revisión muestra TODAS las cargas afectadas antes de aplicar
+                un cambio; cerrar NearProd no detiene Colima.
+              </p>
+            </>
+          )}
+        </section>
+      </div>
+      <section className="panel">
+        <div className="panel-heading">
+          <Icon name="activity" />
+          <h2>Consumo observado</h2>
+        </div>
+        {!metrics && loadingMetrics ? (
+          <Skeleton label="Cargando consumo de recursos" rows={4} />
+        ) : metrics ? (
+          <>
+            <div className="metrics">
+              <div>
+                <span>Memoria física del host</span>
+                <strong>{humanBytes(metrics.host.totalBytes)}</strong>
+              </div>
+              <div>
+                <span>Proceso NearProd</span>
+                <strong>{humanBytes(metrics.agent.rssBytes)}</strong>
+              </div>
+              {managedVirtualMachine ? (
+                <>
+                  <div>
+                    <span>Disponible en Linux invitado</span>
+                    <strong>{humanBytes(metrics.guest?.availableBytes)}</strong>
+                  </div>
+                  <div>
+                    <span>Swap usado en invitado</span>
+                    <strong>
+                      {metrics.guest
+                        ? humanBytes(
+                            metrics.guest.swapTotalBytes -
+                              metrics.guest.swapFreeBytes,
+                          )
+                        : "Sin datos"}
+                    </strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <span>Memoria visible para Docker</span>
+                    <strong>{humanBytes(metrics.engine?.memoryBytes)}</strong>
+                  </div>
+                  <div>
+                    <span>Contenedores activos observados</span>
+                    <strong>{metrics.containers.length}</strong>
+                  </div>
+                </>
+              )}
+            </div>
+            <p className="hint">
+              {metrics.note} {metrics.host.note}
+            </p>
+            {metrics.containers.length ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Contenedor</th>
+                      <th>CPU</th>
+                      <th>RAM / límite</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.containers.map((c) => (
+                      <tr key={c.id}>
+                        <td>{c.name}</td>
+                        <td>{c.cpu}</td>
+                        <td>{c.memory}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="hint">
+                {connected
+                  ? "No hay métricas de contenedores activos."
+                  : "Docker no está conectado. Las métricas de contenedores no están disponibles."}
+              </p>
+            )}
+          </>
+        ) : (
+          <Alert>
+            No fue posible cargar las métricas. Vuelve a consultar el
+            diagnóstico.
+          </Alert>
+        )}
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <Icon name="terminal" />
+          <h2>Herramientas y versiones</h2>
+        </div>
+        <p className="field-help">
+          Son componentes independientes del Engine. Docker puede responder
+          aunque falte un plugin del cliente.
+        </p>
+        {!doctor && loadingDoctor ? (
+          <Skeleton label="Comprobando herramientas de Docker" rows={4} />
+        ) : (
+          doctor && (
+            <>
+              <p className="hint">
+                NearProd {doctor.nearprod} · Go {doctor.goVersion} ·{" "}
+                {doctor.platform}
+              </p>
+              <div className="tool-list">
+                {doctor.tools.filter((t) => t.supported).map((t) => (
+                  <div key={t.name} className="tool">
+                    <Icon name={t.available ? "check" : "warning"} />
+                    <strong>{t.name}</strong>
+                    <span className="tool-status">
+                      {t.available
+                        ? "Disponible"
+                        : t.status === "plugin-not-registered"
+                          ? "Instalado, pero Docker no encuentra el plugin"
+                          : "No disponible para NearProd"}
+                    </span>
+                    <code>{t.version}</code>
+                    <p className="field-help">
+                      {t.purpose}{" "}
+                      <strong>
+                        {t.required
+                          ? "Requerido para su función."
+                          : "No bloquea estado, logs ni detención."}
+                      </strong>
+                    </p>
+                    {!t.available && <p className="hint">{t.hint}</p>}
+                  </div>
+                ))}
+              </div>
+              {doctor.error && <Alert error>{doctor.error.message}</Alert>}
+              {host.packageManagement.canInstall && doctor.tools.some(
+                (t) => !t.available && ["Compose", "Buildx"].includes(t.name),
+              ) && (
+                <details className="advanced">
+                  <summary>
+                    Cómo reparar plugins instalados con Homebrew
+                  </summary>
+                  <p>
+                    Primero comprueba si funcionan en tu terminal. Si allí
+                    funcionan pero NearProd no los detecta, reinicia el agente
+                    desde esa terminal para actualizar su entorno.
+                  </p>
+                  <pre className="console">
+                    {
+                      'docker compose version\ndocker buildx version\n\n# Solo si faltan:\nbrew install docker-compose docker-buildx\n\n# Obtener la ruta de plugins:\necho "$(brew --prefix)/lib/docker/cli-plugins"'
+                    }
+                  </pre>
+                  <p>
+                    En <code>~/.docker/config.json</code> añade esa ruta
+                    absoluta a <code>cliPluginsExtraDirs</code> sin eliminar
+                    otras claves. En Apple Silicon suele ser{" "}
+                    <code>/opt/homebrew/lib/docker/cli-plugins</code>.
+                  </p>
+                  <pre className="console">
+                    {
+                      '"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]'
+                    }
+                  </pre>
+                  <p>
+                    El fragmento es una propiedad JSON, no reemplaza el archivo
+                    entero. Después ejecuta <code>nearprod agent stop</code> y{" "}
+                    <code>nearprod ui</code>; no detienen tus contenedores.
+                  </p>
+                </details>
+              )}
+            </>
+          )
+        )}
+        {host.packageManagement.canCheckUpdates && (
+          <>
+            <button
+              disabled={busy}
+              onClick={() =>
+                void task(async () => setUpdates(await api("/updates", {})))
+              }
+            >
+              Comprobar actualizaciones conocidas
+            </button>
+            <p className="hint">
+              Consulta metadatos locales de {host.packageManagement.displayName}.
+              No instala paquetes ni actualiza dependencias de proyectos.
+            </p>
+          </>
+        )}
+        {host.packageManagement.canCheckUpdates && updates && (
+          <div className="update-results">
+            <p>{updates.message}</p>
+            {updates.items.length > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Herramienta</th>
+                      <th>Instalada</th>
+                      <th>Versión conocida</th>
+                      <th>Comando manual</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {updates.items.map((i) => (
+                      <tr key={i.name}>
+                        <td>{i.name}</td>
+                        <td>{i.installed.join(", ")}</td>
+                        <td>{i.latestKnown}</td>
+                        <td>
+                          <code>{i.command}</code>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="hint">
+                No hay actualizaciones registradas en esta consulta; no confirma
+                que los metadatos estén al día.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+      {preview && (
+        <Modal
+          title="Confirmar cambio global de Colima"
+          subtitle="La operación afecta a toda la VM, no solo a NearProd."
+          onClose={() => setPreview(null)}
+        >
+          <Alert error>{preview.warning}</Alert>
+          <p>
+            Asignación solicitada:{" "}
+            <strong>
+              {preview.memory} GiB · {preview.cpus} CPU
+            </strong>
+          </p>
+          <h3>Contenedores activos afectados</h3>
+          {preview.affected.length ? (
+            <ul className="hints">
+              {preview.affected.map((c) => (
+                <li key={c.id}>
+                  {c.name} · {c.project || "fuera de Compose"}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No se observaron contenedores activos en esta revisión.</p>
+          )}
+          <div className="modal-actions">
+            <button onClick={() => setPreview(null)}>Cancelar</button>
+            <button
+              className="danger"
+              disabled={busy || runtimeBusy}
+              onClick={() =>
+                void task(async () => {
+                  await api("/runtime/actions", {
+                    ...preview,
+                    action: "configure",
+                    confirm: true,
+                  });
+                  setPreview(null);
+                  notify(
+                    "Cambio global solicitado. Consulta el resultado en Actividad.",
+                  );
+                })
+              }
+            >
+              Aplicar cambio global
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }
 export function LogsDrawer({ stack, observed, onClose }: {stack: Stack; observed?: Observed; onClose: () => void}) {
   const [service, setService] = useState(''), [paused, setPaused] = useState(false), [lines, setLines] = useState<LogLine[]>([]), [state, setState] = useState('Conectando…'), [filter, setFilter] = useState('');
