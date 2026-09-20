@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const Help = `NearProd 0.8 — controlador Go + panel React/TypeScript
@@ -29,6 +31,7 @@ Instalación y configuración (no requieren Docker):
   nearprod startup enable|disable|status
   nearprod ui [--no-open]
   nearprod agent stop
+  nearprod mcp serve                    servidor MCP local por stdio
 
 Aplicaciones:
   nearprod init ~/Projects
@@ -38,12 +41,16 @@ Aplicaciones:
   nearprod register --manifest definicion.json
   nearprod edit grupo/app --manifest definicion.json
   nearprod group-create --name "Mi grupo" [--id mi-grupo]
+  nearprod group-delete mi-grupo [--yes]
+  nearprod root-remove ~/Projects [--yes]
   nearprod review grupo/app [--mode dev|verify] [--approve --yes --allow-unsafe]
   nearprod adopt grupo/app [--yes]
   nearprod up|stop|restart|rebuild grupo[/app] [--mode dev|verify] [--wait]
                [--service api] [--confirm-mode] [--start-runtime] [--detach]
   nearprod logs grupo/app [--follow] [--service api] [--tail 100] [--since RFC3339]
   nearprod watch|watch-stop grupo/app
+  nearprod archive grupo/app [--yes]
+  nearprod restore-app grupo/app [--yes]
   nearprod remove grupo/app --yes        solo catálogo, conserva datos
   nearprod operation ID | nearprod cancel ID
 
@@ -74,6 +81,12 @@ Infraestructura compartida:
   nearprod infra check-binding --binding ID
   nearprod infra unbind --binding ID --yes
   nearprod infra stop --instance pg-main [--yes --allow-active]
+  nearprod infra archive-instance --instance pg-main [--yes]
+  nearprod infra restore-instance --instance pg-main [--yes]
+  nearprod infra archive-database --database ID [--yes]
+  nearprod infra restore-database --database ID [--yes]
+  nearprod infra purge-database --database ID --backup [--directory /ruta] [--yes]
+  nearprod infra purge-database --database ID --without-backup --acknowledge-data-loss ID [--yes]
   nearprod infra backup --database ID [--directory /ruta/backups] --yes
   nearprod infra restore --database ID --file /ruta/archivo --trusted-backup --yes
   nearprod infra logs --instance pg-main [--follow]
@@ -96,8 +109,8 @@ type cliArgs struct {
 	Opts map[string][]string
 }
 
-var boolFlags = map[string]bool{"help": true, "version": true, "identity": true, "json": true, "yes": true, "check": true, "configure-shell": true, "foreground": true, "launch-agent": true, "no-open": true, "approve": true, "allow-unsafe": true, "wait": true, "detach": true, "confirm-mode": true, "start-runtime": true, "follow": true, "reveal": true, "allow-active": true, "trusted-backup": true, "dry-run": true, "infra-only": true, "folder": true}
-var valueFlags = map[string]bool{"home": true, "port": true, "target": true, "mode": true, "service": true, "tail": true, "since": true, "container": true, "manifest": true, "name": true, "id": true, "product": true, "stack": true, "slug": true, "path": true, "project-name": true, "file": true, "env-file": true, "profile": true, "verify-file": true, "verify-env-file": true, "verify-profile": true, "kind": true, "context": true, "memory": true, "cpus": true, "cpu": true, "formula": true, "tool": true, "engine": true, "instance": true, "database": true, "binding": true, "image": true, "connections": true, "persistence": true, "data-dir": true, "services": true, "url-var": true, "host-var": true, "port-var": true, "database-var": true, "user-var": true, "password-var": true, "directory": true, "output": true, "username": true, "host": true, "verify-service": true, "verify-port": true, "from": true, "to": true, "depth": true, "max-entries": true, "ignore": true}
+var boolFlags = map[string]bool{"help": true, "version": true, "identity": true, "json": true, "yes": true, "check": true, "configure-shell": true, "foreground": true, "launch-agent": true, "no-open": true, "approve": true, "allow-unsafe": true, "wait": true, "detach": true, "confirm-mode": true, "start-runtime": true, "follow": true, "reveal": true, "allow-active": true, "trusted-backup": true, "dry-run": true, "infra-only": true, "folder": true, "backup": true, "without-backup": true}
+var valueFlags = map[string]bool{"home": true, "port": true, "target": true, "mode": true, "service": true, "tail": true, "since": true, "container": true, "manifest": true, "name": true, "id": true, "product": true, "stack": true, "slug": true, "path": true, "project-name": true, "file": true, "env-file": true, "profile": true, "verify-file": true, "verify-env-file": true, "verify-profile": true, "kind": true, "context": true, "memory": true, "cpus": true, "cpu": true, "formula": true, "tool": true, "engine": true, "instance": true, "database": true, "binding": true, "image": true, "connections": true, "persistence": true, "data-dir": true, "services": true, "url-var": true, "host-var": true, "port-var": true, "database-var": true, "user-var": true, "password-var": true, "directory": true, "output": true, "username": true, "host": true, "verify-service": true, "verify-port": true, "from": true, "to": true, "depth": true, "max-entries": true, "ignore": true, "acknowledge-data-loss": true}
 
 func parseCLI(args []string) (cliArgs, error) {
 	a := cliArgs{Opts: map[string][]string{}}
@@ -284,6 +297,11 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			}
 		case "self-test":
 			return SelfTest(ctx, a, out)
+		case "mcp":
+			if sub != "serve" {
+				return nil, fail("USAGE", "Usa nearprod mcp serve.", 400)
+			}
+			return nil, RunMCPServer(ctx, home, &mcpsdk.StdioTransport{})
 		}
 		start := true
 		allowMismatch := false
@@ -330,6 +348,14 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			body["fingerprint"] = p["fingerprint"]
 			body["confirm"] = true
 			return operation(actionRoute, body)
+		}
+		previewDirect := func(preRoute, actionRoute string, body J) (any, error) {
+			p, e := api(preRoute, body)
+			if e != nil || !a.B("yes") {
+				return p, e
+			}
+			body["fingerprint"], body["confirm"] = p["fingerprint"], true
+			return api(actionRoute, body)
 		}
 		switch cmd {
 		case "ui":
@@ -385,6 +411,10 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			return J{"groups": v["groups"]}, nil
 		case "group-create":
 			return api("/groups", J{"name": a.S("name"), "id": a.S("id")})
+		case "group-delete":
+			return previewDirect("/groups/delete-preview", "/groups/delete", J{"id": sub})
+		case "root-remove":
+			return previewDirect("/roots/remove-preview", "/roots/remove", J{"root": sub})
 		case "status":
 			v, e := api("/status?refresh=1", nil)
 			if e != nil {
@@ -464,6 +494,10 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			return operation("/watch", J{"target": sub, "action": "start"})
 		case "watch-stop":
 			return api("/watch", J{"target": sub, "action": "stop"})
+		case "archive":
+			return previewDirect("/stacks/archive-preview", "/stacks/archive", J{"target": sub})
+		case "restore-app":
+			return previewDirect("/stacks/restore-preview", "/stacks/restore", J{"target": sub})
 		case "remove":
 			return api("/stacks/remove", J{"target": sub, "confirm": a.B("yes")})
 		case "operation":
@@ -603,6 +637,32 @@ func cliInfra(ctx context.Context, a cliArgs, info J, api func(string, any) (J, 
 	case "stop":
 		req["allowActive"] = a.B("allow-active")
 		return previewApply("/infra/stop-preview", "/infra/actions", req)
+	case "archive-instance":
+		return previewApply("/infra/archive-preview", "/infra/actions", req)
+	case "restore-instance":
+		return previewApply("/infra/restore-instance-preview", "/infra/actions", req)
+	case "archive-database":
+		return previewApply("/infra/archive-database-preview", "/infra/actions", req)
+	case "restore-database":
+		return previewApply("/infra/restore-database-preview", "/infra/actions", req)
+	case "purge-database":
+		if a.B("backup") == a.B("without-backup") {
+			return nil, fail("USAGE", "Elige exactamente --backup o --without-backup.", 400)
+		}
+		req["mode"] = "backup-purge"
+		if a.B("without-backup") {
+			acknowledgedID := a.S("acknowledge-data-loss")
+			if acknowledgedID == "" {
+				return nil, fail("PURGE_CONFIRMATION", "La purga sin backup exige --acknowledge-data-loss con el ID exacto de la base.", 400)
+			}
+			req["mode"] = "purge"
+			req["acknowledgeDataLoss"] = true
+			req["typedId"] = acknowledgedID
+		}
+		if a.S("directory") != "" {
+			req["directory"] = expandHome(a.S("directory"))
+		}
+		return previewApply("/infra/purge-database-preview", "/infra/actions", req)
 	case "start", "check", "check-binding", "unbind":
 		return operation("/infra/actions", req)
 	case "database":

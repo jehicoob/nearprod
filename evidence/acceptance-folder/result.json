@@ -1,21 +1,95 @@
 {
   "checks": [
-    { "durationMs": 78, "name": "Engine Linux local identificado", "state": "passed" },
-    { "durationMs": 49, "name": "Compose con --wait y --wait-timeout", "state": "passed" },
-    { "durationMs": 10842, "name": "postgres: crear instancia persistente y cuenta limitada", "state": "passed" },
-    { "durationMs": 3152, "name": "postgres: añadir segunda base después de iniciar y denegar cuenta A en B", "state": "passed" },
-    { "durationMs": 7572, "name": "postgres: conservar dato tras stop, recreación e inicio", "state": "passed" },
-    { "durationMs": 1101, "name": "postgres: backup lógico y restauración limitada en base nueva", "state": "passed" },
-    { "durationMs": 6522, "name": "postgres: vincular consumidor y comprobar red/variables/autenticación", "state": "passed" },
-    { "durationMs": 14587, "name": "mysql: crear instancia persistente y cuenta limitada", "state": "passed" },
-    { "durationMs": 2100, "name": "mysql: añadir segunda base después de iniciar y denegar cuenta A en B", "state": "passed" },
-    { "durationMs": 7667, "name": "mysql: conservar dato tras stop, recreación e inicio", "state": "passed" },
-    { "durationMs": 1124, "name": "mysql: backup lógico y restauración limitada en base nueva", "state": "passed" },
-    { "durationMs": 17961, "name": "mysql: vincular consumidor y comprobar red/variables/autenticación", "state": "passed" },
-    { "durationMs": 10062, "name": "redis: crear instancia persistente y cuenta limitada", "state": "passed" },
-    { "durationMs": 7186, "name": "redis: conservar dato tras stop, recreación e inicio", "state": "passed" },
-    { "durationMs": 18622, "name": "redis: vincular consumidor y comprobar red/variables/autenticación", "state": "passed" },
-    { "durationMs": 1865, "name": "Limpieza de recursos temporales con propietario y Engine verificados", "state": "passed" }
+    {
+      "durationMs": 61,
+      "name": "Engine Linux local identificado",
+      "state": "passed"
+    },
+    {
+      "durationMs": 44,
+      "name": "Compose con --wait y --wait-timeout",
+      "state": "passed"
+    },
+    {
+      "durationMs": 9889,
+      "name": "postgres: crear instancia persistente y cuenta limitada",
+      "state": "passed"
+    },
+    {
+      "durationMs": 2813,
+      "name": "postgres: añadir segunda base después de iniciar y denegar cuenta A en B",
+      "state": "passed"
+    },
+    {
+      "durationMs": 6661,
+      "name": "postgres: conservar dato tras stop, recreación e inicio",
+      "state": "passed"
+    },
+    {
+      "durationMs": 981,
+      "name": "postgres: backup lógico y restauración limitada en base nueva",
+      "state": "passed"
+    },
+    {
+      "durationMs": 5899,
+      "name": "postgres: reanudar purga después de eliminar la base física",
+      "state": "passed"
+    },
+    {
+      "durationMs": 6286,
+      "name": "postgres: vincular consumidor y comprobar red/variables/autenticación",
+      "state": "passed"
+    },
+    {
+      "durationMs": 13628,
+      "name": "mysql: crear instancia persistente y cuenta limitada",
+      "state": "passed"
+    },
+    {
+      "durationMs": 1693,
+      "name": "mysql: añadir segunda base después de iniciar y denegar cuenta A en B",
+      "state": "passed"
+    },
+    {
+      "durationMs": 6960,
+      "name": "mysql: conservar dato tras stop, recreación e inicio",
+      "state": "passed"
+    },
+    {
+      "durationMs": 872,
+      "name": "mysql: backup lógico y restauración limitada en base nueva",
+      "state": "passed"
+    },
+    {
+      "durationMs": 3660,
+      "name": "mysql: reanudar purga después de eliminar la base física",
+      "state": "passed"
+    },
+    {
+      "durationMs": 17468,
+      "name": "mysql: vincular consumidor y comprobar red/variables/autenticación",
+      "state": "passed"
+    },
+    {
+      "durationMs": 8774,
+      "name": "redis: crear instancia persistente y cuenta limitada",
+      "state": "passed"
+    },
+    {
+      "durationMs": 6296,
+      "name": "redis: conservar dato tras stop, recreación e inicio",
+      "state": "passed"
+    },
+    {
+      "durationMs": 17993,
+      "name": "redis: vincular consumidor y comprobar red/variables/autenticación",
+      "state": "passed"
+    },
+    {
+      "durationMs": 1516,
+      "name": "Limpieza de recursos temporales con propietario y Engine verificados",
+      "state": "passed"
+    }
   ],
   "context": "colima",
   "engine": {
@@ -28,12 +102,12 @@
     "version": "29.5.2"
   },
   "evidence": "Docker real; no simulación. No prueba launchd, Homebrew ni navegador macOS.",
-  "finishedAt": "2026-09-20T00:00:04.359Z",
+  "finishedAt": "2026-09-20T08:47:16.510Z",
   "folder": true,
   "infraOnly": true,
   "runtime": "Go",
-  "startedAt": "2026-09-19T23:58:09.924Z",
+  "startedAt": "2026-09-20T08:45:21.666Z",
   "state": "passed",
-  "temporaryDirectory": "/Users/jehicoob/.np-check-1736569599",
-  "version": "0.8.0"
+  "temporaryDirectory": "/Users/jehicoob/.np-check-2394010273",
+  "version": "0.9.0"
 }

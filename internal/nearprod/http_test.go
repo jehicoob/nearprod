@@ -113,7 +113,7 @@ func TestHTTPPayloadAndRateLimits(t *testing.T) {
 func TestHTTPNativeAssetsAndStorage(t *testing.T) {
 	f := newFixture(t, true)
 	auth := map[string]string{"Authorization": "Bearer " + str(f.A.Info["token"])}
-	for _, path := range []string{"/", "/ui/App.js", "/ui/infrastructure.js", "/ui/tools.js", "/vendor/react.js"} {
+	for _, path := range []string{"/", "/ui/App.js", "/ui/infrastructure.js", "/ui/tools.js", "/ui/McpAccessView.js", "/vendor/react.js"} {
 		status, _, b := callHTTP(t, f, "GET", path, nil, nil)
 		if status != 200 || len(b) < 20 {
 			t.Fatalf("asset %s %d", path, status)
@@ -121,6 +121,10 @@ func TestHTTPNativeAssetsAndStorage(t *testing.T) {
 	}
 	status, _, b := callHTTP(t, f, "GET", "/api/config/paths", nil, auth)
 	if status != 200 || !strings.Contains(string(b), "config/catalog.json") {
+		t.Fatal(string(b))
+	}
+	status, _, b = callHTTP(t, f, "GET", "/api/mcp", nil, auth)
+	if status != 200 || !strings.Contains(string(b), `"mcp"`) || !strings.Contains(string(b), `"serve"`) || strings.Contains(string(b), str(f.A.Info["token"])) {
 		t.Fatal(string(b))
 	}
 	status, _, b = callHTTP(t, f, "POST", "/api/config/backup", J{"confirm": true}, auth)

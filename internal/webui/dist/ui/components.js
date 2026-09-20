@@ -13,6 +13,11 @@ export function Icon({ name, size = 18 }) {
         terminal: React.createElement(React.Fragment, null,
             React.createElement("rect", { x: "3", y: "4", width: "18", height: "16", rx: "3" }),
             React.createElement("path", { d: "m7 9 3 3-3 3m6 0h4" })),
+        network: React.createElement(React.Fragment, null,
+            React.createElement("circle", { cx: "12", cy: "5", r: "2.5" }),
+            React.createElement("circle", { cx: "5", cy: "18", r: "2.5" }),
+            React.createElement("circle", { cx: "19", cy: "18", r: "2.5" }),
+            React.createElement("path", { d: "m10.5 7-4 8.5M13.5 7l4 8.5M7.5 18h9" })),
         folder: React.createElement("path", { d: "M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" }),
         settings: React.createElement(React.Fragment, null,
             React.createElement("path", { d: "M4 7h16M4 17h16" }),
@@ -38,7 +43,7 @@ export function Icon({ name, size = 18 }) {
     return React.createElement("svg", { "aria-hidden": "true", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round", strokeLinejoin: "round" }, paths[name] || paths.cube);
 }
 export function Badge({ value }) {
-    const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
+    const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', archived: 'Archivada', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
     return React.createElement("span", { className: `badge badge-${value}` },
         React.createElement("span", { className: "dot" }),
         labels[value] || value);
@@ -59,8 +64,8 @@ export function Modal({ title, subtitle, children, onClose, wide = false }) {
                 React.createElement(Icon, { name: "close" }))),
         children);
 }
-export function Alert({ children, error = false }) { return React.createElement("div", { className: `alert ${error ? 'error' : ''}`, role: error ? 'alert' : 'note' },
-    React.createElement(Icon, { name: error ? 'warning' : 'terminal' }),
+export function Alert({ children, error = false, warning = false }) { return React.createElement("div", { className: `alert ${error ? 'error' : warning ? 'warning' : ''}`, role: error || warning ? 'alert' : 'note' },
+    React.createElement(Icon, { name: error || warning ? 'warning' : 'terminal' }),
     React.createElement("div", null, children)); }
 export function Busy() { return React.createElement("div", { className: "busy" },
     React.createElement("span", { className: "spinner" }),

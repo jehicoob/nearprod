@@ -64,14 +64,25 @@ func (i *Infrastructure) CreateDatabase(ctx context.Context, req J, line func(st
 			existing = d
 		}
 	}
+	if existing == nil {
+		for _, v := range allInfraDatabases(i.State()) {
+			d := obj(v)
+			if str(d["instanceUid"]) == str(r["uid"]) && str(d["name"]) == name {
+				return nil, fail("DATABASE_RESERVED", "La base pertenece a un registro archivado; restáuralo o púrgalo explícitamente.", 409)
+			}
+		}
+	}
 	if existing != nil && str(existing["state"]) == "ready" {
 		if u := str(req["username"]); u != "" && u != str(existing["username"]) {
 			return nil, fail("DATABASE_ACCOUNT", "La cuenta existente se conserva.", 409)
 		}
 		return J{"database": existing, "noOp": true}, nil
 	}
+	if existing != nil && str(existing["state"]) == "purging" {
+		return nil, fail("DATABASE_PURGING", "La base tiene una purga pendiente; termínala antes de aprovisionarla.", 409)
+	}
 	if str(r["engine"]) == "redis" {
-		for _, v := range arr(i.State()["databases"]) {
+		for _, v := range allInfraDatabases(i.State()) {
 			d := obj(v)
 			if str(d["instanceUid"]) == str(r["uid"]) && (existing == nil || str(d["id"]) != str(existing["id"])) {
 				return nil, fail("REDIS_DEDICATED", "Redis está dedicado a otra aplicación; crea otra instancia.", 409)
@@ -98,7 +109,7 @@ func (i *Infrastructure) CreateDatabase(ctx context.Context, req J, line func(st
 		return nil, fail("USER_NAME", "Usuario limitado no válido.", 400)
 	}
 	if existing == nil {
-		for _, v := range arr(i.State()["databases"]) {
+		for _, v := range allInfraDatabases(i.State()) {
 			d := obj(v)
 			if str(d["instanceUid"]) == str(r["uid"]) && str(d["username"]) == username {
 				return nil, fail("USER_DUPLICATE", "La cuenta ya está asignada a otra base.", 409)

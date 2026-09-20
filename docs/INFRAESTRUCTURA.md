@@ -57,6 +57,39 @@ No borres vaults: sin las credenciales de una instancia inicializada NearProd bl
 
 Stop de un proyecto no detiene la base. Stop de la instancia muestra consumidores y puede requerir `--allow-active`. No hay borrado de bases/datos en la app ni down -v/prune global.
 
+## Archivar y restaurar una instancia
+
+Archivar retira una instancia del catálogo activo sin borrar ni modificar contenedores, redes, volúmenes, carpetas, imágenes, vaults, credenciales o datos. Antes exige que el motor esté detenido, que no tenga vinculaciones y que Engine, endpoint, ownership y persistencia sigan coincidiendo. El preview es de solo lectura y la confirmación vuelve a comprobar su fingerprint.
+
+```bash
+nearprod infra stop --instance pg-main --yes
+nearprod infra archive-instance --instance pg-main
+nearprod infra archive-instance --instance pg-main --yes
+nearprod infra list
+nearprod infra restore-instance --instance pg-main
+nearprod infra restore-instance --instance pg-main --yes
+```
+
+Mientras esté archivada se reservan ID, UID, proyecto Compose, hostname, red, volumen, carpeta y puerto. No se puede cambiar de Engine/contexto ni crear otra instancia o aplicación con esas identidades. Restaurar devuelve la misma metadata activa y tampoco inicia el runtime. `nearprod infra restore` sigue siendo exclusivamente la importación SQL de un backup; no restaura una instancia archivada.
+
+Una base individual también puede archivarse sin ejecutar SQL. Debe estar sin vinculaciones, incluidas las conservadas por aplicaciones archivadas. Su nombre, ID, usuario, credencial y datos quedan reservados hasta restaurarla o purgarla:
+
+```bash
+nearprod infra archive-database --database ID
+nearprod infra archive-database --database ID --yes
+nearprod infra restore-database --database ID --yes
+```
+
+PostgreSQL y MySQL permiten una purga física explícita. La opción recomendada crea primero el backup privado y su manifiesto/hash; un fallo de backup aborta antes de borrar. La variante sin backup exige una bandera propia además de `--yes`:
+
+```bash
+nearprod infra purge-database --database ID --backup --yes
+nearprod infra purge-database --database ID --backup --directory /ruta/privada --yes
+nearprod infra purge-database --database ID --without-backup --acknowledge-data-loss ID --yes
+```
+
+La purga exige motor activo y cero bindings; elimina solo la base/esquema y su cuenta limitada. No elimina la instancia, bases hermanas, volúmenes o carpetas. Redis no permite esta operación porque una credencial no delimita físicamente sus claves; usa archivo reversible o retira la instancia dedicada completa.
+
 ## Backup y restauración
 
 ```bash

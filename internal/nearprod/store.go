@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Store has one writer in the agent; its path never includes an app release.
@@ -23,7 +24,7 @@ func initialState() J {
 	if runtime.GOOS == "darwin" {
 		kind, context = "colima", "colima"
 	}
-	return J{"version": SchemaVersion, "owner": token(24), "roots": A{}, "runtime": J{"kind": kind, "context": context, "profile": "default"}, "groups": A{}, "stacks": A{}, "operations": A{}, "toolPaths": J{}, "infra": J{"instances": A{}, "databases": A{}, "bindings": A{}}}
+	return J{"version": SchemaVersion, "owner": token(24), "roots": A{}, "runtime": J{"kind": kind, "context": context, "profile": "default"}, "groups": A{}, "stacks": A{}, "archivedStacks": A{}, "operations": A{}, "toolPaths": J{}, "infra": J{"instances": A{}, "databases": A{}, "archivedDatabases": A{}, "bindings": A{}, "archivedInstances": A{}}}
 }
 func validateState(v J) error {
 	if num(v["version"]) != float64(SchemaVersion) || len(str(v["owner"])) < 8 {
@@ -32,6 +33,11 @@ func validateState(v J) error {
 	for _, k := range []string{"roots", "stacks", "operations", "groups"} {
 		if _, ok := v[k].([]any); !ok {
 			return fail("INVALID_STATE", "Falta la lista "+k+" del catálogo.", 409)
+		}
+	}
+	if v["archivedStacks"] != nil {
+		if _, ok := v["archivedStacks"].([]any); !ok {
+			return fail("INVALID_STATE", "La lista de aplicaciones archivadas no es válida.", 409)
 		}
 	}
 	rt := obj(v["runtime"])
@@ -52,8 +58,7 @@ func validateState(v J) error {
 		groupIDs[str(g["id"])] = true
 	}
 	ids, projects, uids, hosts := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-	for _, raw := range arr(v["stacks"]) {
-		s := obj(raw)
+	validateStack := func(s J) error {
 		id := str(s["id"])
 		uid := str(s["uid"])
 		project := str(s["projectName"])
@@ -83,6 +88,52 @@ func validateState(v J) error {
 			}
 			hosts[h] = true
 		}
+		return nil
+	}
+	activeStackUIDs := map[string]bool{}
+	for _, raw := range arr(v["stacks"]) {
+		s := obj(raw)
+		if e := validateStack(s); e != nil {
+			return e
+		}
+		activeStackUIDs[str(s["uid"])] = true
+	}
+	archivedBindings := A{}
+	for _, raw := range arr(v["archivedStacks"]) {
+		snapshot := obj(raw)
+		for k := range snapshot {
+			if !contains([]string{"lifecycle", "archivedAt", "stack", "bindings", "snapshotDigest"}, k) {
+				return fail("STACK_ARCHIVE", "El snapshot de aplicación contiene campos desconocidos.", 409)
+			}
+		}
+		if str(snapshot["lifecycle"]) != "archived" {
+			return fail("STACK_ARCHIVE", "Estado archivado de aplicación inválido.", 409)
+		}
+		if _, e := time.Parse(time.RFC3339Nano, str(snapshot["archivedAt"])); e != nil {
+			return fail("STACK_ARCHIVE", "Fecha de archivo de aplicación inválida.", 409)
+		}
+		if _, ok := snapshot["bindings"].([]any); !ok {
+			return fail("STACK_ARCHIVE", "Las vinculaciones archivadas no son válidas.", 409)
+		}
+		stack := obj(snapshot["stack"])
+		if e := validateStack(stack); e != nil {
+			return e
+		}
+		for _, bindingRaw := range arr(snapshot["bindings"]) {
+			if str(obj(bindingRaw)["stackUid"]) != str(stack["uid"]) {
+				return fail("STACK_ARCHIVE", "Vinculación archivada asignada a otra aplicación.", 409)
+			}
+		}
+		if str(snapshot["snapshotDigest"]) != archivedStackDigest(snapshot) {
+			return fail("STACK_ARCHIVE_DIGEST", "El snapshot de aplicación no coincide con su digest.", 409)
+		}
+		archivedBindings = append(archivedBindings, arr(snapshot["bindings"])...)
+	}
+	for _, raw := range allInfraInstances(obj(v["infra"])) {
+		project := str(obj(raw)["projectName"])
+		if projects[project] {
+			return fail("PROJECT_RESERVED", "Una aplicación y una instancia de infraestructura comparten identidad Compose.", 409)
+		}
 	}
 	for name, p := range obj(v["toolPaths"]) {
 		if !contains([]string{"docker", "colima"}, name) || !filepath.IsAbs(str(p)) || strings.ContainsAny(str(p), "\x00\r\n") {
@@ -97,7 +148,32 @@ func validateState(v J) error {
 			return fail("PROXY_IMAGE", "Imagen de proxy no reconocida; se preservó el catálogo.", 409)
 		}
 	}
-	return validateInfra(obj(v["infra"]))
+	if e := validateInfra(obj(v["infra"])); e != nil {
+		return e
+	}
+	activeDBIDs, bindingIDs := map[string]bool{}, map[string]bool{}
+	for _, raw := range arr(at(v, "infra", "databases")) {
+		activeDBIDs[str(obj(raw)["id"])] = true
+	}
+	for _, raw := range arr(at(v, "infra", "bindings")) {
+		binding := obj(raw)
+		if !activeStackUIDs[str(binding["stackUid"])] {
+			return fail("INFRA_STATE", "Vinculación sin aplicación activa.", 409)
+		}
+		if e := validateInfraBinding(binding, activeDBIDs, bindingIDs); e != nil {
+			return e
+		}
+	}
+	for _, raw := range archivedBindings {
+		binding := obj(raw)
+		if !archivedStackUID(v, str(binding["stackUid"])) {
+			return fail("STACK_ARCHIVE", "Vinculación archivada inválida o sin base activa.", 409)
+		}
+		if e := validateInfraBinding(binding, activeDBIDs, bindingIDs); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func MigrationPreview(home string) (J, error) {
@@ -105,6 +181,25 @@ func MigrationPreview(home string) (J, error) {
 	legacy := filepath.Join(home, "catalog.json")
 	report := J{"home": home, "catalog": canonical, "legacyCatalog": legacy, "requiresMigration": false, "schemaVersion": SchemaVersion, "movesDatabaseFiles": false, "note": "Se conserva owner, IDs, proyectos Compose, rutas, credenciales y volúmenes. No se ejecuta Docker."}
 	if v, e := readJSON(canonical, 16<<20); e == nil {
+		version := integer(v["version"])
+		if version == 4 {
+			migrated := copyJ(v)
+			migrated["version"] = SchemaVersion
+			defaults(migrated)
+			if err := validateState(migrated); err != nil {
+				return nil, err
+			}
+			report["state"] = "canonical"
+			report["requiresMigration"] = true
+			report["fromSchema"] = 4
+			report["projects"] = len(arr(v["stacks"]))
+			report["instances"] = len(arr(at(v, "infra", "instances")))
+			report["sourceHash"] = hashFile(canonical)
+			return report, nil
+		}
+		if version != SchemaVersion {
+			return nil, fail("SCHEMA_UNSUPPORTED", "El catálogo usa un schema no compatible. No se sobrescribirá.", 409)
+		}
 		if err := validateState(v); err != nil {
 			return nil, err
 		}
@@ -150,7 +245,7 @@ func hashFile(file string) string {
 	return hash(string(b))
 }
 func defaults(v J) {
-	for _, k := range []string{"groups", "operations", "roots", "stacks"} {
+	for _, k := range []string{"groups", "operations", "roots", "stacks", "archivedStacks"} {
 		if v[k] == nil {
 			v[k] = A{}
 		}
@@ -162,12 +257,73 @@ func defaults(v J) {
 		v["infra"] = J{}
 	}
 	i := obj(v["infra"])
-	for _, k := range []string{"instances", "databases", "bindings"} {
+	for _, k := range []string{"instances", "databases", "archivedDatabases", "bindings", "archivedInstances"} {
 		if i[k] == nil {
 			i[k] = A{}
 		}
 	}
 	v["infra"] = i
+}
+
+func migrateCanonicalV4(home, file, journal string, v J) (J, error) {
+	data, e := os.ReadFile(file)
+	if e != nil {
+		return nil, e
+	}
+	sourceHash := hash(string(data))
+	migrated := copyJ(v)
+	migrated["version"] = SchemaVersion
+	defaults(migrated)
+	backup, migrationAt := "", now()
+	var j J
+	if existing, je := readJSON(journal, 1<<20); je == nil && str(existing["phase"]) != "committed" && integer(existing["fromSchema"]) == 4 {
+		j = existing
+		migrationAt = str(j["migrationAt"])
+		if migrationAt == "" {
+			return nil, fail("MIGRATION_CONFLICT", "El journal de schema 4 está incompleto; no se sobrescribirá el catálogo.", 409)
+		}
+		if str(j["sourceHash"]) != sourceHash {
+			return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante una migración incompleta. Conserva el backup y revisa el informe.", 409)
+		}
+		backup = str(j["backup"])
+		if backup == "" || hashFile(backup) != sourceHash {
+			return nil, fail("MIGRATION_CONFLICT", "El backup de schema 4 falta o cambió; no se sobrescribirá el catálogo.", 409)
+		}
+	} else {
+		backup = filepath.Join(home, "backups", "config", strings.ReplaceAll(now(), ":", "-")+"-"+token(4), "catalog-v4.json")
+		if e = atomicBytes(backup, data, 0600); e != nil {
+			return nil, e
+		}
+		if hashFile(backup) != sourceHash {
+			return nil, fail("BACKUP_VERIFY", "No coincide el backup; migración detenida.", 500)
+		}
+	}
+	migrated["migration"] = J{"fromSchema": 4, "at": migrationAt, "backup": backup, "sourceHash": sourceHash}
+	if e = validateState(migrated); e != nil {
+		return nil, e
+	}
+	target, _ := json.MarshalIndent(migrated, "", "  ")
+	target = append(target, '\n')
+	targetHash := hash(string(target))
+	if j == nil {
+		j = J{"phase": "prepared", "fromSchema": 4, "migrationAt": migrationAt, "source": file, "sourceHash": sourceHash, "target": file, "targetHash": targetHash, "backup": backup, "version": Version}
+		if e = writeJSON(journal, j); e != nil {
+			return nil, e
+		}
+	} else if str(j["targetHash"]) != targetHash {
+		return nil, fail("MIGRATION_CONFLICT", "El resultado de la migración incompleta ya no coincide; no se sobrescribirá el catálogo.", 409)
+	}
+	if hashFile(file) != sourceHash {
+		return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante el backup.", 409)
+	}
+	if e = atomicBytes(file, target, 0600); e != nil {
+		return nil, e
+	}
+	j["phase"] = "committed"
+	if e = writeJSON(journal, j); e != nil {
+		return nil, e
+	}
+	return migrated, nil
 }
 
 // Init must only be called after the root-level legacy-compatible agent.sock lock.
@@ -186,6 +342,12 @@ func OpenStore(home string) (*Store, error) {
 	s := &Store{Home: home, File: file}
 	v, e := readJSON(file, 16<<20)
 	if e == nil {
+		if integer(v["version"]) == 4 {
+			v, e = migrateCanonicalV4(home, file, journal, v)
+			if e != nil {
+				return nil, e
+			}
+		}
 		if e = validateState(v); e != nil {
 			return nil, e
 		}
@@ -194,15 +356,31 @@ func OpenStore(home string) (*Store, error) {
 			if hashFile(file) != str(j["targetHash"]) {
 				return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante una migración incompleta. Conserva ambas copias y revisa el informe.", 409)
 			}
-			if old, oe := readJSON(legacy, 16<<20); oe == nil && integer(old["version"]) == 3 && hashFile(legacy) != str(j["sourceHash"]) {
-				return nil, fail("MIGRATION_CONFLICT", "El catálogo antiguo cambió después del backup; no se sobrescribe.", 409)
-			}
-			if e = writeLegacyMarker(legacy, file, str(j["backup"])); e != nil {
-				return nil, e
-			}
-			j["phase"] = "committed"
-			if e = writeJSON(journal, j); e != nil {
-				return nil, e
+			if integer(j["fromSchema"]) == 4 {
+				if hashFile(str(j["backup"])) != str(j["sourceHash"]) {
+					return nil, fail("MIGRATION_CONFLICT", "El backup de schema 4 cambió; no se confirmará la migración.", 409)
+				}
+				j["phase"] = "committed"
+				if e = writeJSON(journal, j); e != nil {
+					return nil, e
+				}
+			} else {
+				markerMatches := false
+				if marker, markerErr := readJSON(legacy, 16<<20); markerErr == nil {
+					markerMatches = hash(marker) == hash(legacyMarker(file, str(j["backup"])))
+				}
+				if hashFile(legacy) != str(j["sourceHash"]) && !markerMatches {
+					return nil, fail("MIGRATION_CONFLICT", "El catálogo antiguo cambió después del backup; no se sobrescribe.", 409)
+				}
+				if !markerMatches {
+					if e = writeLegacyMarker(legacy, file, str(j["backup"])); e != nil {
+						return nil, e
+					}
+				}
+				j["phase"] = "committed"
+				if e = writeJSON(journal, j); e != nil {
+					return nil, e
+				}
 			}
 		}
 		if old, oe := readJSON(legacy, 16<<20); oe == nil && integer(old["version"]) == 3 {
@@ -243,7 +421,7 @@ func OpenStore(home string) (*Store, error) {
 			}
 			target, _ := json.MarshalIndent(v, "", "  ")
 			target = append(target, '\n')
-			j := J{"phase": "prepared", "source": legacy, "sourceHash": sourceHash, "target": file, "targetHash": hash(string(target)), "backup": backup, "version": Version}
+			j := J{"phase": "prepared", "fromSchema": 3, "source": legacy, "sourceHash": sourceHash, "target": file, "targetHash": hash(string(target)), "backup": backup, "version": Version}
 			if e = writeJSON(journal, j); e != nil {
 				return nil, e
 			}
@@ -288,7 +466,10 @@ func OpenStore(home string) (*Store, error) {
 	return s, nil
 }
 func writeLegacyMarker(legacy, canonical, backup string) error {
-	return writeJSON(legacy, J{"version": -1, "migratedTo": canonical, "backup": backup, "message": "NearProd 0.7: catálogo canónico en config/catalog.json. No iniciar 0.6 con este HOME ni borrar este marcador."})
+	return writeJSON(legacy, legacyMarker(canonical, backup))
+}
+func legacyMarker(canonical, backup string) J {
+	return J{"version": -1, "migratedTo": canonical, "backup": backup, "message": "NearProd 0.7: catálogo canónico en config/catalog.json. No iniciar 0.6 con este HOME ni borrar este marcador."}
 }
 func (s *Store) Get() J { s.mu.RLock(); defer s.mu.RUnlock(); return copyJ(s.value) }
 func (s *Store) Update(fn func(J) error) error {

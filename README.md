@@ -1,8 +1,8 @@
-# NearProd 0.8.0 — Go + React/TypeScript
+# NearProd 0.9.0 — Go + React/TypeScript
 
 Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por Traefik e infraestructura PostgreSQL/MySQL/Redis. El CLI y el agente están implementados en Go; el panel React/TypeScript compilado se incluye dentro del binario. **No inicia Node ni necesita npm para funcionar.**
 
-**Estado de entrega: candidata a aceptación, no certificada en macOS/Colima.** Las pruebas ejecutadas y los bloqueos están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
+**Estado de entrega: candidata a release.** Las pruebas ejecutadas y sus límites están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
 
 > **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
@@ -32,7 +32,7 @@ nearprod agent stop
 Abre otra terminal. Si el comando sigue apuntando a una instalación vieja, usa directamente `~/.local/bin/nearprod` en las siguientes instrucciones.
 
 ```bash
-nearprod --version                  # 0.8.0
+nearprod --version                  # 0.9.0
 nearprod config migrate --yes       # backup + migración; exige agente anterior cerrado
 nearprod ui
 ```
@@ -70,7 +70,7 @@ El segundo comando muestra la versión y solicita confirmación. Descarga desde 
 ~/.nearprod/
 ├── config/
 │   ├── catalog.json                # grupos, proyectos, URLs, preferencias, referencias
-│   ├── migration.json              # journal de la migración desde schema 3
+│   ├── migration.json              # journal de migraciones de schema
 │   └── resources/<uid>/vault.json   # credenciales de NUEVAS instancias, archivo 0600
 ├── databases/                     # ubicación sugerida, SOLO para nuevas carpetas elegidas
 │   ├── postgres/pg-main/data/
@@ -102,6 +102,16 @@ Ese backup es privado y contiene credenciales; no lo publiques. Tampoco sustituy
 5. **Revisar y aprobar → Iniciar:** estado, logs, URL y salud. El servidor HTTP debe escuchar en una interfaz alcanzable. NearProd no cambia CORS/HMR/APP_URL.
 6. **Infraestructura:** crear instancia/base/usuario, vincular API o worker, revisar y volver a iniciar para aplicar. Las DB propias del proyecto se conservan.
 
+## Acceso MCP local
+
+En el panel, **Acceso MCP** muestra una configuración copiable con la ruta exacta del binario y el `NEARPROD_HOME` activo. El transporte es stdio:
+
+```bash
+nearprod mcp serve
+```
+
+No crea usuarios, perfiles, sesiones o tokens MCP ni abre otro puerto. El cliente obtiene acceso total a ese catálogo local y reutiliza el agente HTTP loopback como único escritor; las validaciones, ownership, previews, fingerprints y confirmaciones destructivas del dominio siguen vigentes. Consulta [MCP](docs/MCP.md) para el alcance y la configuración.
+
 Para Laravel dirige la URL a Caddy/Nginx HTTP, no a PHP-FPM. Para Elixir/Phoenix, el proyecto necesita un Compose y su servidor/release/puerto/origen correctos. Los ejemplos del ZIP cubren esos recorridos de prueba; no convierten una configuración arbitraria en válida.
 
 ## Inicio al entrar en macOS
@@ -129,7 +139,7 @@ Pruebas opt-in: crean imágenes/contenedores/redes/volúmenes y bases TEMPORALES
 
 ## Documentación
 
-[Inicio rápido](docs/INICIO-RAPIDO.md) · [Migración y almacenamiento](docs/MIGRACION.md) · [Infraestructura](docs/INFRAESTRUCTURA.md) · [CLI](docs/CLI.md) · [Arquitectura/spec](docs/SPEC-0.7.0.md) · [Auditoría](docs/AUDITORIA-0.7.0.md) · [Pruebas](docs/PRUEBAS.md) · [Compilar](docs/COMPILAR.md)
+[Inicio rápido](docs/INICIO-RAPIDO.md) · [Migración y almacenamiento](docs/MIGRACION.md) · [Infraestructura](docs/INFRAESTRUCTURA.md) · [Ciclo de vida](docs/CICLO-DE-VIDA.md) · [MCP](docs/MCP.md) · [CLI](docs/CLI.md) · [Arquitectura/spec](docs/SPEC-0.7.0.md) · [Auditoría](docs/AUDITORIA-0.7.0.md) · [Pruebas](docs/PRUEBAS.md) · [Compilar](docs/COMPILAR.md)
 
 No incluye TLS/DNS administrado, despliegue remoto, adopción automática de proxies externos, actualización mayor in situ de bases, borrado de datos, migración automática de DBs de proyectos ni soporte universal Compose `include`/`extends`. No garantiza ahorro de RAM de los contenedores: Go sustituye el controlador, no la VM Linux.
 

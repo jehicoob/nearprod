@@ -1,24 +1,25 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "status": "candidate",
   "go": {
-    "topLevelPassed": 70,
-    "subtestsPassed": 80,
-    "totalPassEvents": 150,
+    "topLevelPassed": 87,
+    "subtestsPassed": 88,
+    "totalPassEvents": 175,
     "failed": 0,
     "optInBrowserHarnessSkippedInUnitSuite": 1,
-    "coverageStatements": 60.8,
+    "coverageStatements": 62.6,
     "race": "passed",
     "vet": "passed"
   },
   "ui": {
     "macOSPassed": 25,
-    "wsl2EvidencePassed": 27,
+    "currentChromiumPassed": 35,
+    "wsl2HistoricalPassed": 36,
     "transport": "HTTP/SSE real; Docker/Traefik simulado",
     "nativeMacOS": "passed"
   },
   "nativeInstalledPackage": {
-    "passed": 16,
+    "passed": 19,
     "platforms": ["darwin/arm64", "linux/amd64 (WSL2 evidence)"],
     "noNodeInPATH": true
   },
@@ -28,14 +29,16 @@
     "notarization": "none"
   },
   "realDocker": {
-    "infrastructure": "passed: 16 checks",
+    "infrastructure": "passed: 18 checks",
     "webAcceptance": "failed: ACCEPTANCE_HTTP; same result with official 0.7.1 baseline"
   },
   "compiler": "go1.27.1",
+  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.9.0-dev not published",
+  "releaseBinariesScope": "official 0.8.0 baseline; 0.9.0 artifacts pending clean release-candidate commit",
   "releaseBinaries": {
-    "nearprod-darwin-amd64": { "sha256": "65dd62ba7f47639e47354104e211a2c21b35fe3d3c5fcaaa480a078810088984", "bytes": 9765984 },
-    "nearprod-darwin-arm64": { "sha256": "1f3035e68df293c1f9138f7a494b3af32c2b3697f6495b2c33da8fe5c86cbe88", "bytes": 9065874 },
-    "nearprod-linux-amd64": { "sha256": "032f8d2fb40abe3df808e1e05c4a096cdb78dc56ba9bd9260ec28b77b7d34116", "bytes": 9597088 },
-    "nearprod-linux-arm64": { "sha256": "fa6d3aa2535798fc92e61b3335491d6f83fc3662f3756463895af38dd228e228", "bytes": 8913056 }
+    "nearprod-darwin-amd64": { "sha256": "f3bc70138acbc6ff32e6b267d5f6550e1a8863f0660c5c3f8b8c687d256debc9", "bytes": 10049088 },
+    "nearprod-darwin-arm64": { "sha256": "d28ec1c7c4e82ffde0f09f0f1c0a07da562d389aa2b8865ecc1a62b279b47507", "bytes": 9314018 },
+    "nearprod-linux-amd64": { "sha256": "4f602bd197ebd1e5be675d30ac91161da2d3808de3af3fcc2954203cecb400c4", "bytes": 9875580 },
+    "nearprod-linux-arm64": { "sha256": "6d713617ea2d0ffac868e5a31a32efb7c672c0dbafcb5f44f36e78f7e3f381bd", "bytes": 9109628 }
   }
 }

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 )
 
 var engineOptions = J{
@@ -48,6 +49,41 @@ func folderRestrictions(state J) A {
 		return A{}
 	}
 	return A{J{"image": "postgres:18", "code": "FOLDER_PLATFORM_UNSUPPORTED", "message": "PostgreSQL 18 con Docker nativo en Linux/WSL2 requiere un volumen administrado por Docker para evitar permisos incompatibles con el UID del motor."}}
+}
+
+func allInfraInstances(infra J) A {
+	out := append(A{}, arr(infra["instances"])...)
+	for _, raw := range arr(infra["archivedInstances"]) {
+		if instance := obj(at(raw, "instance")); len(instance) > 0 {
+			out = append(out, instance)
+		}
+	}
+	return out
+}
+
+func archivedSnapshotPayload(v J) J {
+	return J{"lifecycle": v["lifecycle"], "archivedAt": v["archivedAt"], "instance": copyJ(obj(v["instance"])), "databases": list(v["databases"])}
+}
+
+func archivedSnapshotDigest(v J) string { return hash(archivedSnapshotPayload(v)) }
+
+func archivedDatabasePayload(v J) J {
+	return J{"lifecycle": v["lifecycle"], "archivedAt": v["archivedAt"], "database": copyJ(obj(v["database"]))}
+}
+
+func archivedDatabaseDigest(v J) string { return hash(archivedDatabasePayload(v)) }
+
+func allInfraDatabases(infra J) A {
+	out := append(A{}, arr(infra["databases"])...)
+	for _, raw := range arr(infra["archivedDatabases"]) {
+		if database := obj(at(raw, "database")); len(database) > 0 {
+			out = append(out, database)
+		}
+	}
+	for _, raw := range arr(infra["archivedInstances"]) {
+		out = append(out, arr(at(raw, "databases"))...)
+	}
+	return out
 }
 
 func normalizeInstance(v J, home string) (J, error) {
@@ -146,6 +182,22 @@ func normalizedMapping(v J) (J, error) {
 	}
 	return out, nil
 }
+
+func validateInfraBinding(b J, databaseIDs, bindingIDs map[string]bool) error {
+	if !databaseIDs[str(b["databaseId"])] || str(b["stackUid"]) == "" || !contains([]string{"dev", "verify"}, str(b["mode"])) || len(arr(b["services"])) == 0 || bindingIDs[str(b["id"])] {
+		return fail("INFRA_STATE", "Vinculación inválida.", 409)
+	}
+	bindingIDs[str(b["id"])] = true
+	if _, e := normalizedMapping(obj(b["mapping"])); e != nil {
+		return e
+	}
+	for _, service := range ss(b["services"]) {
+		if !svcRE.MatchString(service) {
+			return fail("INFRA_STATE", "Servicio consumidor inválido.", 409)
+		}
+	}
+	return nil
+}
 func validateInfra(v J) error {
 	if len(v) == 0 {
 		return nil
@@ -155,29 +207,46 @@ func validateInfra(v J) error {
 			return fail("INFRA_STATE", "Falta una lista de infraestructura: "+k, 409)
 		}
 	}
+	if v["archivedInstances"] != nil {
+		if _, ok := v["archivedInstances"].([]any); !ok {
+			return fail("INFRA_STATE", "La lista de instancias archivadas no es válida.", 409)
+		}
+	}
+	if v["archivedDatabases"] != nil {
+		if _, ok := v["archivedDatabases"].([]any); !ok {
+			return fail("INFRA_STATE", "La lista de bases archivadas no es válida.", 409)
+		}
+	}
 	ids, uids, ports := map[string]bool{}, map[string]bool{}, map[int]bool{}
+	identities := map[string]map[string]bool{"projectName": {}, "network": {}, "hostname": {}, "volume": {}}
 	paths := []string{}
-	for _, raw := range arr(v["instances"]) {
-		r := obj(raw)
+	activeUIDs := map[string]bool{}
+	validateInstance := func(r J) error {
 		if _, e := normalizeInstance(r, "/nearprod"); e != nil {
 			return e
 		}
 		uid := str(r["uid"])
 		id := str(r["id"])
-		if !regexp.MustCompile(`^[a-f0-9]{16}$`).MatchString(uid) || ids[id] || uids[uid] {
-			return fail("INFRA_STATE", "Instancia duplicada o UID no válido.", 409)
+		if !regexp.MustCompile(`^[a-f0-9]{16}$`).MatchString(uid) || id == uid || ids[id] || uids[id] || uids[uid] || ids[uid] {
+			return fail("INFRA_STATE", "Instancia duplicada o identidad ambigua.", 409)
 		}
 		ids[id], uids[uid] = true, true
 		if dir := str(r["managedDir"]); dir != "" && dir != "config/resources/"+uid {
 			return fail("INFRA_PATH", "Directorio interno inválido.", 409)
 		}
 		for _, k := range []string{"projectName", "network", "hostname"} {
-			if !validID(str(r[k])) {
+			value := str(r[k])
+			if !validID(value) || identities[k][value] {
 				return fail("INFRA_STATE", "Identidad del recurso inválida: "+k, 409)
 			}
+			identities[k][value] = true
 		}
-		if str(at(r, "persistence", "kind")) == "volume" && !validID(str(r["volume"])) {
-			return fail("INFRA_STATE", "Volumen inválido.", 409)
+		if str(at(r, "persistence", "kind")) == "volume" {
+			volume := str(r["volume"])
+			if !validID(volume) || identities["volume"][volume] {
+				return fail("INFRA_STATE", "Volumen inválido o duplicado.", 409)
+			}
+			identities["volume"][volume] = true
 		}
 		if hp := integer(r["hostPort"]); hp > 0 {
 			if ports[hp] {
@@ -197,31 +266,115 @@ func validateInfra(v J) error {
 			}
 			paths = append(paths, p)
 		}
+		return nil
+	}
+	for _, raw := range arr(v["instances"]) {
+		r := obj(raw)
+		if e := validateInstance(r); e != nil {
+			return e
+		}
+		activeUIDs[str(r["uid"])] = true
 	}
 	dbids, names, users := map[string]bool{}, map[string]bool{}, map[string]bool{}
-	for _, raw := range arr(v["databases"]) {
-		d := obj(raw)
+	activeDBIDs := map[string]bool{}
+	validateDatabase := func(d J, instanceUID string, active bool) error {
 		id := str(d["id"])
 		uid := str(d["instanceUid"])
-		if !validID(id) || !validDB(str(d["name"])) || !validUser(str(d["username"])) || !uids[uid] || dbids[id] || names[uid+":"+str(d["name"])] || users[uid+":"+str(d["username"])] {
+		if uid != instanceUID || !validID(id) || !validDB(str(d["name"])) || !validUser(str(d["username"])) || dbids[id] || names[uid+":"+str(d["name"])] || users[uid+":"+str(d["username"])] {
 			return fail("INFRA_STATE", "Base/cuenta inválida, duplicada o sin instancia.", 409)
 		}
+		state := str(d["state"])
+		if !contains([]string{"pending", "ready", "failed", "purging"}, state) {
+			return fail("INFRA_STATE", "Estado de base inválido.", 409)
+		}
+		purge := obj(d["purge"])
+		if state == "purging" {
+			if !contains([]string{"backup-purge", "purge"}, str(purge["mode"])) || !contains([]string{"database", "account", "metadata"}, str(purge["phase"])) || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(str(purge["recordDigest"])) {
+				return fail("INFRA_STATE", "Estado de purga inválido.", 409)
+			}
+			if _, e := time.Parse(time.RFC3339Nano, str(purge["startedAt"])); e != nil {
+				return fail("INFRA_STATE", "Fecha de purga inválida.", 409)
+			}
+		} else if d["purge"] != nil {
+			return fail("INFRA_STATE", "Una base fuera de purga conserva progreso inválido.", 409)
+		}
 		dbids[id], names[uid+":"+str(d["name"])], users[uid+":"+str(d["username"])] = true, true, true
+		if active {
+			activeDBIDs[id] = true
+		}
+		return nil
+	}
+	for _, raw := range arr(v["databases"]) {
+		d := obj(raw)
+		uid := str(d["instanceUid"])
+		if !activeUIDs[uid] {
+			return fail("INFRA_STATE", "Base/cuenta inválida, duplicada o sin instancia.", 409)
+		}
+		if e := validateDatabase(d, uid, true); e != nil {
+			return e
+		}
+	}
+	for _, raw := range arr(v["archivedDatabases"]) {
+		archived := obj(raw)
+		for k := range archived {
+			if !contains([]string{"lifecycle", "archivedAt", "database", "snapshotDigest"}, k) {
+				return fail("DATABASE_ARCHIVE", "El snapshot de base contiene campos desconocidos.", 409)
+			}
+		}
+		if str(archived["lifecycle"]) != "archived" {
+			return fail("DATABASE_ARCHIVE", "Estado archivado de base inválido.", 409)
+		}
+		if _, e := time.Parse(time.RFC3339Nano, str(archived["archivedAt"])); e != nil {
+			return fail("DATABASE_ARCHIVE", "Fecha de archivo de base inválida.", 409)
+		}
+		database := obj(archived["database"])
+		uid := str(database["instanceUid"])
+		if !activeUIDs[uid] {
+			return fail("DATABASE_ARCHIVE", "La base archivada no pertenece a una instancia activa.", 409)
+		}
+		if e := validateDatabase(database, uid, false); e != nil {
+			return e
+		}
+		if str(archived["snapshotDigest"]) != archivedDatabaseDigest(archived) {
+			return fail("DATABASE_ARCHIVE_DIGEST", "El snapshot de base no coincide con su digest.", 409)
+		}
+	}
+	for _, raw := range arr(v["archivedInstances"]) {
+		archived := obj(raw)
+		for k := range archived {
+			if !contains([]string{"lifecycle", "archivedAt", "instance", "databases", "snapshotDigest"}, k) {
+				return fail("INFRA_ARCHIVE", "El snapshot archivado contiene campos desconocidos.", 409)
+			}
+		}
+		if str(archived["lifecycle"]) != "archived" {
+			return fail("INFRA_ARCHIVE", "Estado archivado inválido.", 409)
+		}
+		if _, e := time.Parse(time.RFC3339Nano, str(archived["archivedAt"])); e != nil {
+			return fail("INFRA_ARCHIVE", "Fecha de archivo inválida.", 409)
+		}
+		if _, ok := archived["databases"].([]any); !ok {
+			return fail("INFRA_ARCHIVE", "Las bases archivadas no son válidas.", 409)
+		}
+		instance := obj(archived["instance"])
+		if e := validateInstance(instance); e != nil {
+			return e
+		}
+		uid := str(instance["uid"])
+		for _, dbRaw := range arr(archived["databases"]) {
+			if e := validateDatabase(obj(dbRaw), uid, false); e != nil {
+				return e
+			}
+		}
+		digest := str(archived["snapshotDigest"])
+		if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(digest) || digest != archivedSnapshotDigest(archived) {
+			return fail("INFRA_ARCHIVE_DIGEST", "El snapshot archivado no coincide con su digest.", 409)
+		}
 	}
 	bIDs := map[string]bool{}
 	for _, raw := range arr(v["bindings"]) {
 		b := obj(raw)
-		if !dbids[str(b["databaseId"])] || str(b["stackUid"]) == "" || !contains([]string{"dev", "verify"}, str(b["mode"])) || len(arr(b["services"])) == 0 || bIDs[str(b["id"])] {
-			return fail("INFRA_STATE", "Vinculación inválida.", 409)
-		}
-		bIDs[str(b["id"])] = true
-		if _, e := normalizedMapping(obj(b["mapping"])); e != nil {
+		if e := validateInfraBinding(b, activeDBIDs, bIDs); e != nil {
 			return e
-		}
-		for _, s := range ss(b["services"]) {
-			if !svcRE.MatchString(s) {
-				return fail("INFRA_STATE", "Servicio consumidor inválido.", 409)
-			}
 		}
 	}
 	return nil

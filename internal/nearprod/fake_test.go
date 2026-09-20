@@ -38,8 +38,10 @@ type fakeRunner struct {
 	Counter                                int
 	Streams                                int
 	FailProject, Help, FailCmd, SQLFailure string
+	SQLFailContains                        string
 	ColimaRunning                          bool
 	BeforeUp                               func()
+	AfterDropDatabase, AfterDropAccount    func()
 	BlockUp                                chan struct{}
 	FailAfterUp                            bool
 }
@@ -376,11 +378,62 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 		if f.SQLFailure != "" {
 			return fakeFail(f.SQLFailure)
 		}
+		if f.SQLFailContains != "" && strings.Contains(input, f.SQLFailContains) {
+			f.SQLFailContains = ""
+			return fakeFail("forced SQL failure")
+		}
 		if contains(rest, "ACL") {
 			return fakeOK("OK")
 		}
+		if strings.Contains(input, "rolcanlogin") {
+			m := regexp.MustCompile(`rolname='([^']+)'`).FindStringSubmatch(input)
+			if len(m) > 1 && f.Roles[m[1]] != "" {
+				return fakeOK("1")
+			}
+			return fakeOK("0")
+		}
+		if strings.Contains(input, "pg_database WHERE datdba=") {
+			userMatch := regexp.MustCompile(`rolname='([^']+)'`).FindStringSubmatch(input)
+			nameMatch := regexp.MustCompile(`datname<>'([^']+)'`).FindStringSubmatch(input)
+			count := 0
+			if len(userMatch) > 1 && len(nameMatch) > 1 {
+				for name, owner := range f.DBs {
+					if owner == userMatch[1] && name != nameMatch[1] {
+						count++
+					}
+				}
+			}
+			return fakeOK(str(count))
+		}
 		if strings.Contains(input, "SELECT count(*)") || strings.Contains(input, "SELECT COUNT(*)") {
 			return fakeOK("0")
+		}
+		if strings.Contains(input, "SELECT SCHEMA_NAME") {
+			m := regexp.MustCompile(`SCHEMA_NAME='([^']+)'`).FindStringSubmatch(input)
+			if len(m) > 1 {
+				if _, ok := f.DBs[m[1]]; ok {
+					return fakeOK(m[1])
+				}
+			}
+			return fakeOK("")
+		}
+		if strings.Contains(input, "SELECT CONCAT(User,'@',Host)") {
+			m := regexp.MustCompile(`User='([^']+)'`).FindStringSubmatch(input)
+			if len(m) > 1 && f.Roles[m[1]] != "" {
+				return fakeOK(m[1] + "@%")
+			}
+			return fakeOK("")
+		}
+		if strings.Contains(input, "SHOW GRANTS FOR") {
+			m := regexp.MustCompile(`SHOW GRANTS FOR '([^']+)'@'%'`).FindStringSubmatch(input)
+			if len(m) > 1 && f.Roles[m[1]] != "" {
+				for name, owner := range f.DBs {
+					if owner == m[1] {
+						return fakeOK("GRANT USAGE ON *.* TO '" + m[1] + "'@'%'\nGRANT ALL PRIVILEGES ON `" + name + "`.* TO '" + m[1] + "'@'%'")
+					}
+				}
+			}
+			return fakeOK("")
 		}
 		if strings.Contains(input, "SELECT rolname") {
 			m := regexp.MustCompile(`rolname='([^']+)'`).FindStringSubmatch(input)
@@ -399,6 +452,41 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 		}
 		for _, m := range regexp.MustCompile(`CREATE DATABASE "([^"]+)" OWNER "([^"]+)"`).FindAllStringSubmatch(input, -1) {
 			f.DBs[m[1]] = m[2]
+		}
+		mysqlUser := regexp.MustCompile(`CREATE USER IF NOT EXISTS '([^']+)'@'%'`).FindStringSubmatch(input)
+		for _, m := range regexp.MustCompile("CREATE DATABASE IF NOT EXISTS `([^`]+)`").FindAllStringSubmatch(input, -1) {
+			owner := ""
+			if len(mysqlUser) > 1 {
+				owner = mysqlUser[1]
+			}
+			f.DBs[m[1]] = owner
+		}
+		if len(mysqlUser) > 1 {
+			f.Roles[mysqlUser[1]] = mysqlUser[1]
+		}
+		for _, m := range regexp.MustCompile(`DROP DATABASE IF EXISTS "([^"]+)"`).FindAllStringSubmatch(input, -1) {
+			delete(f.DBs, m[1])
+			if f.AfterDropDatabase != nil {
+				f.AfterDropDatabase()
+			}
+		}
+		for _, m := range regexp.MustCompile(`DROP ROLE IF EXISTS "([^"]+)"`).FindAllStringSubmatch(input, -1) {
+			delete(f.Roles, m[1])
+			if f.AfterDropAccount != nil {
+				f.AfterDropAccount()
+			}
+		}
+		for _, m := range regexp.MustCompile("DROP DATABASE IF EXISTS `([^`]+)`").FindAllStringSubmatch(input, -1) {
+			delete(f.DBs, m[1])
+			if f.AfterDropDatabase != nil {
+				f.AfterDropDatabase()
+			}
+		}
+		for _, m := range regexp.MustCompile(`DROP USER IF EXISTS '([^']+)'@'%'`).FindAllStringSubmatch(input, -1) {
+			delete(f.Roles, m[1])
+			if f.AfterDropAccount != nil {
+				f.AfterDropAccount()
+			}
 		}
 		return fakeOK("")
 	case "run":

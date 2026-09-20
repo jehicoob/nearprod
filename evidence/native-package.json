@@ -1,6 +1,6 @@
 {
-  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
-  "binarySha256": "acd3a3fe03f58569d04a9d6234b6382f6916b704f6c2a3bc79aa6f1fd09bfa36",
+  "platform": "macOS-15.8-arm64-arm-64bit-Mach-O",
+  "binarySha256": "3d3e3f299068ab159475a84e65ae274f4ad6bc095ce2f7a93e543e83475a79f4",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",
@@ -12,7 +12,10 @@
     "Backup original byte por byte y journal finalizado",
     "Agente nativo real y bootstrap local",
     "Assets React/TypeScript servidos por HTTP del binario",
+    "Servidor MCP stdio responde sin contaminar stdout",
     "CLI y HTTP conservan catálogo migrado sin Docker",
+    "CLI elimina únicamente grupo vacío con preview firmado",
+    "CLI retira raíz sin dependencias y conserva filesystem",
     "Backup de configuración incluye vault sin copiar datos físicos",
     "Parada nativa sin tocar Docker",
     "Reinstalación conserva catálogo y configuración shell única",
