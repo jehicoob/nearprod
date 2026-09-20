@@ -33,9 +33,9 @@
   },
   "compiler": "go1.27.1",
   "releaseBinaries": {
-    "nearprod-darwin-amd64": { "sha256": "feb4cf488b35eefdf9b3a00625c378dc66a801376e15484037f8361decbbf6b1", "bytes": 10049088 },
-    "nearprod-darwin-arm64": { "sha256": "89fb6c26d9609b22aa1027476313a7d9c60a5fca15a5030e395a375abbd955d6", "bytes": 9314018 },
-    "nearprod-linux-amd64": { "sha256": "0d5bf697f6fee02f27f5a4e0b58fdebadb604e4395b6ee8d481fa985446d0271", "bytes": 9871484 },
-    "nearprod-linux-arm64": { "sha256": "8b3d29edb2d44b0d05c7ccea215acd163566472bb863a4ffed06f03640c7c529", "bytes": 9109628 }
+    "nearprod-darwin-amd64": { "sha256": "f3bc70138acbc6ff32e6b267d5f6550e1a8863f0660c5c3f8b8c687d256debc9", "bytes": 10049088 },
+    "nearprod-darwin-arm64": { "sha256": "d28ec1c7c4e82ffde0f09f0f1c0a07da562d389aa2b8865ecc1a62b279b47507", "bytes": 9314018 },
+    "nearprod-linux-amd64": { "sha256": "4f602bd197ebd1e5be675d30ac91161da2d3808de3af3fcc2954203cecb400c4", "bytes": 9875580 },
+    "nearprod-linux-arm64": { "sha256": "6d713617ea2d0ffac868e5a31a32efb7c672c0dbafcb5f44f36e78f7e3f381bd", "bytes": 9109628 }
   }
 }

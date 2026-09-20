@@ -298,7 +298,14 @@ func rootSelector(state J, raw string) (string, error) {
 		return "", fail("ROOT_INVALID", "Raíz no válida.", 400)
 	}
 	candidate = filepath.Clean(candidate)
-	for _, root := range ss(state["roots"]) {
+	registered := ss(state["roots"])
+	if contains(registered, candidate) {
+		return candidate, nil
+	}
+	if resolved, resolveErr := filepath.EvalSymlinks(candidate); resolveErr == nil {
+		candidate = filepath.Clean(resolved)
+	}
+	for _, root := range registered {
 		if root == candidate {
 			return root, nil
 		}

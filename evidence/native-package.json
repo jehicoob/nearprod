@@ -1,6 +1,6 @@
 {
   "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
-  "binarySha256": "0d5bf697f6fee02f27f5a4e0b58fdebadb604e4395b6ee8d481fa985446d0271",
+  "binarySha256": "4f602bd197ebd1e5be675d30ac91161da2d3808de3af3fcc2954203cecb400c4",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",

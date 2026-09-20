@@ -94,11 +94,13 @@ func TestDeleteEmptyGroupAndUnusedRootPreservesFilesystem(t *testing.T) {
 
 	unused := filepath.Join(f.Dir, "Unused")
 	must(t, os.MkdirAll(unused, 0700))
-	_, e = f.S.AddRoot(unused)
+	alias := filepath.Join(f.Dir, "UnusedAlias")
+	must(t, os.Symlink(unused, alias))
+	_, e = f.S.AddRoot(alias)
 	must(t, e)
-	rootPreview, e := f.S.RemoveRootPreview(unused)
+	rootPreview, e := f.S.RemoveRootPreview(alias)
 	must(t, e)
-	result, e := f.S.RemoveRoot(J{"root": unused, "confirm": true, "fingerprint": rootPreview["fingerprint"]})
+	result, e := f.S.RemoveRoot(J{"root": alias, "confirm": true, "fingerprint": rootPreview["fingerprint"]})
 	must(t, e)
 	if truth(result["filesystemChanged"]) {
 		t.Fatal("root removal reported a filesystem mutation")
