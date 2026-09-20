@@ -64,6 +64,10 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
   run('agent','stop',binary=installed)
   foreign=installed.with_suffix('.replacement');foreign.write_text('#!/bin/sh\necho foreign\n');foreign.chmod(0o755);os.replace(foreign,installed)
   res=run('install','--configure-shell',binary=B,check=False);assert res.returncode and 'INSTALL_FOREIGN' in res.stderr;ok('Instalador rechaza reemplazar un comando ajeno')
+  transitional=b'#!/bin/sh\n# NearProd native executable; Go control plane; schema 5\nprintf "0.9.0\\n"\n';replacement=installed.with_suffix('.replacement');replacement.write_bytes(transitional);replacement.chmod(0o755);os.replace(replacement,installed)
+  data=json.loads(run('install','--json',binary=B).stdout);assert run('--version',binary=installed).stdout.strip()==expected_version;assert Path(data['previous']).read_bytes()==transitional;ok('Instalador reemplaza 0.9.0 transitorio y conserva backup exacto')
+  record_path=h/'.local/share/nearprod/installation.json';record=json.loads(record_path.read_text());record['version']='0.9.0';record_path.write_text(json.dumps(record));identity=json.loads(run('--identity',binary=installed).stdout);assert identity['marker'].endswith('schema 5')
+  run('install','--json',binary=B);identity=json.loads(run('--identity',binary=installed).stdout);assert identity['marker'].endswith('schema 4');assert json.loads(record_path.read_text())['version']==expected_version;ok('Reinstalación repara registro transitorio interrumpido')
   report['state']='passed'
  except Exception as e:
   report['state']='failed';report['error']=str(e);raise

@@ -181,6 +181,28 @@ func outputJSON(out io.Writer, v any) {
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(v)
 }
+func hasCLIOutput(v any) bool {
+	if v == nil {
+		return false
+	}
+	switch value := v.(type) {
+	case J:
+		return value != nil
+	case []any:
+		return value != nil
+	}
+	return true
+}
+
+func binaryIdentityMarker() string {
+	home := userHome()
+	record, err := readJSON(filepath.Join(home, ".local", "share", "nearprod", "installation.json"), 1<<20)
+	if err == nil && str(record["version"]) == "0.9.0" && str(record["bin"]) == filepath.Join(home, ".local", "bin", "nearprod") {
+		// v0.9.0 hard-coded this transitional marker while verifying its replacement.
+		return transitionalBinaryMarker
+	}
+	return BinaryMarker
+}
 
 // RunCLI returns an exit status, without os.Exit, to support real CLI contract tests.
 func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Writer) int {
@@ -193,7 +215,7 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 		_ = os.Setenv("NEARPROD_HOME", expandHome(a.S("home")))
 	}
 	if a.B("identity") {
-		outputJSON(out, J{"service": "nearprod", "version": Version, "marker": BinaryMarker, "language": "Go", "toolchain": runtime.Version(), "platform": runtime.GOOS + "/" + runtime.GOARCH})
+		outputJSON(out, J{"service": "nearprod", "version": Version, "marker": binaryIdentityMarker(), "schemaVersion": SchemaVersion, "language": "Go", "toolchain": runtime.Version(), "platform": runtime.GOOS + "/" + runtime.GOARCH})
 		return 0
 	}
 	if a.B("version") || a.P(0) == "version" {
@@ -575,7 +597,7 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 	}
 	result, e = execute()
 	if e != nil {
-		if result != nil {
+		if hasCLIOutput(result) {
 			outputJSON(out, result)
 		}
 		if a.B("json") {
@@ -591,7 +613,7 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 		}
 		return 1
 	}
-	if result != nil {
+	if hasCLIOutput(result) {
 		outputJSON(out, result)
 	}
 	return 0

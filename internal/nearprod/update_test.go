@@ -121,6 +121,80 @@ func TestStableVersionComparison(t *testing.T) {
 	}
 }
 
+func TestBinaryIdentityRemainsCompatibleAcrossSchemaChanges(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	const stableMarker = "NearProd native executable; Go control plane; schema 4"
+	if BinaryMarker != stableMarker {
+		t.Fatalf("binary marker changed from the updater compatibility contract: %q", BinaryMarker)
+	}
+	if !hasKnownBinaryMarker([]byte(BinaryMarker)) || !hasKnownBinaryMarker([]byte(transitionalBinaryMarker)) {
+		t.Fatal("known NearProd binary markers were rejected")
+	}
+	if hasKnownBinaryMarker([]byte("foreign executable")) {
+		t.Fatal("foreign marker accepted")
+	}
+	var out, errout bytes.Buffer
+	if code := RunCLI(context.Background(), []string{"--identity"}, nil, &out, &errout); code != 0 {
+		t.Fatalf("identity exited %d: %s", code, errout.String())
+	}
+	identity, err := decodeObject(out.Bytes())
+	must(t, err)
+	if str(identity["marker"]) != stableMarker || integer(identity["schemaVersion"]) != SchemaVersion {
+		t.Fatal(identity)
+	}
+
+	installation := filepath.Join(home, ".local", "share", "nearprod", "installation.json")
+	must(t, os.MkdirAll(filepath.Dir(installation), 0700))
+	must(t, writeJSON(installation, J{"version": "0.9.0", "bin": filepath.Join(home, ".local", "bin", "nearprod")}))
+	out.Reset()
+	errout.Reset()
+	if code := RunCLI(context.Background(), []string{"--identity"}, nil, &out, &errout); code != 0 {
+		t.Fatalf("transitional identity exited %d: %s", code, errout.String())
+	}
+	identity, err = decodeObject(out.Bytes())
+	must(t, err)
+	if str(identity["marker"]) != transitionalBinaryMarker || integer(identity["schemaVersion"]) != SchemaVersion {
+		t.Fatal(identity)
+	}
+
+	must(t, writeJSON(installation, J{"version": "0.9.1", "bin": filepath.Join(home, ".local", "bin", "nearprod")}))
+	if marker := binaryIdentityMarker(); marker != stableMarker {
+		t.Fatalf("identity marker remained transitional after replacement: %q", marker)
+	}
+}
+
+func TestCLIRejectsTypedNilOutput(t *testing.T) {
+	if hasCLIOutput(J(nil)) || hasCLIOutput([]any(nil)) || hasCLIOutput(nil) {
+		t.Fatal("typed nil would be rendered as JSON null")
+	}
+	if !hasCLIOutput(J{}) {
+		t.Fatal("non-nil result was suppressed")
+	}
+}
+
+func TestInstallerReplacesTransitional09Binary(t *testing.T) {
+	home := t.TempDir()
+	source := filepath.Join(t.TempDir(), "nearprod")
+	must(t, os.WriteFile(source, []byte(BinaryMarker), 0755))
+	installed := filepath.Join(home, ".local", "bin", "nearprod")
+	must(t, os.MkdirAll(filepath.Dir(installed), 0700))
+	must(t, os.WriteFile(installed, []byte(transitionalBinaryMarker), 0755))
+
+	result, err := installBinaryVersion(home, source, false, "0.9.1")
+	must(t, err)
+	updated, err := os.ReadFile(installed)
+	must(t, err)
+	if !bytes.Contains(updated, []byte(BinaryMarker)) || str(result["version"]) != "0.9.1" {
+		t.Fatal(result)
+	}
+	previous, err := os.ReadFile(str(result["previous"]))
+	must(t, err)
+	if !bytes.Equal(previous, []byte(transitionalBinaryMarker)) {
+		t.Fatal("transitional 0.9.0 binary was not preserved")
+	}
+}
+
 func TestUpdateOriginProviderAndManifestGuards(t *testing.T) {
 	u := &Updater{AllowedOrigins: map[string]bool{"https://api.github.com": true}}
 	_, err := u.requestBytes(context.Background(), "https://example.com/release", "application/json", 100)

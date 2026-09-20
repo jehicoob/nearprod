@@ -17,7 +17,10 @@ func nativeOwnBinary(p string) bool {
 		return false
 	}
 	b, e := os.ReadFile(p)
-	return e == nil && bytes.Contains(b, []byte(BinaryMarker)) && st.Mode()&0111 != 0
+	return e == nil && hasKnownBinaryMarker(b) && st.Mode()&0111 != 0
+}
+func hasKnownBinaryMarker(b []byte) bool {
+	return bytes.Contains(b, []byte(BinaryMarker)) || bytes.Contains(b, []byte(transitionalBinaryMarker))
 }
 func safeOwnedDir(p string) error {
 	if e := noSymlinkAncestors(p); e != nil {
@@ -132,7 +135,7 @@ func installBinaryVersionVerified(home, source string, configureShell bool, vers
 		if e != nil {
 			return nil, e
 		}
-		if !bytes.Contains(priorBytes, []byte(BinaryMarker)) && !bytes.Contains(priorBytes, []byte("# NearProd stable launcher")) {
+		if !hasKnownBinaryMarker(priorBytes) && !bytes.Contains(priorBytes, []byte("# NearProd stable launcher")) {
 			return nil, fail("INSTALL_FOREIGN", "No se sobrescribe un comando ajeno en "+dest, 409)
 		}
 		priorMode = prior.Mode().Perm()
