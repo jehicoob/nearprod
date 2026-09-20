@@ -16,10 +16,12 @@ import (
 	"time"
 )
 
-const Help = `NearProd 0.7 — controlador Go + panel React/TypeScript
+const Help = `NearProd 0.8 — controlador Go + panel React/TypeScript
 
 Instalación y configuración (no requieren Docker):
   nearprod install [--configure-shell]
+  nearprod update --check
+  nearprod update                       solicita confirmación; --yes para automatización
   nearprod config paths
   nearprod config migrate --dry-run
   nearprod config migrate --yes
@@ -94,7 +96,7 @@ type cliArgs struct {
 	Opts map[string][]string
 }
 
-var boolFlags = map[string]bool{"help": true, "version": true, "identity": true, "json": true, "yes": true, "configure-shell": true, "foreground": true, "launch-agent": true, "no-open": true, "approve": true, "allow-unsafe": true, "wait": true, "detach": true, "confirm-mode": true, "start-runtime": true, "follow": true, "reveal": true, "allow-active": true, "trusted-backup": true, "dry-run": true, "infra-only": true, "folder": true}
+var boolFlags = map[string]bool{"help": true, "version": true, "identity": true, "json": true, "yes": true, "check": true, "configure-shell": true, "foreground": true, "launch-agent": true, "no-open": true, "approve": true, "allow-unsafe": true, "wait": true, "detach": true, "confirm-mode": true, "start-runtime": true, "follow": true, "reveal": true, "allow-active": true, "trusted-backup": true, "dry-run": true, "infra-only": true, "folder": true}
 var valueFlags = map[string]bool{"home": true, "port": true, "target": true, "mode": true, "service": true, "tail": true, "since": true, "container": true, "manifest": true, "name": true, "id": true, "product": true, "stack": true, "slug": true, "path": true, "project-name": true, "file": true, "env-file": true, "profile": true, "verify-file": true, "verify-env-file": true, "verify-profile": true, "kind": true, "context": true, "memory": true, "cpus": true, "cpu": true, "formula": true, "tool": true, "engine": true, "instance": true, "database": true, "binding": true, "image": true, "connections": true, "persistence": true, "data-dir": true, "services": true, "url-var": true, "host-var": true, "port-var": true, "database-var": true, "user-var": true, "password-var": true, "directory": true, "output": true, "username": true, "host": true, "verify-service": true, "verify-port": true, "from": true, "to": true, "depth": true, "max-entries": true, "ignore": true}
 
 func parseCLI(args []string) (cliArgs, error) {
@@ -219,6 +221,31 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			return nil, nil
 		case "install":
 			return InstallBinary(userHome(), binaryPath(), a.B("configure-shell"))
+		case "update":
+			if sub != "" {
+				return nil, fail("USAGE", "Usa nearprod update [--check] [--yes].", 400)
+			}
+			updater := newUpdater()
+			plan, e := updater.Check(ctx)
+			if e != nil {
+				return nil, e
+			}
+			if a.B("check") || !plan.Available {
+				return plan.Summary, nil
+			}
+			if plan.Provider != "manual" {
+				return updater.Apply(ctx, plan)
+			}
+			if !a.B("yes") {
+				confirmed, e := confirmUpdate(os.Stdin, errout, plan.Current, plan.Latest)
+				if e != nil {
+					return nil, e
+				}
+				if !confirmed {
+					return merge(plan.Summary, J{"status": "cancelled", "cancelled": true}), nil
+				}
+			}
+			return updater.Apply(ctx, plan)
 		case "startup":
 			manager := NewStartup(home)
 			switch sub {

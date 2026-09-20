@@ -144,11 +144,14 @@ export function RuntimeView({ runtime, host, connected, operations, onSaved, not
         ]);
     }
     useEffect(() => {
+        const fallbackKind = host.runtime.supportedKinds[0] || runtime.kind;
         setSettings(host.runtime.supported
             ? runtime
             : {
                 ...runtime,
-                kind: host.runtime.supportedKinds[0] || runtime.kind,
+                kind: fallbackKind,
+                context: fallbackKind === "native" ? "default" : "colima",
+                profile: "default",
             });
         void load();
         return () => requests.current?.abort();
@@ -203,7 +206,9 @@ export function RuntimeView({ runtime, host, connected, operations, onSaved, not
                             notify("Contexto guardado. No se cambió el contexto global de Docker.");
                         });
                     } },
-                    React.createElement(Field, { label: "Tipo de runtime", help: `Opciones soportadas por este binario en ${host.displayName}. No se infieren desde el navegador.` }, host.runtime.supportedKinds.length === 1 ? (React.createElement("input", { readOnly: true, value: host.runtime.displayName })) : (React.createElement("select", { disabled: runtimeBusy, value: settings.kind, onChange: (e) => setSettings({
+                    React.createElement(Field, { label: "Tipo de runtime", help: `Opciones soportadas por este binario en ${host.displayName}. No se infieren desde el navegador.` }, host.runtime.supportedKinds.length === 1 ? (React.createElement("input", { readOnly: true, value: settings.kind === "colima"
+                            ? "Colima (macOS)"
+                            : "Docker nativo" })) : (React.createElement("select", { disabled: runtimeBusy, value: settings.kind, onChange: (e) => setSettings({
                             ...settings,
                             kind: e.target.value,
                         }) }, host.runtime.supportedKinds.map((kind) => (React.createElement("option", { key: kind, value: kind }, kind === "colima" ? "Colima (macOS)" : "Docker nativo")))))),

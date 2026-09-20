@@ -1,30 +1,32 @@
-# Pruebas ejecutadas — 0.7.1 Go
+# Pruebas ejecutadas — 0.8.0 Go
 
 ## Resultado final
 
 | Comprobación | Resultado | Alcance |
 |---|---|---|
-| Suite Go | **48 tests principales + 75 subtests aprobados (123 eventos PASS)** | FS, HTTP, Unix sockets, procesos, API, dominio, catálogo y contratos reales; Docker/Colima/Homebrew/launchctl usan dobles. |
+| Suite Go | **70 tests principales + 80 subtests aprobados (150 eventos PASS)** | FS, HTTP, Unix sockets, procesos, API, dominio, catálogo, plataformas y autoactualización; Docker/Colima/Homebrew/launchctl usan dobles salvo las aceptaciones opt-in. |
 | Harness browser opt-in | 1 omitido en suite general; ejecutado aparte | No es una prueba faltante contada como éxito. |
 | Race detector | **Pasa**, sin carreras notificadas en ejecución final | `go test -race -count=1`; se guarda el fallo inicial encontrado y la corrección. No prueba todas las intercalaciones posibles. |
 | go vet / TypeScript / UI build | **Pasan** | Compilación y análisis, no escaneo de vulnerabilidades. |
-| React + agente Go | **25 comprobaciones pasan** | UI real vía puente HTTP/SSE con Engine/Traefik simulado. |
-| Instalación/reinstalación nativa | **16 comprobaciones pasan** | Binario Linux instalado realmente, PATH sin Node, HTTP/assets, migración de catálogo3, backup y conservación de metadata. |
-| Navegador nativo | **Bloqueado** | Chromium ERR_BLOCKED_BY_ADMINISTRATOR. No se cambió la política. |
-| Docker y carpeta de datos | **Bloqueados, código77** | TOOL_MISSING; cero comprobaciones de motor/proxy real aprobadas. |
-| Darwin arm64 / amd64 | **Compilan** | No se ejecutó Mach-O ni launchd/Colima en macOS. |
-| Seguridad de dependencias/compiler | **Pendiente** | Compilador Go1.23.2 antiguo; no govulncheck/scan online. |
+| React + agente Go | **25 comprobaciones pasan en Chromium** | UI compilada vía HTTP/SSE con Engine/Traefik simulado; incluye layout estable y responsive. |
+| Instalación/reinstalación nativa | **16 comprobaciones pasan** | Binario instalado realmente en macOS; la evidencia WSL2 del PR cubre los mismos pasos. PATH sin Node, HTTP/assets, migración de catálogo3, backup y conservación de metadata. |
+| Navegador nativo | **25 comprobaciones pasan en macOS arm64** | Chromium real contra agente Go aislado; no usa catálogo ni Docker reales. |
+| Docker e infraestructura | **16 comprobaciones pasan en macOS/Colima** | PostgreSQL, MySQL y Redis reales con carpetas, credenciales, persistencia, backup/restore, vínculos y limpieza. |
+| Aceptación web Docker | **Parcial: 4/5 pasos pasan** | Engine, Compose, Traefik y limpieza pasan; la ruta HTTP del fixture falla igual en 0.8.0 y en el binario oficial 0.7.1. No se atribuye al PR WSL2, pero sigue pendiente. |
+| Darwin arm64 / amd64 | **arm64 ejecutado; ambos compilan** | Smoke, paquete y aceptación en Apple Silicon; no se probó Mach-O amd64 ni login launchd real. |
+| Seguridad | **Revisión independiente sin hallazgos medios/altos pendientes** | Se añadió rollback transaccional y pruebas de rechazo; GitHub/checksums siguen siendo un único dominio de confianza sin firma independiente. |
 
-Cobertura instrumentada Go: **57.6% de sentencias**. No equivale a cobertura de React ni de los binarios externos de instalación, ni a cobertura de funcionalidad del usuario. No se suman los números como un porcentaje de garantía. Las216 pruebasNode anteriores no se presentan como ejecutadas contra Go.
+Cobertura instrumentada Go: **60.8% de sentencias**. No equivale a cobertura de React ni de los binarios externos de instalación, ni a cobertura de funcionalidad del usuario. No se suman los números como un porcentaje de garantía. Las 216 pruebas Node anteriores no se presentan como ejecutadas contra Go.
 
 ## Evidencia
 
-- `go-tests.jsonl`, `go-tests.exit`, `coverage.out`, `coverage.txt`: resultados exactos por caso.
-- `race.txt`, `race.exit`: última comprobación; `history/race-before-fix.txt` conserva la carrera detectada y corregida.
+- `RESULTADOS.json`: resumen de la validación 0.8.0; `coverage.out` y `coverage.txt`: cobertura instrumentada actual.
+- `history/race-before-fix.txt`: conserva la carrera detectada y corregida en la entrega anterior; la ejecución final de `make check` volvió a pasar el detector.
 - `native-package.json/txt`: checksum del binario realmente probado y cada paso.
 - `browser-bridge.json/txt`: 25 pasos de UI; capturas tienen datos de runtime SIMULADOS.
-- `browser-native.json/txt`: bloqueo del navegador, sin transformarlo en aprobación.
-- `acceptance-real/result.json` y `acceptance-folder/result.json`: intentos reales bloqueados, no mocks.
+- `browser-native.json`: 27 pasos aprobados, incluidos los dos específicos de Linux/WSL2; `browser-native-macos.json`: 25 pasos aprobados en macOS.
+- `acceptance-real/result.json`: fallo HTTP de la aceptación web 0.8.0; `acceptance-baseline-0.7.1/result.json`: mismo fallo con la release oficial anterior.
+- `acceptance-folder/result.json`: 16 comprobaciones reales de PostgreSQL, MySQL y Redis aprobadas en macOS/Colima con 0.8.0.
 - `build-*.txt`, manifiesto y hashes: compilador y destinos de binarios.
 
 El puente de pruebas carga assets compilados y conecta fetch/EventSource con HTTP/SSE real del agente; no prueba transporte/cookies/CSP de una navegación nativa completa. HTTP, autenticación, Host/Origin y cabeceras sí se prueban además desde clientes HTTP reales en la suite Go. El puente y el FakeRunner están fuera del binario instalado.

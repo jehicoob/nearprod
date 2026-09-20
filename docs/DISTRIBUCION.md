@@ -6,7 +6,7 @@ Se conserva `npm run build:ui` (TypeScript + `scripts/copy-ui.mjs`), `internal/w
 
 `make check` valida el código. `scripts/build.sh` compila un binario. `scripts/release.py` reutiliza ese build para cuatro plataformas y empaqueta solo ejecutable, licencias, instrucciones y metadatos. Los archivos de frontend, fixtures y sus licencias necesarias quedan dentro del binario existente.
 
-Se eligió **GitHub Actions + el build existente + Python estándar** en lugar de GoReleaser. Para cuatro targets Unix y un formato de archive, se evita añadir otro ejecutable/configuración de build. La generación de Homebrew se limita a una fórmula con URLs y hashes reales. No se mantiene un instalador remoto `curl | sh` ni un auto-updater propio.
+Se eligió **GitHub Actions + el build existente + Python estándar** en lugar de GoReleaser. Para cuatro targets Unix y un formato de archive, se evita añadir otro ejecutable/configuración de build. La generación de Homebrew se limita a una fórmula con URLs y hashes reales. No se mantiene un instalador remoto `curl | sh`; el actualizador integrado consume estos mismos assets y no publica releases.
 
 ## Versión y herramientas
 
@@ -33,7 +33,7 @@ make smoke test-package
 make release-local
 ```
 
-La salida se guarda en `dist/0.7.0/`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
+La salida se guarda en `dist/0.8.0/`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
 
 ```bash
 python3 scripts/release.py --output dist/revision-2
@@ -53,7 +53,7 @@ Para diagnósticos sin toolchain actualizado o sin poder descargar npm:
 make release-snapshot
 ```
 
-Ese modo utiliza los assets ya entregados y produce versión `0.7.0-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
+Ese modo utiliza los assets ya entregados y produce versión `0.8.0-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
 
 ## Primer paso remoto: CI sin publicación
 
@@ -80,8 +80,8 @@ En el repositorio correcto, tras confirmar la visibilidad y pasar CI:
 3. Desde el commit aprobado, ejecuta explícitamente:
 
 ```bash
-git tag -a v0.7.0 -m "NearProd 0.7.0"
-git push origin v0.7.0
+git tag -a v0.8.0 -m "NearProd 0.8.0"
+git push origin v0.8.0
 ```
 
 `v*` es un filtro glob. El script verifica además formato estable X.Y.Z, coincidencia con `VERSION` y commit del tag. No se simula una expresión regular dentro del filtro YAML.
@@ -120,7 +120,7 @@ La fórmula NO instala Docker/Colima, no modifica el shell, no arranca servicios
 
 La función `nearprod()` que podía crear el instalador antiguo, un alias o el orden del PATH pueden seguir apuntando a `~/.local/bin/nearprod`. Revisa `type -a nearprod` y `.zshrc` antes de dar por completada la migración. El kit no los borra. Tampoco migra ni limpia el catálogo como parte del empaquetado.
 
-No hay `nearprod update` nuevo: Homebrew sigue siendo el dueño de su ejecutable. Actualizar el archivo no reinicia un proceso ya activo. Consulta la guía del binario para detener/reabrir únicamente el agente cuando no tenga tareas activas. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
+`nearprod update --check` consulta la última release pública estable. `nearprod update` solo administra la instalación manual estable `~/.local/bin/nearprod`; Homebrew sigue siendo dueño de su ejecutable y debe usar `brew upgrade nearprod`. El actualizador valida digest de GitHub, `SHA256SUMS.txt`, archive e identidad de plataforma/versión, conserva una copia anterior y limpia temporales. Actualizar el archivo no reinicia un proceso ya activo. Consulta la guía del binario para detener/reabrir únicamente el agente cuando no tenga tareas activas. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
 
 ## Límites de las validaciones
 

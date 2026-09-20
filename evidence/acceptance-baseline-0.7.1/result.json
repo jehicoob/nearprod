@@ -1,0 +1,40 @@
+{
+  "checks": [
+    { "durationMs": 73, "name": "Engine Linux local identificado", "state": "passed" },
+    { "durationMs": 38, "name": "Compose con --wait y --wait-timeout", "state": "passed" },
+    { "durationMs": 6309, "name": "Traefik real compartido en puerto temporal loopback", "state": "passed" },
+    {
+      "durationMs": 73324,
+      "error": {
+        "code": "ACCEPTANCE_HTTP",
+        "message": "No respondió HTTP 200 con el contenido esperado: np-6f0ebe43.localhost/"
+      },
+      "name": "Frontend y API: construcción, aprobación, arranque y dos rutas",
+      "state": "failed"
+    },
+    { "durationMs": 673, "name": "Limpieza de recursos temporales con propietario y Engine verificados", "state": "passed" }
+  ],
+  "context": "colima",
+  "engine": {
+    "architecture": "aarch64",
+    "cpus": 2,
+    "endpoint": "unix:///Users/jehicoob/.colima/default/docker.sock",
+    "id": "82f76d1c-fbfc-4bbe-9eb0-fd084927adb3",
+    "memoryBytes": 2053644288,
+    "os": "linux",
+    "version": "29.5.2"
+  },
+  "error": {
+    "code": "ACCEPTANCE_HTTP",
+    "message": "No respondió HTTP 200 con el contenido esperado: np-6f0ebe43.localhost/"
+  },
+  "evidence": "Control con el binario oficial 0.7.1; Docker real, sin simulación.",
+  "finishedAt": "2026-09-19T23:37:54.173Z",
+  "folder": false,
+  "infraOnly": false,
+  "runtime": "Go",
+  "startedAt": "2026-09-19T23:36:33.692Z",
+  "state": "failed",
+  "temporaryDirectory": "/Users/jehicoob/.np-check-1134792168",
+  "version": "0.7.1"
+}

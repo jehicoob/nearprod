@@ -1,3 +1,9 @@
+# 0.8.0
+
+Añade capacidades de host autoritativas para macOS, Linux, WSL y WSL2. Linux utiliza Docker nativo sin intentar administrar Colima, Homebrew o launchd; macOS conserva Colima y Docker nativo. PostgreSQL 18 con carpeta se bloquea en Docker nativo Linux cuando no puede garantizarse la compatibilidad de permisos.
+
+Incorpora `nearprod update --check` y `nearprod update` para instalaciones manuales. La actualización requiere confirmación, descarga únicamente el asset exacto de la última release estable, contrasta el digest de GitHub con `SHA256SUMS.txt`, valida el archive y la identidad del ejecutable, conserva la versión anterior y elimina temporales. Homebrew sigue siendo dueño de sus instalaciones.
+
 # 0.7.1
 
 Corrige los saltos de layout provocados por indicadores temporales durante refrescos de Infraestructura, Runtime, métricas y configuración de rutas/perfiles. El estado de carga permanece accesible mediante regiones de estado fuera del flujo visual y los controles conservan etiquetas estables.

@@ -1,7 +1,6 @@
 {
-  "checks": 0,
-  "report": "/mnt/data/NearProd-0.7.0/evidence/acceptance-folder/result.json",
-  "state": "blocked",
-  "version": "0.7.0"
+  "checks": 16,
+  "report": "evidence/acceptance-folder/result.json",
+  "state": "passed",
+  "version": "0.8.0"
 }
-TOOL_MISSING: Docker no está instalado. Cero pruebas reales ejecutadas.

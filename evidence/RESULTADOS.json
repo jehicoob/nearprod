@@ -1,48 +1,41 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "status": "candidate",
   "go": {
-    "topLevelPassed": 48,
-    "subtestsPassed": 75,
-    "totalPassEvents": 123,
+    "topLevelPassed": 70,
+    "subtestsPassed": 80,
+    "totalPassEvents": 150,
     "failed": 0,
     "optInBrowserHarnessSkippedInUnitSuite": 1,
-    "coverageStatements": 57.6,
+    "coverageStatements": 60.8,
     "race": "passed",
     "vet": "passed"
   },
   "ui": {
-    "passed": 24,
-    "transport": "test bridge HTTP/SSE real, Docker/Traefik fake",
-    "native": "blocked by administrative browser policy"
+    "macOSPassed": 25,
+    "wsl2EvidencePassed": 27,
+    "transport": "HTTP/SSE real; Docker/Traefik simulado",
+    "nativeMacOS": "passed"
   },
   "nativeInstalledPackage": {
     "passed": 16,
-    "platform": "linux/amd64",
+    "platforms": ["darwin/arm64", "linux/amd64 (WSL2 evidence)"],
     "noNodeInPATH": true
   },
   "mac": {
     "crossCompilation": "passed arm64/amd64",
-    "execution": "not run",
+    "arm64Execution": "passed",
     "notarization": "none"
   },
-  "realDocker": "blocked: executable missing; exit 77",
-  "compiler": "go1.23.2, outdated/unsupported; rebuild required for release promotion",
+  "realDocker": {
+    "infrastructure": "passed: 16 checks",
+    "webAcceptance": "failed: ACCEPTANCE_HTTP; same result with official 0.7.1 baseline"
+  },
+  "compiler": "go1.27.1",
   "releaseBinaries": {
-    "nearprod-darwin-amd64": {
-      "sha256": "ffcb6047d4451c9ec8167a8117410716aa68e3e15fe4352601e9d47806c72876",
-      "bytes": 8262848,
-      "buildInfo": "bin/nearprod-darwin-amd64: go1.23.2\n\tpath\tcosmoralabs/nearprod/cmd/nearprod\n\tmod\tcosmoralabs/nearprod\t(devel)\t\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=darwin\n\tbuild\tGOAMD64=v1\n"
-    },
-    "nearprod-darwin-arm64": {
-      "sha256": "b3888b25b18a3325634dd00025da3cee671a6a3b9c42938861c14604d03c37ad",
-      "bytes": 7898354,
-      "buildInfo": "bin/nearprod-darwin-arm64: go1.23.2\n\tpath\tcosmoralabs/nearprod/cmd/nearprod\n\tmod\tcosmoralabs/nearprod\t(devel)\t\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=darwin\n\tbuild\tGOARM64=v8.0\n"
-    },
-    "nearprod-linux-amd64": {
-      "sha256": "3a51ad96e70156f0c2696eefe44e9a9450c9b857f768d9ee5b8f5c11bc616fcc",
-      "bytes": 8081560,
-      "buildInfo": "bin/nearprod-linux-amd64: go1.23.2\n\tpath\tcosmoralabs/nearprod/cmd/nearprod\n\tmod\tcosmoralabs/nearprod\t(devel)\t\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\t-trimpath=true\n\tbuild\tCGO_ENABLED=0\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n\tbuild\tGOAMD64=v1\n"
-    }
+    "nearprod-darwin-amd64": { "sha256": "65dd62ba7f47639e47354104e211a2c21b35fe3d3c5fcaaa480a078810088984", "bytes": 9765984 },
+    "nearprod-darwin-arm64": { "sha256": "1f3035e68df293c1f9138f7a494b3af32c2b3697f6495b2c33da8fe5c86cbe88", "bytes": 9065874 },
+    "nearprod-linux-amd64": { "sha256": "032f8d2fb40abe3df808e1e05c4a096cdb78dc56ba9bd9260ec28b77b7d34116", "bytes": 9597088 },
+    "nearprod-linux-arm64": { "sha256": "fa6d3aa2535798fc92e61b3335491d6f83fc3662f3756463895af38dd228e228", "bytes": 8913056 }
   }
 }

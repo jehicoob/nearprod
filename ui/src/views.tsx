@@ -121,12 +121,15 @@ export function RuntimeView({
     ]);
   }
   useEffect(() => {
+    const fallbackKind = host.runtime.supportedKinds[0] || runtime.kind;
     setSettings(
       host.runtime.supported
         ? runtime
         : {
             ...runtime,
-            kind: host.runtime.supportedKinds[0] || runtime.kind,
+            kind: fallbackKind,
+            context: fallbackKind === "native" ? "default" : "colima",
+            profile: "default",
           },
     );
     void load();
@@ -217,7 +220,14 @@ export function RuntimeView({
               help={`Opciones soportadas por este binario en ${host.displayName}. No se infieren desde el navegador.`}
             >
               {host.runtime.supportedKinds.length === 1 ? (
-                <input readOnly value={host.runtime.displayName} />
+                <input
+                  readOnly
+                  value={
+                    settings.kind === "colima"
+                      ? "Colima (macOS)"
+                      : "Docker nativo"
+                  }
+                />
               ) : (
                 <select
                   disabled={runtimeBusy}
