@@ -5,16 +5,33 @@ import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
 import {InfrastructureView} from './infrastructure.js';
 import {ToolsView} from './tools.js';
-import type { Group, Catalog, Stack, Status, Candidate, Operation, Observed, Container } from './types.js';
+import {McpAccessView} from './McpAccessView.js';
+import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container } from './types.js';
 const { useState, useEffect } = React;
-type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools';
+type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools' | 'mcp';
 const EMPTY: Status = { connected: false, checkedAt: null, stacks: [] };
+interface LifecycleReview { value: Record<string, unknown>; endpoint: string; body: Record<string, unknown> }
+function CatalogLifecycleDialog({review,onClose,onApplied}: {review: LifecycleReview; onClose: () => void; onApplied: () => void}) {
+  const [busy,setBusy] = useState(false), [error,setError] = useState('');
+  const action = String(review.value.lifecycleAction || ''), stack = review.value.stack as {id:string;name:string;path:string;projectName:string} | undefined, group = review.value.group as {id:string;name:string} | undefined;
+  const title = action === 'archive-stack' ? 'Revisar archivo de aplicación' : action === 'restore-stack' ? 'Restaurar aplicación' : action === 'delete-group' ? 'Eliminar grupo vacío' : 'Retirar raíz de descubrimiento';
+  const confirm = action === 'archive-stack' ? 'Archivar del catálogo' : action === 'restore-stack' ? 'Restaurar en el catálogo' : action === 'delete-group' ? 'Eliminar grupo' : 'Retirar raíz';
+  return <Modal title={title} subtitle="Revisa el alcance antes de confirmar" onClose={onClose} wide>
+    {action === 'archive-stack' && <Alert><strong>Solo se retirará el registro activo.</strong> No se detendrán ni eliminarán contenedores, redes, volúmenes, checkouts o datos.</Alert>}
+    {action === 'restore-stack' && <Alert>La aplicación y sus vinculaciones volverán al catálogo sin iniciar ni detener runtime.</Alert>}
+    {stack && <section className="panel"><h3>{stack.name}</h3><p className="mono">{stack.id} · {stack.projectName}</p><p className="mono path">{stack.path}</p><p>Vinculaciones conservadas: {Number(review.value.bindingCount || 0)}</p></section>}
+    {group && <section className="panel"><h3>{group.name}</h3><p className="mono">{group.id}</p><p>Aplicaciones activas: {Number(review.value.activeApplications || 0)} · archivadas: {Number(review.value.archivedApplications || 0)}</p><p>Solo se elimina metadata del grupo.</p></section>}
+    {Boolean(review.value.root) && <section className="panel"><h3>Raíz sin dependencias</h3><p className="mono path">{String(review.value.root)}</p><p>No se borrará ninguna carpeta, checkout o recurso Docker.</p></section>}
+    {error && <Alert error>{error}</Alert>}
+    <div className="modal-actions"><button onClick={onClose}>Cancelar</button><button className={action === 'restore-stack' ? 'primary' : 'danger'} disabled={busy} onClick={() => {setBusy(true);setError('');void api(review.endpoint,{...review.body,confirm:true,fingerprint:review.value.fingerprint}).then(onApplied).catch(e => setError(message(e))).finally(() => setBusy(false));}}>{busy ? 'Aplicando…' : confirm}</button></div>
+  </Modal>;
+}
 function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [status, setStatus] = useState<Status>(EMPTY), [auth, setAuth] = useState<boolean | null>(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
   const [page, setPage] = useState<Page>('projects'), [search, setSearch] = useState(''), [discover, setDiscover] = useState(false), [editor, setEditor] = useState<{candidate?: Candidate; stack?: Stack} | null>(null);
   const [review, setReview] = useState<{stack: Stack; mode: string} | null>(null), [logs, setLogs] = useState<Stack | null>(null), [image, setImage] = useState<Container | null>(null), [mode, setMode] = useState<Record<string,string>>({});
   const [notice, setNotice] = useState<{text: string; error: boolean} | null>(null), [working, setWorking] = useState(false), [adoption, setAdoption] = useState<{id: string; allowed: boolean; fingerprint: string; containers: Container[]; warning: string} | null>(null);
-  const [batch,setBatch] = useState<Candidate[] | null>(null), [groupEditor,setGroupEditor] = useState<{group?: Group} | null>(null);
+  const [batch,setBatch] = useState<Candidate[] | null>(null), [groupEditor,setGroupEditor] = useState<{group?: Group} | null>(null), [lifecycleReview,setLifecycleReview] = useState<LifecycleReview | null>(null);
   const notify = (text: string, error = false) => setNotice({text, error});
   async function load() {
     setLoadError('');
@@ -55,6 +72,7 @@ function App() {
     return () => events.close();
   }, [auth]);
   async function work(task: () => Promise<void>) {setWorking(true); try {await task();} catch(e) {notify(message(e),true);} finally {setWorking(false);} }
+  async function openLifecycle(previewEndpoint: string, endpoint: string, body: Record<string, unknown>) {await work(async () => setLifecycleReview({value:await api<Record<string,unknown>>(previewEndpoint,body),endpoint,body}));}
   async function action(stack: Stack, action: string) {
     const selectedMode = mode[stack.id] || stack.activeMode || 'dev';
     if (['up','rebuild'].includes(action) && stack.routes?.length && !catalog?.proxy?.enabled) {setPage('proxy');notify('Activa Traefik una vez para este catálogo; después revisa e inicia la aplicación.');return;}
@@ -75,8 +93,10 @@ function App() {
   if(!auth) return <div className="login-page"><div className="login-brand"><div className="logo"><Icon name="cube" size={30}/></div><span>NearProd<span className="brand-dot">.</span></span></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
   if(!catalog) return <Busy/>;
   const running = status.stacks.filter(s => s.execution === 'running').length, totalContainers = status.stacks.reduce((n,s) => n+s.containers.length,0), active = catalog.operations.filter(o => o.state === 'running');
+  const archivedStacks = catalog.archivedStacks || [];
   const filtered = catalog.stacks.filter(s => `${s.name} ${s.id} ${s.path} ${s.projectName} ${catalog.groups?.find(g => g.id === s.product)?.name || ""}`.toLowerCase().includes(search.toLowerCase()));
-  const groups = [...new Set([...(catalog.groups || []).filter(g => !search || g.name.toLowerCase().includes(search.toLowerCase()) || filtered.some(s => s.product === g.id)).map(g => g.id), ...filtered.map(s => s.product)])];
+  const filteredArchived = archivedStacks.filter(s => `${s.name} ${s.id} ${s.path} ${s.projectName} ${catalog.groups?.find(g => g.id === s.product)?.name || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const groups = [...new Set([...(catalog.groups || []).filter(g => !search || g.name.toLowerCase().includes(search.toLowerCase()) || filtered.some(s => s.product === g.id) || filteredArchived.some(s => s.product === g.id)).map(g => g.id), ...filtered.map(s => s.product), ...filteredArchived.map(s => s.product)])];
   const groupName = (id: string) => catalog.groups?.find(g => g.id === id)?.name || id;
   const checked = Boolean(status.checkedAt);
   return (
@@ -116,10 +136,19 @@ function App() {
           </button>
           <button
             className={page === "tools" ? "active" : ""}
+            title="Herramientas"
             onClick={() => setPage("tools")}
           >
             <Icon name="terminal" />
             Herramientas
+          </button>
+          <button
+            className={page === "mcp" ? "active" : ""}
+            title="Acceso MCP"
+            onClick={() => setPage("mcp")}
+          >
+            <Icon name="network" />
+            Acceso MCP
           </button>
           <button
             className={page === "runtime" ? "active" : ""}
@@ -163,6 +192,12 @@ function App() {
       </aside>
       <div className="main">
         <header className="topbar">
+          <label className="mobile-navigation">
+            <span className="sr-only">Sección</span>
+            <select value={page} onChange={event => setPage(event.target.value as Page)} aria-label="Sección de NearProd">
+              <option value="projects">Aplicaciones</option><option value="proxy">Accesos locales</option><option value="infra">Infraestructura</option><option value="tools">Herramientas</option><option value="mcp">Acceso MCP</option><option value="runtime">Runtime y recursos</option><option value="activity">Actividad</option>
+            </select>
+          </label>
           <div className="breadcrumb">
             Workspace <Icon name="chevron" size={13} />
             <strong>
@@ -176,7 +211,9 @@ function App() {
                       ? "Infraestructura"
                       : page === "tools"
                         ? "Herramientas"
-                        : "Actividad"}
+                        : page === "mcp"
+                          ? "Acceso MCP"
+                          : "Actividad"}
             </strong>
           </div>
           <div className="topbar-status">
@@ -342,7 +379,7 @@ function App() {
                   </button>
                 </div>
               </div>
-              {!catalog.stacks.length && (
+              {!catalog.stacks.length && !archivedStacks.length && (
                 <div className="empty">
                   <div className="empty-icon">
                     <Icon name="folder" size={34} />
@@ -361,7 +398,7 @@ function App() {
                   <code>nearprod init ~/Projects</code>
                 </div>
               )}
-              {catalog.stacks.length > 0 && !groups.length && (
+              {(catalog.stacks.length > 0 || archivedStacks.length > 0) && !groups.length && (
                 <div className="empty small">
                   <p>No hay aplicaciones que coincidan con «{search}».</p>
                 </div>
@@ -375,11 +412,7 @@ function App() {
                     <div>
                       <h2>{groupName(product)}</h2>
                       <p>
-                        {
-                          catalog.stacks.filter((s) => s.product === product)
-                            .length
-                        }{" "}
-                        aplicaciones · CLI: <code>{product}</code>
+                        {catalog.stacks.filter((s) => s.product === product).length} activas · {archivedStacks.filter((s) => s.product === product).length} archivadas · CLI: <code>{product}</code>
                       </p>
                     </div>
                     <div className="product-actions">
@@ -414,10 +447,17 @@ function App() {
                       >
                         Detener grupo
                       </button>
+                      <button
+                        className="danger"
+                        disabled={working || active.length > 0 || catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)}
+                        title={catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product) ? 'Archiva o mueve todas las aplicaciones antes de eliminar el grupo.' : 'Elimina únicamente el grupo vacío.'}
+                        onClick={() => void openLifecycle('/groups/delete-preview','/groups/delete',{id:product})}
+                      >Eliminar grupo</button>
                     </div>
                   </div>
+                  {(catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)) && <p className="hint lifecycle-hint">Eliminar grupo estará disponible cuando no contenga aplicaciones activas ni archivadas.</p>}
                   <div className="stacks">
-                    {!catalog.stacks.some((s) => s.product === product) && (
+                    {!catalog.stacks.some((s) => s.product === product) && !archivedStacks.some((s) => s.product === product) && (
                       <div className="empty small">
                         <p>
                           Grupo vacío. Selecciona aplicaciones desde Descubrir y
@@ -534,27 +574,12 @@ function App() {
                                   Vincular existentes
                                 </button>
                                 <button
-                                  title="Solo elimina el registro; los contenedores siguen existiendo"
-                                  disabled={isBusy}
-                                  onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        `¿Quitar ${s.id} del catálogo? NO se detienen contenedores ni se borran datos.`,
-                                      )
-                                    )
-                                      void work(async () => {
-                                        await api("/stacks/remove", {
-                                          target: s.id,
-                                          confirm: true,
-                                        });
-                                        await load();
-                                        notify(
-                                          "Se quitó únicamente el registro.",
-                                        );
-                                      });
-                                  }}
+                                  className="danger"
+                                  title={['running','restarting','paused','starting'].includes(observed?.execution || '') ? 'Detén la aplicación antes de archivarla.' : 'Conserva checkout, runtime y datos; retira solo del catálogo activo.'}
+                                  disabled={isBusy || !status.connected || ['running','restarting','paused','starting'].includes(observed?.execution || '')}
+                                  onClick={() => void openLifecycle('/stacks/archive-preview','/stacks/archive',{target:s.id})}
                                 >
-                                  Quitar
+                                  Archivar del catálogo
                                 </button>
                               </div>
                               <div className="stack-actions">
@@ -741,8 +766,9 @@ function App() {
                               )}
                             </div>
                           </article>
-                        );
+                       );
                       })}
+                    {filteredArchived.filter(s => s.product === product).map((s: ArchivedStack) => <article className="stack archived-stack" key={s.uid}><div className="stack-main"><div className="stack-symbol"><Icon name="cube"/></div><div className="stack-description"><h3>{s.name}<span className="mono">{s.slug}</span></h3><p className="mono path" title={s.path}>{s.path}</p><div className="stack-meta"><span className="mono">{s.projectName}</span><Badge value="archived"/></div></div></div><div className="stack-bottom"><div className="stack-secondary"><span className="hint">Archivada {new Date(s.archivedAt).toLocaleString()} · {s.bindingCount} vinculaciones conservadas</span></div><div className="stack-actions"><button className="primary" disabled={working || active.length > 0} onClick={() => void openLifecycle('/stacks/restore-preview','/stacks/restore',{target:s.id})}>Restaurar en el catálogo</button></div></div></article>)}
                   </div>
                 </section>
               ))}
@@ -774,6 +800,7 @@ function App() {
           {page === "tools" && (
             <ToolsView operations={catalog.operations} notify={notify} />
           )}
+          {page === "mcp" && <McpAccessView/>}
           {page === "proxy" && (
             <ProxyView
               catalog={catalog}
@@ -831,12 +858,14 @@ function App() {
         <DiscoverDialog
           roots={catalog.roots}
           stacks={catalog.stacks}
+          archivedStacks={archivedStacks}
           onClose={() => setDiscover(false)}
           onSelect={(cs) => {
             setDiscover(false);
             setBatch(cs);
           }}
           onRoots={() => void load()}
+          onRemoveRoot={(root) => {setDiscover(false);void openLifecycle('/roots/remove-preview','/roots/remove',{root});}}
         />
       )}
       {editor && (
@@ -876,6 +905,7 @@ function App() {
           }}
         />
       )}
+      {lifecycleReview && <CatalogLifecycleDialog review={lifecycleReview} onClose={() => setLifecycleReview(null)} onApplied={() => {setLifecycleReview(null);void load();notify('Ciclo de vida actualizado sin borrar recursos implícitamente.');}}/>}
       {review && (
         <ReviewDialog
           {...review}

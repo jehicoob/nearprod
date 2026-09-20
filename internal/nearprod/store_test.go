@@ -59,10 +59,18 @@ func TestMigrationPreservesProjectAndDataIdentities(t *testing.T) {
 	s, e := OpenStore(h)
 	must(t, e)
 	after := s.Get()
-	for _, k := range []string{"owner", "roots", "groups", "stacks", "runtime", "infra", "toolPaths"} {
+	for _, k := range []string{"owner", "roots", "groups", "stacks", "runtime", "toolPaths"} {
 		if hash(v[k]) != hash(after[k]) {
 			t.Errorf("modified legacy %s", k)
 		}
+	}
+	for _, k := range []string{"instances", "databases", "bindings"} {
+		if hash(at(v, "infra", k)) != hash(at(after, "infra", k)) {
+			t.Errorf("modified legacy infra %s", k)
+		}
+	}
+	if len(arr(at(after, "infra", "archivedInstances"))) != 0 {
+		t.Fatal("migration created archived resources")
 	}
 	marker, e := readJSON(old, 1<<20)
 	must(t, e)
@@ -91,6 +99,57 @@ func TestMigrationPreservesProjectAndDataIdentities(t *testing.T) {
 		if st.Mode().Perm() != 0600 {
 			t.Errorf("permissions %s=%o", p, st.Mode().Perm())
 		}
+	}
+}
+
+func TestOpenStoreMigratesCanonicalV4Lifecycle(t *testing.T) {
+	h := tempHome(t)
+	v := initialState()
+	v["version"] = 4
+	delete(v, "archivedStacks")
+	for _, key := range []string{"archivedInstances", "archivedDatabases"} {
+		delete(obj(v["infra"]), key)
+	}
+	file := filepath.Join(h, "config", "catalog.json")
+	must(t, writeJSON(file, v))
+	before, e := os.ReadFile(file)
+	must(t, e)
+	preview, e := MigrationPreview(h)
+	must(t, e)
+	if !truth(preview["requiresMigration"]) || integer(preview["fromSchema"]) != 4 {
+		t.Fatal(preview)
+	}
+	s, e := OpenStore(h)
+	must(t, e)
+	if integer(s.Get()["version"]) != SchemaVersion {
+		t.Fatal("canonical schema was not upgraded")
+	}
+	for _, path := range [][]string{{"archivedStacks"}, {"infra", "archivedInstances"}, {"infra", "archivedDatabases"}} {
+		if _, ok := at(s.Get(), path...).([]any); !ok {
+			t.Fatalf("current catalog was not upgraded with %v", path)
+		}
+	}
+	persisted, e := readJSON(filepath.Join(h, "config", "catalog.json"), 16<<20)
+	must(t, e)
+	for _, path := range [][]string{{"archivedStacks"}, {"infra", "archivedInstances"}, {"infra", "archivedDatabases"}} {
+		if _, ok := at(persisted, path...).([]any); !ok {
+			t.Fatalf("lifecycle default was not persisted: %v", path)
+		}
+	}
+	j, e := readJSON(filepath.Join(h, "config", "migration.json"), 1<<20)
+	must(t, e)
+	if integer(j["fromSchema"]) != 4 || str(j["phase"]) != "committed" {
+		t.Fatal(j)
+	}
+	backup, e := os.ReadFile(str(j["backup"]))
+	must(t, e)
+	if string(backup) != string(before) {
+		t.Fatal("schema 4 backup is not exact")
+	}
+	s2, e := OpenStore(h)
+	must(t, e)
+	if hash(s.Get()) != hash(s2.Get()) {
+		t.Fatal("second opening mutated migrated catalog")
 	}
 }
 func TestMigrationFailureCases(t *testing.T) {
@@ -140,8 +199,8 @@ func TestDualCatalogRefused(t *testing.T) {
 	expectCode(t, e, "DUAL_CATALOG")
 }
 func TestMigrationInterruptedJournalResumes(t *testing.T) {
-	for _, modified := range []bool{false, true} {
-		t.Run(strBool(modified), func(t *testing.T) {
+	for _, replacement := range []string{"unchanged", "whitespace", "future", "invalid"} {
+		t.Run(replacement, func(t *testing.T) {
 			h := tempHome(t)
 			v := legacyState(t, h)
 			must(t, writeJSON(filepath.Join(h, "catalog.json"), v))
@@ -154,11 +213,16 @@ func TestMigrationInterruptedJournalResumes(t *testing.T) {
 			must(t, os.WriteFile(filepath.Join(h, "catalog.json"), b, 0600))
 			j["phase"] = "prepared"
 			must(t, writeJSON(filepath.Join(h, "config", "migration.json"), j))
-			if modified {
+			switch replacement {
+			case "whitespace":
 				must(t, os.WriteFile(filepath.Join(h, "catalog.json"), append(b, ' '), 0600))
+			case "future":
+				must(t, writeJSON(filepath.Join(h, "catalog.json"), J{"version": 99, "owner": "another-writer"}))
+			case "invalid":
+				must(t, os.WriteFile(filepath.Join(h, "catalog.json"), []byte("{"), 0600))
 			}
 			_, e = OpenStore(h)
-			if modified {
+			if replacement != "unchanged" {
 				expectCode(t, e, "MIGRATION_CONFLICT")
 			} else {
 				must(t, e)
@@ -329,10 +393,18 @@ func TestActual061GoldenMigrationAndRouting(t *testing.T) {
 	s, e := OpenStore(h)
 	must(t, e)
 	after := s.Get()
-	for _, k := range []string{"owner", "runtime", "roots", "groups", "stacks", "infra", "proxy"} {
+	for _, k := range []string{"owner", "runtime", "roots", "groups", "stacks", "proxy"} {
 		if hash(before[k]) != hash(after[k]) {
 			t.Fatalf("actual JS-generated field %s changed", k)
 		}
+	}
+	for _, k := range []string{"instances", "databases", "bindings"} {
+		if hash(at(before, "infra", k)) != hash(at(after, "infra", k)) {
+			t.Fatalf("actual JS-generated infra field %s changed", k)
+		}
+	}
+	if len(arr(at(after, "infra", "archivedInstances"))) != 0 {
+		t.Fatal("migration created archived resources")
 	}
 	expected, e := readJSON("../../tests/fixtures/identities-0.6.1.json", 100000)
 	must(t, e)

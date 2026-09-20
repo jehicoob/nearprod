@@ -140,6 +140,151 @@ func TestPersistentVolumeMissingBlocksReinitialization(t *testing.T) {
 		}
 	}
 }
+
+func stopInstance(t *testing.T, f *fixture, id string) {
+	t.Helper()
+	preview, e := f.S.Infra.StopPreview(context.Background(), id)
+	must(t, e)
+	_, e = f.S.Infra.Stop(context.Background(), J{"instance": id, "confirm": true, "fingerprint": preview["fingerprint"]}, nil)
+	must(t, e)
+}
+
+func TestArchiveRestoreInstancePreservesResourcesAndReservations(t *testing.T) {
+	f := newFixture(t, false)
+	r := f.createInstance(t, "postgres")
+	db := createDB(t, f, r, "archive_dev")
+	connection, e := f.S.Infra.Connection(str(db["id"]), true)
+	must(t, e)
+	password := str(connection["password"])
+	stopInstance(t, f, str(r["id"]))
+
+	containerCount, networkCount, volumeCount := len(f.F.Containers), len(f.F.Networks), len(f.F.Volumes)
+	before := len(f.F.History())
+	preview, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+	must(t, e)
+	if strings.Contains(string(mustJSON(preview)), password) {
+		t.Fatal("archive preview exposed a database password")
+	}
+	result, e := f.S.Infra.ArchiveInstance(context.Background(), J{"instance": r["id"], "confirm": true, "fingerprint": preview["fingerprint"]}, nil)
+	must(t, e)
+	if !truth(result["archived"]) || !truth(result["dataPreserved"]) || truth(result["runtimeChanged"]) {
+		t.Fatal(result)
+	}
+	_, e = f.S.Infra.Instance(str(r["id"]))
+	expectCode(t, e, "INSTANCE_NOT_FOUND")
+	archived, e := f.S.Infra.ArchivedInstance(str(r["id"]))
+	must(t, e)
+	if len(arr(archived["databases"])) != 1 || str(obj(arr(archived["databases"])[0])["id"]) != str(db["id"]) {
+		t.Fatal("database metadata not archived")
+	}
+	if len(arr(f.S.Infra.State()["databases"])) != 0 || len(arr(f.S.Infra.State()["archivedInstances"])) != 1 {
+		t.Fatal("catalog lifecycle move incomplete")
+	}
+	if strings.Contains(string(mustJSON(f.S.Store.Get())), password) {
+		t.Fatal("archived snapshot stored a database password")
+	}
+	corrupt := f.S.Store.Get()
+	snapshot := obj(arr(at(corrupt, "infra", "archivedInstances"))[0])
+	obj(snapshot["instance"])["name"] = "Digest alterado"
+	expectCode(t, validateState(corrupt), "INFRA_ARCHIVE_DIGEST")
+	if len(f.F.Containers) != containerCount || len(f.F.Networks) != networkCount || len(f.F.Volumes) != volumeCount {
+		t.Fatal("archive changed Docker resources")
+	}
+	for _, call := range f.F.History()[before:] {
+		if contains(call.Args, "create") || contains(call.Args, "rm") || contains(call.Args, "stop") || contains(call.Args, "up") || contains(call.Args, "down") {
+			t.Fatalf("lifecycle archive mutated Docker: %v", call.Args)
+		}
+	}
+	_, e = f.S.Infra.Preview(context.Background(), J{"engine": "postgres", "id": r["id"], "image": "postgres:17", "persistence": J{"kind": "volume"}})
+	expectCode(t, e, "INSTANCE_RESERVED")
+	_, e = f.S.Infra.Preview(context.Background(), J{"engine": "postgres", "id": r["uid"], "image": "postgres:17", "persistence": J{"kind": "volume"}})
+	expectCode(t, e, "INSTANCE_RESERVED")
+	_, e = f.S.SetRuntime(J{"kind": "native", "context": "other", "profile": "default"})
+	expectCode(t, e, "BOUND_RUNTIME")
+
+	restorePreview, e := f.S.Infra.RestoreInstancePreview(context.Background(), str(r["id"]))
+	must(t, e)
+	restored, e := f.S.Infra.RestoreInstance(context.Background(), J{"instance": r["id"], "confirm": true, "fingerprint": restorePreview["fingerprint"]}, nil)
+	must(t, e)
+	if !truth(restored["restored"]) || truth(restored["runtimeChanged"]) {
+		t.Fatal(restored)
+	}
+	active, e := f.S.Infra.Instance(str(r["id"]))
+	must(t, e)
+	if str(active["uid"]) != str(r["uid"]) || len(arr(f.S.Infra.State()["databases"])) != 1 || len(arr(f.S.Infra.State()["archivedInstances"])) != 0 {
+		t.Fatal("restore changed identity or lost metadata")
+	}
+	containers, e := f.S.Infra.Containers(context.Background(), active)
+	must(t, e)
+	if len(containers) != 1 || truth(obj(containers[0])["running"]) {
+		t.Fatal("restore started the runtime")
+	}
+}
+
+func TestArchiveInstanceFailsClosed(t *testing.T) {
+	t.Run("running", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		_, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		expectCode(t, e, "INSTANCE_RUNNING")
+	})
+	t.Run("binding", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		db := createDB(t, f, r, "bound_dev")
+		app := f.app(t, "archive", "api", nil)
+		bind := J{"target": app["id"], "database": db["id"], "services": A{"api"}, "mode": "dev"}
+		preview, e := f.S.Infra.BindingPreview(context.Background(), bind)
+		must(t, e)
+		bind["confirm"], bind["fingerprint"] = true, preview["fingerprint"]
+		_, e = f.S.Infra.Bind(context.Background(), bind)
+		must(t, e)
+		stopInstance(t, f, str(r["id"]))
+		_, e = f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		expectCode(t, e, "INSTANCE_BOUND")
+	})
+	t.Run("ownership", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		stopInstance(t, f, str(r["id"]))
+		f.F.Set(func() { obj(f.F.Volumes[str(r["volume"])]["Labels"])[LOwner] = "another-owner" })
+		_, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		expectCode(t, e, "INFRA_OWNERSHIP")
+	})
+	t.Run("engine", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		stopInstance(t, f, str(r["id"]))
+		f.F.EngineID = "another-engine"
+		_, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		expectCode(t, e, "ENGINE_IDENTITY")
+	})
+	t.Run("restore-missing-volume", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		stopInstance(t, f, str(r["id"]))
+		preview, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		must(t, e)
+		_, e = f.S.Infra.ArchiveInstance(context.Background(), J{"instance": r["id"], "confirm": true, "fingerprint": preview["fingerprint"]}, nil)
+		must(t, e)
+		f.F.Set(func() { delete(f.F.Volumes, str(r["volume"])) })
+		_, e = f.S.Infra.RestoreInstancePreview(context.Background(), str(r["id"]))
+		expectCode(t, e, "DATA_VOLUME_MISSING")
+	})
+	t.Run("stale-preview", func(t *testing.T) {
+		f := newFixture(t, false)
+		r := f.createInstance(t, "postgres")
+		stopInstance(t, f, str(r["id"]))
+		preview, e := f.S.Infra.ArchiveInstancePreview(context.Background(), str(r["id"]))
+		must(t, e)
+		must(t, f.S.Store.Update(func(v J) error {
+			obj(arr(at(v, "infra", "instances"))[0])["name"] = "Nombre cambiado"
+			return nil
+		}))
+		_, e = f.S.Infra.ArchiveInstance(context.Background(), J{"instance": r["id"], "confirm": true, "fingerprint": preview["fingerprint"]}, nil)
+		expectCode(t, e, "PREVIEW_CHANGED")
+	})
+}
 func TestFolderPersistenceAndSecretPermissions(t *testing.T) {
 	for _, image := range []string{"postgres:17", "postgres:18", "mysql:8.4"} {
 		t.Run(image, func(t *testing.T) {

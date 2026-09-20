@@ -1,7 +1,7 @@
 """Native installed CLI/HTTP/migration tests, real filesystem; no Docker needed.
 Runs on the host platform against a prebuilt binary, never a Node wrapper.
 """
-import gzip,hashlib,json,os,platform,subprocess,sys,tarfile,tempfile,time,urllib.request,shutil
+import gzip,hashlib,json,os,platform,select,subprocess,sys,tarfile,tempfile,time,urllib.request,shutil
 from pathlib import Path
 R=Path(__file__).resolve().parents[1];E=R/'evidence';E.mkdir(exist_ok=True)
 arch={'x86_64':'amd64','aarch64':'arm64','arm64':'arm64'}[platform.machine()];system=platform.system().lower()
@@ -26,8 +26,11 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
   assert (home/'catalog.json').read_bytes()==legacy;ok('Instalar no modifica ni migra el catálogo')
   assert (h/'.zshrc').read_text().count('# NearProd: comando estable')==1;assert len(list(h.glob('.zshrc.nearprod-*.bak')))==1;ok('Shell conservado con backup privado')
   data=json.loads(run('config','migrate','--dry-run','--json',binary=installed).stdout);assert data['requiresMigration'];assert not (home/'config/catalog.json').exists();ok('Vista previa no escribe ni ejecuta Docker')
-  run('config','migrate','--yes','--json',binary=installed);after=json.loads((home/'config/catalog.json').read_text());assert after['version']==4
-  for k in ('owner','roots','groups','stacks','runtime','infra','proxy'):assert after[k]==d[k],k
+  run('config','migrate','--yes','--json',binary=installed);after=json.loads((home/'config/catalog.json').read_text());assert after['version']==5
+  for k in ('owner','roots','groups','stacks','runtime','proxy'):assert after[k]==d[k],k
+  for k in ('instances','databases','bindings'):assert after['infra'][k]==d['infra'][k],k
+  assert after['archivedStacks']==[]
+  assert after['infra']['archivedInstances']==[] and after['infra']['archivedDatabases']==[]
   ok('Migración preserva proyectos URLs credenciales referencias y grupos')
   assert json.loads((home/'catalog.json').read_text())['version']==-1;assert json.loads(vpath.read_text())==vault;ok('Writer antiguo bloqueado sin reubicar vault ni volumen')
   journal=json.loads((home/'config/migration.json').read_text());assert Path(journal['backup']).read_bytes()==legacy;ok('Backup original byte por byte y journal finalizado')
@@ -35,10 +38,20 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
   def get(path,auth=False):
    req=urllib.request.Request(info['url']+path,headers={'Authorization':'Bearer '+info['token']} if auth else {});return urllib.request.urlopen(req,timeout=5)
   with get('/') as response:assert b'<div id="root">' in response.read()
-  for name in ['/vendor/react.js','/ui/App.js','/ui/infrastructure.js','/styles.css']:
+  for name in ['/vendor/react.js','/ui/App.js','/ui/infrastructure.js','/ui/McpAccessView.js','/styles.css']:
    with get(name) as response:assert len(response.read())>50
+  with get('/api/mcp',True) as response:mcp=json.loads(response.read())
+  assert mcp['transport']=='stdio' and mcp['args']==['mcp','serve'] and info['token'] not in json.dumps(mcp)
   ok('Assets React/TypeScript servidos por HTTP del binario')
+  initialize={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'package-test','version':'1'}}}
+  mcp_process=subprocess.Popen([str(installed),'mcp','serve'],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+  mcp_process.stdin.write(json.dumps(initialize)+'\n');mcp_process.stdin.flush();ready,_,_=select.select([mcp_process.stdout],[],[],10);assert ready
+  mcp_response=json.loads(mcp_process.stdout.readline());mcp_process.stdin.close();mcp_process.wait(timeout=10);mcp_error=mcp_process.stderr.read()
+  assert mcp_process.returncode==0 and not mcp_error and mcp_response['result']['serverInfo']['name']=='nearprod'
+  ok('Servidor MCP stdio responde sin contaminar stdout')
   c=json.loads(run('list','--json',binary=installed).stdout);assert len(c['stacks'])==1 and c['groups'][0]['name']=='Máximo Puntaje';ok('CLI y HTTP conservan catálogo migrado sin Docker')
+  run('group-create','--name','Temporal','--id','temporal','--json',binary=installed);run('group-delete','temporal','--yes','--json',binary=installed);assert all(g['id']!='temporal' for g in json.loads(run('groups','--json',binary=installed).stdout)['groups']);ok('CLI elimina únicamente grupo vacío con preview firmado')
+  run('init',str(h),'--json',binary=installed);run('root-remove',str(h),'--yes','--json',binary=installed);assert str(h) not in json.loads(run('list','--json',binary=installed).stdout)['roots'];assert h.is_dir();ok('CLI retira raíz sin dependencias y conserva filesystem')
   data=json.loads(run('config','backup','--yes','--json',binary=installed).stdout);file=Path(data.get('file') or data.get('path') or data.get('backup') or '')
   if not file.is_file(): raise AssertionError(data)
   assert file.stat().st_mode & 0o777==0o600

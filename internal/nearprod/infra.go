@@ -37,6 +37,25 @@ func (i *Infrastructure) Database(id string) (J, error) {
 	}
 	return nil, fail("DATABASE_NOT_FOUND", "Base/credencial no encontrada.", 404)
 }
+func (i *Infrastructure) ArchivedInstance(id string) (J, error) {
+	for _, raw := range arr(i.State()["archivedInstances"]) {
+		archived := obj(raw)
+		instance := obj(archived["instance"])
+		if str(instance["id"]) == id || str(instance["uid"]) == id {
+			return archived, nil
+		}
+	}
+	return nil, fail("ARCHIVED_INSTANCE_NOT_FOUND", "Instancia archivada no encontrada.", 404)
+}
+func instanceDatabases(infra J, uid string) A {
+	out := A{}
+	for _, raw := range arr(infra["databases"]) {
+		if str(obj(raw)["instanceUid"]) == uid {
+			out = append(out, copyJ(obj(raw)))
+		}
+	}
+	return out
+}
 func (i *Infrastructure) Dir(r J) string {
 	if d := str(r["managedDir"]); d != "" {
 		return filepath.Join(i.Store.Home, d)
@@ -84,6 +103,16 @@ func (i *Infrastructure) Consumers(r J) A {
 	}
 	return out
 }
+func instanceLocation(r J) string {
+	switch str(at(r, "persistence", "kind")) {
+	case "volume":
+		return "Docker volume: " + str(r["volume"])
+	case "folder":
+		return filepath.Join(str(at(r, "persistence", "path")), "data")
+	default:
+		return "Sin persistencia"
+	}
+}
 func (i *Infrastructure) List(obs J) J {
 	infra := i.State()
 	out := A{}
@@ -103,16 +132,21 @@ func (i *Infrastructure) List(obs J) J {
 				dbs = append(dbs, d)
 			}
 		}
-		location := "Sin persistencia"
-		switch str(at(r, "persistence", "kind")) {
-		case "volume":
-			location = "Docker volume: " + str(r["volume"])
-		case "folder":
-			location = filepath.Join(str(at(r, "persistence", "path")), "data")
-		}
-		out = append(out, merge(merge(r, stackState(cs, []string{"database"}, truth(obs["connected"]))), J{"containers": cs, "consumers": i.Consumers(r), "databases": dbs, "location": location, "internalHost": r["hostname"], "internalPort": at(engineOptions, str(r["engine"]), "port")}))
+		out = append(out, merge(merge(r, stackState(cs, []string{"database"}, truth(obs["connected"]))), J{"containers": cs, "consumers": i.Consumers(r), "databases": dbs, "location": instanceLocation(r), "internalHost": r["hostname"], "internalPort": at(engineOptions, str(r["engine"]), "port")}))
 	}
-	return J{"defaultDataRoot": filepath.Join(i.Store.Home, "databases"), "engines": engineOptions, "folderUnsupportedImages": folderUnsupportedImages(i.Store.Get()), "folderRestrictions": folderRestrictions(i.Store.Get()), "instances": out, "bindings": list(infra["bindings"]), "connected": truth(obs["connected"]), "checkedAt": obs["checkedAt"], "note": "Datos persistentes por instancia. Actualizar NearProd no los mueve. Traefik pertenece a Accesos locales."}
+	archived := A{}
+	for _, raw := range arr(infra["archivedInstances"]) {
+		snapshot := obj(raw)
+		r := obj(snapshot["instance"])
+		archived = append(archived, J{"id": r["id"], "uid": r["uid"], "name": r["name"], "engine": r["engine"], "requestedImage": r["requestedImage"], "persistence": copyJ(obj(r["persistence"])), "location": instanceLocation(r), "hostPort": r["hostPort"], "memoryMiB": r["memoryMiB"], "initialized": r["initialized"], "databaseCount": len(arr(snapshot["databases"])), "archivedAt": snapshot["archivedAt"], "lifecycle": "archived"})
+	}
+	archivedDatabases := A{}
+	for _, raw := range arr(infra["archivedDatabases"]) {
+		snapshot := obj(raw)
+		database := obj(snapshot["database"])
+		archivedDatabases = append(archivedDatabases, merge(databaseSummary(database), J{"archivedAt": snapshot["archivedAt"], "lifecycle": "archived"}))
+	}
+	return J{"defaultDataRoot": filepath.Join(i.Store.Home, "databases"), "engines": engineOptions, "folderUnsupportedImages": folderUnsupportedImages(i.Store.Get()), "folderRestrictions": folderRestrictions(i.Store.Get()), "instances": out, "archivedInstances": archived, "archivedDatabases": archivedDatabases, "bindings": list(infra["bindings"]), "connected": truth(obs["connected"]), "checkedAt": obs["checkedAt"], "note": "Datos persistentes por instancia. Actualizar NearProd no los mueve. Traefik pertenece a Accesos locales."}
 }
 func (i *Infrastructure) Ports(ctx context.Context, req J) (J, error) {
 	start := 15432
@@ -138,7 +172,7 @@ func (i *Infrastructure) Ports(ctx context.Context, req J) (J, error) {
 		exclude = str(r["uid"])
 	}
 	reservations := map[int]string{}
-	for _, v := range arr(i.State()["instances"]) {
+	for _, v := range allInfraInstances(i.State()) {
 		r := obj(v)
 		if str(r["uid"]) != exclude && integer(r["hostPort"]) > 0 {
 			reservations[integer(r["hostPort"])] = str(r["name"])
@@ -196,10 +230,10 @@ func (i *Infrastructure) Preview(ctx context.Context, input J) (J, error) {
 	if e = validateFolderPlatform(i.Store.Get(), def); e != nil {
 		return nil, e
 	}
-	for _, v := range arr(i.State()["instances"]) {
+	for _, v := range allInfraInstances(i.State()) {
 		r := obj(v)
-		if str(r["id"]) == str(def["id"]) {
-			return nil, fail("INSTANCE_DUPLICATE", "Ya existe esa instancia.", 409)
+		if str(r["id"]) == str(def["id"]) || str(r["uid"]) == str(def["id"]) || str(r["id"]) == str(def["uid"]) || str(r["uid"]) == str(def["uid"]) {
+			return nil, fail("INSTANCE_RESERVED", "El ID pertenece a una instancia activa o archivada.", 409)
 		}
 	}
 	if str(at(def, "persistence", "kind")) == "folder" {
@@ -208,7 +242,7 @@ func (i *Infrastructure) Preview(ctx context.Context, input J) (J, error) {
 			return nil, e
 		}
 		obj(def["persistence"])["path"] = p
-		for _, v := range arr(i.State()["instances"]) {
+		for _, v := range allInfraInstances(i.State()) {
 			r := obj(v)
 			if str(at(r, "persistence", "kind")) == "folder" {
 				old := str(at(r, "persistence", "path"))
@@ -700,6 +734,243 @@ func (i *Infrastructure) Start(ctx context.Context, id string, line func(string,
 		return editInstance(d, str(r["uid"]), func(v J) error { v["initialized"] = true; v["startedAt"] = now(); return nil })
 	})
 	return J{"instance": r["id"], "healthy": true, "container": c["id"], "internalHost": r["hostname"], "internalPort": at(engineOptions, str(r["engine"]), "port"), "hostPort": r["hostPort"]}, e
+}
+func databaseSummaries(databases A) A {
+	out := A{}
+	for _, raw := range databases {
+		db := obj(raw)
+		out = append(out, J{"id": db["id"], "name": db["name"], "username": db["username"], "state": db["state"]})
+	}
+	return out
+}
+func (i *Infrastructure) inspectInstanceLifecycle(ctx context.Context, r J, databases A, requireStopped bool) (J, error) {
+	if _, e := i.Verify(ctx, r); e != nil {
+		return nil, e
+	}
+	if _, e := i.Secrets(r); e != nil {
+		return nil, e
+	}
+	containers, e := i.Containers(ctx, r)
+	if e != nil {
+		return nil, e
+	}
+	containerSummary := A{}
+	for _, raw := range containers {
+		c := obj(raw)
+		if requireStopped && (truth(c["running"]) || contains([]string{"restarting", "paused"}, str(c["state"]))) {
+			return nil, fail("INSTANCE_RUNNING", "Detén la instancia y confirma su estado antes de archivarla.", 409)
+		}
+		containerSummary = append(containerSummary, J{"id": c["id"], "name": c["name"], "state": c["state"], "running": c["running"], "health": c["health"]})
+	}
+	owner, uid := str(i.Store.Get()["owner"]), str(r["uid"])
+	resource := func(kind, name string) (J, error) {
+		value, e := i.Docker.InspectNamed(ctx, kind, name)
+		if e != nil {
+			return nil, e
+		}
+		if value != nil && (str(at(value, "Labels", LOwner)) != owner || str(at(value, "Labels", LResource)) != uid) {
+			return nil, fail("INFRA_OWNERSHIP", "Un recurso existente no pertenece a esta instancia.", 409)
+		}
+		return J{"name": name, "exists": value != nil}, nil
+	}
+	network, e := resource("network", str(r["network"]))
+	if e != nil {
+		return nil, e
+	}
+	resources := J{"network": network}
+	switch str(at(r, "persistence", "kind")) {
+	case "volume":
+		volume, e := resource("volume", str(r["volume"]))
+		if e != nil {
+			return nil, e
+		}
+		if truth(r["initialized"]) && !truth(volume["exists"]) {
+			return nil, fail("DATA_VOLUME_MISSING", "Desapareció el volumen inicializado. Recupera el almacenamiento antes de cambiar su ciclo de vida.", 409)
+		}
+		resources["volume"] = volume
+	case "folder":
+		path, e := dataDirectory(str(at(r, "persistence", "path")), i.Store.Home, false)
+		if e != nil {
+			return nil, e
+		}
+		marker, e := readJSON(filepath.Join(path, ".nearprod-resource.json"), 1<<20)
+		if e != nil || str(marker["owner"]) != owner || str(marker["uid"]) != uid || str(marker["image"]) != str(r["requestedImage"]) {
+			return nil, fail("DATA_MARKER", "Falta un marcador válido de la instancia.", 409)
+		}
+		st, e := os.Lstat(filepath.Join(path, "data"))
+		if e != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+			return nil, fail("DATA_MISSING", "El directorio de datos no existe o no es válido.", 409)
+		}
+		resources["folder"] = J{"path": path, "exists": true}
+	}
+	return J{"containers": containerSummary, "resources": resources, "databases": databaseSummaries(databases)}, nil
+}
+func (i *Infrastructure) ArchiveInstancePreview(ctx context.Context, id string) (J, error) {
+	r, e := i.Instance(id)
+	if e != nil {
+		return nil, e
+	}
+	consumers := i.Consumers(r)
+	if len(consumers) > 0 {
+		return nil, detailed("INSTANCE_BOUND", "Desvincula todos los consumidores antes de archivar la instancia.", 409, J{"consumers": consumers})
+	}
+	for _, databaseRaw := range instanceDatabases(i.State(), str(r["uid"])) {
+		if bindings := databaseLifecycleBindings(i.Store.Get(), str(obj(databaseRaw)["id"])); len(bindings) > 0 {
+			return nil, detailed("INSTANCE_BOUND", "Restaura la aplicación archivada y desvincula su base antes de archivar la instancia.", 409, J{"bindings": bindings})
+		}
+	}
+	for _, raw := range arr(i.State()["archivedDatabases"]) {
+		if str(at(raw, "database", "instanceUid")) == str(r["uid"]) {
+			return nil, fail("INSTANCE_ARCHIVED_DATABASES", "Restaura o purga las bases archivadas antes de archivar la instancia completa.", 409)
+		}
+	}
+	databases := instanceDatabases(i.State(), str(r["uid"]))
+	scope, e := i.inspectInstanceLifecycle(ctx, r, databases, true)
+	if e != nil {
+		return nil, e
+	}
+	recordDigest := hash(J{"instance": r, "databases": databases})
+	preview := J{"lifecycleAction": "archive-instance", "instance": J{"id": r["id"], "uid": r["uid"], "name": r["name"], "engine": r["engine"], "requestedImage": r["requestedImage"], "persistence": copyJ(obj(r["persistence"])), "location": instanceLocation(r), "hostPort": r["hostPort"], "initialized": r["initialized"]}, "databases": scope["databases"], "containers": scope["containers"], "resources": scope["resources"], "recordDigest": recordDigest, "preserved": A{"contenedores y redes", "volúmenes o carpetas", "credenciales y datos", "imágenes Docker"}, "note": "Solo se archivará metadata de NearProd. No se ejecutarán comandos Docker ni se borrarán datos."}
+	preview["fingerprint"] = hash(preview)
+	return preview, nil
+}
+func (i *Infrastructure) ArchiveInstance(ctx context.Context, req J, line func(string, string)) (J, error) {
+	if !truth(req["confirm"]) {
+		return nil, fail("CONFIRM_REQUIRED", "Confirma archivar la instancia sin borrar recursos ni datos.", 409)
+	}
+	preview, e := i.ArchiveInstancePreview(ctx, str(req["instance"]))
+	if e != nil {
+		return nil, e
+	}
+	if str(preview["fingerprint"]) != str(req["fingerprint"]) {
+		return nil, fail("PREVIEW_CHANGED", "La instancia cambió desde la revisión; vuelve a comprobarla.", 409)
+	}
+	uid := str(at(preview, "instance", "uid"))
+	e = i.Store.Update(func(d J) error {
+		infra := obj(d["infra"])
+		var current J
+		instances := A{}
+		for _, raw := range arr(infra["instances"]) {
+			r := obj(raw)
+			if str(r["uid"]) == uid {
+				current = copyJ(r)
+			} else {
+				instances = append(instances, r)
+			}
+		}
+		if current == nil {
+			return fail("INSTANCE_NOT_FOUND", "La instancia ya no está activa.", 409)
+		}
+		for _, raw := range arr(infra["bindings"]) {
+			databaseID := str(obj(raw)["databaseId"])
+			for _, dbRaw := range arr(infra["databases"]) {
+				db := obj(dbRaw)
+				if str(db["id"]) == databaseID && str(db["instanceUid"]) == uid {
+					return fail("INSTANCE_BOUND", "La instancia recibió una vinculación nueva; vuelve a revisar.", 409)
+				}
+			}
+		}
+		databases, remaining := A{}, A{}
+		for _, raw := range arr(infra["databases"]) {
+			db := obj(raw)
+			if str(db["instanceUid"]) == uid {
+				databases = append(databases, copyJ(db))
+			} else {
+				remaining = append(remaining, db)
+			}
+		}
+		if hash(J{"instance": current, "databases": databases}) != str(preview["recordDigest"]) {
+			return fail("PREVIEW_CHANGED", "La metadata cambió desde la revisión; vuelve a comprobarla.", 409)
+		}
+		archived := J{"lifecycle": "archived", "archivedAt": now(), "instance": current, "databases": databases}
+		archived["snapshotDigest"] = archivedSnapshotDigest(archived)
+		infra["instances"] = instances
+		infra["databases"] = remaining
+		infra["archivedInstances"] = append(arr(infra["archivedInstances"]), archived)
+		return nil
+	})
+	if e != nil {
+		return nil, e
+	}
+	if line != nil {
+		line("Instancia archivada del catálogo; runtime y datos preservados.", "stdout")
+	}
+	return J{"instance": at(preview, "instance", "id"), "archived": true, "dataPreserved": true, "runtimeChanged": false}, nil
+}
+func (i *Infrastructure) RestoreInstancePreview(ctx context.Context, id string) (J, error) {
+	archived, e := i.ArchivedInstance(id)
+	if e != nil {
+		return nil, e
+	}
+	if archivedSnapshotDigest(archived) != str(archived["snapshotDigest"]) {
+		return nil, fail("INFRA_ARCHIVE_DIGEST", "El snapshot archivado no coincide con su digest.", 409)
+	}
+	r := obj(archived["instance"])
+	databases := list(archived["databases"])
+	scope, e := i.inspectInstanceLifecycle(ctx, r, databases, false)
+	if e != nil {
+		return nil, e
+	}
+	candidate := i.Store.Get()
+	infra := obj(candidate["infra"])
+	remaining := A{}
+	for _, raw := range arr(infra["archivedInstances"]) {
+		if str(at(raw, "instance", "uid")) != str(r["uid"]) {
+			remaining = append(remaining, raw)
+		}
+	}
+	infra["archivedInstances"] = remaining
+	infra["instances"] = append(arr(infra["instances"]), copyJ(r))
+	infra["databases"] = append(arr(infra["databases"]), databases...)
+	if e = validateState(candidate); e != nil {
+		return nil, e
+	}
+	preview := J{"lifecycleAction": "restore-instance", "instance": J{"id": r["id"], "uid": r["uid"], "name": r["name"], "engine": r["engine"], "requestedImage": r["requestedImage"], "persistence": copyJ(obj(r["persistence"])), "location": instanceLocation(r), "hostPort": r["hostPort"], "initialized": r["initialized"]}, "databases": scope["databases"], "containers": scope["containers"], "resources": scope["resources"], "recordDigest": archived["snapshotDigest"], "note": "La metadata volverá a la lista activa. No se iniciará ni detendrá el runtime y no se modificarán datos."}
+	preview["fingerprint"] = hash(preview)
+	return preview, nil
+}
+func (i *Infrastructure) RestoreInstance(ctx context.Context, req J, line func(string, string)) (J, error) {
+	if !truth(req["confirm"]) {
+		return nil, fail("CONFIRM_REQUIRED", "Confirma restaurar la instancia en el catálogo.", 409)
+	}
+	preview, e := i.RestoreInstancePreview(ctx, str(req["instance"]))
+	if e != nil {
+		return nil, e
+	}
+	if str(preview["fingerprint"]) != str(req["fingerprint"]) {
+		return nil, fail("PREVIEW_CHANGED", "La instancia archivada cambió desde la revisión.", 409)
+	}
+	uid := str(at(preview, "instance", "uid"))
+	e = i.Store.Update(func(d J) error {
+		infra := obj(d["infra"])
+		var snapshot J
+		remaining := A{}
+		for _, raw := range arr(infra["archivedInstances"]) {
+			value := obj(raw)
+			if str(at(value, "instance", "uid")) == uid {
+				snapshot = copyJ(value)
+			} else {
+				remaining = append(remaining, value)
+			}
+		}
+		if snapshot == nil {
+			return fail("ARCHIVED_INSTANCE_NOT_FOUND", "La instancia ya no está archivada.", 409)
+		}
+		if archivedSnapshotDigest(snapshot) != str(snapshot["snapshotDigest"]) || str(snapshot["snapshotDigest"]) != str(preview["recordDigest"]) {
+			return fail("PREVIEW_CHANGED", "El snapshot cambió desde la revisión.", 409)
+		}
+		infra["archivedInstances"] = remaining
+		infra["instances"] = append(arr(infra["instances"]), copyJ(obj(snapshot["instance"])))
+		infra["databases"] = append(arr(infra["databases"]), list(snapshot["databases"])...)
+		return nil
+	})
+	if e != nil {
+		return nil, e
+	}
+	if line != nil {
+		line("Instancia restaurada en el catálogo; runtime y datos sin cambios.", "stdout")
+	}
+	return J{"instance": at(preview, "instance", "id"), "restored": true, "dataPreserved": true, "runtimeChanged": false}, nil
 }
 func (i *Infrastructure) StopPreview(ctx context.Context, id string) (J, error) {
 	r, e := i.Instance(id)

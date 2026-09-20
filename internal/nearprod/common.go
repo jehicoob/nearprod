@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-const SchemaVersion = 4
+const SchemaVersion = 5
 const TraefikImage = "traefik:v3.7.13"
 
 // J preserves unknown legacy catalog properties. Runtime and boundary values are

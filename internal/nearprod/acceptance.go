@@ -573,6 +573,53 @@ func (a *acceptance) databaseAcceptance(engine string, folder bool) error {
 		}); e != nil {
 			return e
 		}
+		if e := a.step(engine+": reanudar purga después de eliminar la base física", func() error {
+			created, e := a.s.Infra.CreateDatabase(a.ctx, J{"instance": id, "name": "purge_resume", "confirm": true}, nil)
+			if e != nil {
+				return e
+			}
+			purgeDatabase := obj(created["database"])
+			query, adminDB := "DROP DATABASE "+pgID(str(purgeDatabase["name"]))+" WITH (FORCE);", "postgres"
+			if engine == "mysql" {
+				query, adminDB = "DROP DATABASE "+myID(str(purgeDatabase["name"]))+";", ""
+			}
+			if _, e = a.s.Infra.Admin(a.ctx, r, query, adminDB); e != nil {
+				return e
+			}
+			digest := purgeDatabaseRecordDigest(purgeDatabase)
+			if e = a.s.Store.Update(func(state J) error {
+				for _, raw := range arr(at(state, "infra", "databases")) {
+					current := obj(raw)
+					if str(current["id"]) == str(purgeDatabase["id"]) {
+						current["state"] = "purging"
+						current["purge"] = J{"mode": "purge", "phase": "account", "startedAt": now(), "recordDigest": digest}
+						return nil
+					}
+				}
+				return fail("ACCEPTANCE_PURGE", "No se encontró la base temporal para persistir el progreso de purga.", 422)
+			}); e != nil {
+				return e
+			}
+			req := J{"database": purgeDatabase["id"], "mode": "purge", "acknowledgeDataLoss": true, "typedId": purgeDatabase["id"]}
+			preview, e := a.s.Infra.PurgeDatabasePreview(a.ctx, req)
+			if e != nil {
+				return e
+			}
+			req["confirm"], req["fingerprint"] = true, preview["fingerprint"]
+			result, e := a.s.Infra.PurgeDatabase(a.ctx, req)
+			if e != nil {
+				return e
+			}
+			if !truth(result["purged"]) {
+				return fail("ACCEPTANCE_PURGE", "La purga reanudada no terminó.", 422)
+			}
+			if _, e = a.s.Infra.Database(str(purgeDatabase["id"])); str(publicError(e)["code"]) != "DATABASE_NOT_FOUND" {
+				return fail("ACCEPTANCE_PURGE", "La metadata de la purga reanudada sigue activa.", 422)
+			}
+			return nil
+		}); e != nil {
+			return e
+		}
 	}
 	// A lightweight real consumer proves overlay/environment/network, without installing anything on the host.
 	if e := a.step(engine+": vincular consumidor y comprobar red/variables/autenticación", func() error {

@@ -1,12 +1,13 @@
 import type { FormEvent } from 'react';
 import { api, humanBytes, message } from './api.js';
 import { Modal, Icon, Alert, Skeleton, Field, LiveStatus } from './components.js';
-import type { Candidate, Runtime, HostCapabilities, Doctor, ResourcePreview, Metrics, Stack, Observed, LogLine, Operation, Group } from './types.js';
+import type { Candidate, Runtime, HostCapabilities, Doctor, ResourcePreview, Metrics, Stack, ArchivedStack, Observed, LogLine, Operation, Group } from './types.js';
 const { useState, useEffect, useRef } = React;
-export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }: {roots: string[]; stacks: Stack[]; onClose: () => void; onSelect: (candidates: Candidate[]) => void; onRoots: () => void}) {
+export function DiscoverDialog({ roots, stacks, archivedStacks, onClose, onSelect, onRoots, onRemoveRoot }: {roots: string[]; stacks: Stack[]; archivedStacks: ArchivedStack[]; onClose: () => void; onSelect: (candidates: Candidate[]) => void; onRoots: () => void; onRemoveRoot: (root: string) => void}) {
   const [root,setRoot] = useState(roots[0] || ''), [depth,setDepth] = useState('8');
   const [candidates,setCandidates] = useState<Candidate[]>([]), [selected,setSelected] = useState<string[]>([]), [error,setError] = useState(''), [busy,setBusy] = useState(false), [result,setResult] = useState('');
   const controller = useRef<AbortController | null>(null); useEffect(() => () => controller.current?.abort(), []);
+  const underRoot = (candidate: string, value: string) => value === candidate || value.startsWith(candidate.endsWith('/') ? candidate : candidate + '/');
   async function scan(e: FormEvent) {
     e.preventDefault(); controller.current?.abort(); controller.current = new AbortController(); const signal = controller.current.signal;
     setBusy(true);setError('');setResult('');setCandidates([]);setSelected([]);
@@ -19,6 +20,7 @@ export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }: {r
   const selectable = candidates.filter(c => !stacks.some(s => s.path === c.path));
   return <Modal title="Descubrir aplicaciones" subtitle="1. Busca en tu carpeta. 2. Selecciona las aplicaciones. 3. Revisa su configuración y añádelas a un grupo." onClose={onClose} wide>
     <form onSubmit={e => void scan(e)}><Field label="Carpeta raíz" help="Carpeta que contiene tus proyectos, por ejemplo ~/Projects. Se revisan subcarpetas; no se ejecuta ni se modifica ningún repositorio."><input required autoFocus value={root} onChange={e => setRoot(e.target.value)} list="roots" placeholder="~/Projects"/></Field><datalist id="roots">{roots.map(r => <option key={r} value={r}/>)}</datalist>
+      {!!roots.length && <details className="advanced compact-details"><summary>Raíces guardadas</summary><div className="root-list">{roots.map(value => {const active = stacks.filter(s => underRoot(value,s.path)).length, archived = archivedStacks.filter(s => underRoot(value,s.path)).length, blocked = active + archived > 0;return <div className="root-row" key={value}><code>{value}</code><span>{active} activas · {archived} archivadas</span><button type="button" className="danger" disabled={busy || blocked} onClick={() => onRemoveRoot(value)}>Retirar raíz</button>{blocked && <small>No disponible mientras existan aplicaciones dependientes.</small>}</div>;})}</div></details>}
       <details className="advanced compact-details"><summary>Opciones de búsqueda</summary><Field label="Profundidad de búsqueda" help="Cuántos niveles de subcarpetas recorrer. 8 suele ser suficiente; 0 revisa solo la carpeta elegida. Se omiten dependencias, cachés y enlaces a directorios."><input type="number" min="0" max="20" value={depth} onChange={e => setDepth(e.target.value)}/></Field></details>
       <div className="inline-actions"><button className="primary" disabled={busy}><Icon name="search"/>{busy ? 'Buscando…' : 'Buscar aplicaciones'}</button>{busy && <button type="button" onClick={() => {controller.current?.abort();setBusy(false);}}>Cancelar búsqueda</button>}</div>
     </form>

@@ -64,7 +64,7 @@ func (s *Service) Idle(targets ...string) error {
 func (s *Service) Catalog() J {
 	d := s.Store.Get()
 	groups := list(d["groups"])
-	for _, v := range arr(d["stacks"]) {
+	for _, v := range allStacks(d) {
 		st := obj(v)
 		found := false
 		for _, g := range groups {
@@ -83,7 +83,12 @@ func (s *Service) Catalog() J {
 			ops = append(ops, v)
 		}
 	}
-	return J{"version": Version, "runtimeLanguage": "Go", "host": s.Runtime.Capabilities(), "roots": d["roots"], "runtime": d["runtime"], "proxy": s.Proxy.Settings(), "groups": groups, "stacks": d["stacks"], "operations": ops, "infrastructure": s.Infra.List(s.Observed()), "storage": configPaths(s.Store.Home)}
+	archived := A{}
+	for _, raw := range arr(d["archivedStacks"]) {
+		snapshot := obj(raw)
+		archived = append(archived, merge(stackSummary(obj(snapshot["stack"])), J{"archivedAt": snapshot["archivedAt"], "lifecycle": "archived", "bindingCount": len(arr(snapshot["bindings"]))}))
+	}
+	return J{"version": Version, "runtimeLanguage": "Go", "host": s.Runtime.Capabilities(), "roots": d["roots"], "runtime": d["runtime"], "proxy": s.Proxy.Settings(), "groups": groups, "stacks": d["stacks"], "archivedStacks": archived, "operations": ops, "infrastructure": s.Infra.List(s.Observed()), "storage": configPaths(s.Store.Home)}
 }
 func (s *Service) Observed() J {
 	s.observedMu.RLock()
@@ -231,7 +236,7 @@ func (s *Service) ProjectOptions(req J) (J, error) {
 	}
 	known = unique(known)
 	registered := []string{}
-	for _, st := range arr(s.Store.Get()["stacks"]) {
+	for _, st := range allStacks(s.Store.Get()) {
 		if str(obj(st)["path"]) == str(v["path"]) {
 			registered = append(registered, str(obj(st)["projectName"]))
 		}
@@ -402,13 +407,13 @@ func (s *Service) Register(req J, batch bool) (J, error) {
 		}
 		for _, raw := range normalized {
 			n := obj(raw)
-			for _, st := range arr(v["stacks"]) {
+			for _, st := range allStacks(v) {
 				x := obj(st)
 				if str(x["id"]) == str(n["id"]) || str(x["projectName"]) == str(n["projectName"]) {
 					return fail("STACK_DUPLICATE", "Ya existe la identidad/proyecto Compose. No se guardó parcialmente la selección.", 409)
 				}
 			}
-			for _, ir := range arr(at(v, "infra", "instances")) {
+			for _, ir := range allInfraInstances(obj(v["infra"])) {
 				if str(obj(ir)["projectName"]) == str(n["projectName"]) {
 					return fail("PROJECT_RESERVED", "Nombre reservado a infraestructura.", 409)
 				}
@@ -458,7 +463,7 @@ func (s *Service) Edit(id string, input J) (J, error) {
 			return e
 		}
 		currentChanged := false
-		for _, st := range arr(v["stacks"]) {
+		for _, st := range allStacks(v) {
 			x := obj(st)
 			if str(x["id"]) != id && str(x["id"]) == str(replacement["id"]) {
 				return fail("STACK_DUPLICATE", "Identificador ya utilizado en ese grupo.", 409)
@@ -502,12 +507,18 @@ func (s *Service) Edit(id string, input J) (J, error) {
 	s.emitCatalog()
 	return s.Store.Stack(str(replacement["id"]))
 }
-func (s *Service) Remove(id string, confirm bool) (J, error) {
+func (s *Service) Remove(ctx context.Context, id string, confirm bool) (J, error) {
 	if !confirm {
 		return nil, fail("CONFIRM_REQUIRED", "Confirma quitar del catálogo; no borra recursos.", 409)
 	}
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "La solicitud terminó antes de comprobar Docker; no se quitó la aplicación.", 408)
+	}
 	s.mutation.Lock()
 	defer s.mutation.Unlock()
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "La solicitud terminó antes de comprobar Docker; no se quitó la aplicación.", 408)
+	}
 	if e := s.Idle(id); e != nil {
 		return nil, e
 	}
@@ -515,24 +526,48 @@ func (s *Service) Remove(id string, confirm bool) (J, error) {
 	if e != nil {
 		return nil, e
 	}
+	s.Refresh(ctx)
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "No se pudo completar una observación fresca de Docker; no se quitó la aplicación.", 408)
+	}
+	observed := s.Observed()
+	if !truth(observed["connected"]) {
+		return nil, fail("DOCKER_UNAVAILABLE", "Conecta el Engine para confirmar que la aplicación está detenida.", 503)
+	}
+	for _, raw := range arr(observed["containers"]) {
+		container := obj(raw)
+		if str(container["project"]) != str(old["projectName"]) {
+			continue
+		}
+		if !ownsContainer(old, container, str(s.Store.Get()["owner"])) {
+			return nil, fail("STACK_OWNERSHIP", "Hay contenedores ajenos con la identidad Compose de la aplicación.", 409)
+		}
+		if truth(container["running"]) || contains([]string{"restarting", "paused", "starting"}, str(container["state"])) {
+			return nil, fail("STACK_RUNNING", "Detén la aplicación antes de quitarla del catálogo.", 409)
+		}
+	}
+	for _, raw := range arr(at(s.Store.Get(), "infra", "bindings")) {
+		if str(obj(raw)["stackUid"]) == str(old["uid"]) {
+			return nil, fail("STACK_BOUND", "Desvincula las bases antes de quitar la aplicación, o usa el archivo reversible.", 409)
+		}
+	}
 	s.StopWatch(id)
 	e = s.Store.Update(func(v J) error {
 		if e := s.Idle(id); e != nil {
 			return e
 		}
-		stacks, bindings := A{}, A{}
+		stacks := A{}
 		for _, x := range arr(v["stacks"]) {
 			if str(obj(x)["id"]) != id {
 				stacks = append(stacks, x)
 			}
 		}
 		for _, x := range arr(at(v, "infra", "bindings")) {
-			if str(obj(x)["stackUid"]) != str(old["uid"]) {
-				bindings = append(bindings, x)
+			if str(obj(x)["stackUid"]) == str(old["uid"]) {
+				return fail("STACK_BOUND", "La aplicación recibió una vinculación; no se quitó del catálogo.", 409)
 			}
 		}
 		v["stacks"] = stacks
-		obj(v["infra"])["bindings"] = bindings
 		return nil
 	})
 	if e != nil {
@@ -854,7 +889,7 @@ func (s *Service) actOne(ctx context.Context, id, action string, req J, line fun
 }
 func (s *Service) InfraAction(req J) (J, error) {
 	action := str(req["action"])
-	if !contains([]string{"create", "start", "stop", "database", "check", "bind", "unbind", "check-binding", "backup", "restore", "logs"}, action) {
+	if !contains([]string{"create", "start", "stop", "database", "check", "bind", "unbind", "check-binding", "backup", "restore", "archive-instance", "restore-instance", "archive-database", "restore-database", "purge-database", "logs"}, action) {
 		return nil, fail("INFRA_ACTION", "Acción de infraestructura desconocida.", 400)
 	}
 	req = copyJ(req)
@@ -883,6 +918,16 @@ func (s *Service) InfraAction(req J) (J, error) {
 			return s.Infra.Backup(ctx, req)
 		case "restore":
 			return s.Infra.Restore(ctx, req)
+		case "archive-instance":
+			return s.Infra.ArchiveInstance(ctx, req, line)
+		case "restore-instance":
+			return s.Infra.RestoreInstance(ctx, req, line)
+		case "archive-database":
+			return s.Infra.ArchiveDatabase(req)
+		case "restore-database":
+			return s.Infra.RestoreDatabase(req)
+		case "purge-database":
+			return s.Infra.PurgeDatabase(ctx, req)
 		case "logs":
 			return J{"note": "Últimas 200 líneas."}, s.InfraLogs(ctx, str(req["instance"]), J{"tail": 200}, func(v J) { line(str(v["text"]), str(v["stream"])) })
 		}
@@ -950,8 +995,8 @@ func (s *Service) SetRuntime(req J) (J, error) {
 		return nil, e
 	}
 	d := s.Store.Get()
-	bound := at(d, "proxy", "binding") != nil || len(arr(at(d, "infra", "instances"))) > 0
-	for _, st := range arr(d["stacks"]) {
+	bound := at(d, "proxy", "binding") != nil || len(allInfraInstances(obj(d["infra"]))) > 0
+	for _, st := range allStacks(d) {
 		bound = bound || obj(st)["binding"] != nil
 	}
 	if bound && hash(rt) != hash(d["runtime"]) {

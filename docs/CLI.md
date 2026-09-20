@@ -16,6 +16,7 @@ Instalación y configuración (no requieren Docker):
   nearprod startup enable|disable|status
   nearprod ui [--no-open]
   nearprod agent stop
+  nearprod mcp serve                    servidor MCP local por stdio
 
 Aplicaciones:
   nearprod init ~/Projects
@@ -25,12 +26,16 @@ Aplicaciones:
   nearprod register --manifest definicion.json
   nearprod edit grupo/app --manifest definicion.json
   nearprod group-create --name "Mi grupo" [--id mi-grupo]
+  nearprod group-delete mi-grupo [--yes]
+  nearprod root-remove ~/Projects [--yes]
   nearprod review grupo/app [--mode dev|verify] [--approve --yes --allow-unsafe]
   nearprod adopt grupo/app [--yes]
   nearprod up|stop|restart|rebuild grupo[/app] [--mode dev|verify] [--wait]
                [--service api] [--confirm-mode] [--start-runtime] [--detach]
   nearprod logs grupo/app [--follow] [--service api] [--tail 100] [--since RFC3339]
   nearprod watch|watch-stop grupo/app
+  nearprod archive grupo/app [--yes]
+  nearprod restore-app grupo/app [--yes]
   nearprod remove grupo/app --yes        solo catálogo, conserva datos
   nearprod operation ID | nearprod cancel ID
 
@@ -61,6 +66,12 @@ Infraestructura compartida:
   nearprod infra check-binding --binding ID
   nearprod infra unbind --binding ID --yes
   nearprod infra stop --instance pg-main [--yes --allow-active]
+  nearprod infra archive-instance --instance pg-main [--yes]
+  nearprod infra restore-instance --instance pg-main [--yes]
+  nearprod infra archive-database --database ID [--yes]
+  nearprod infra restore-database --database ID [--yes]
+  nearprod infra purge-database --database ID --backup [--directory /ruta] [--yes]
+  nearprod infra purge-database --database ID --without-backup --acknowledge-data-loss ID [--yes]
   nearprod infra backup --database ID [--directory /ruta/backups] --yes
   nearprod infra restore --database ID --file /ruta/archivo --trusted-backup --yes
   nearprod infra logs --instance pg-main [--follow]
@@ -81,3 +92,5 @@ Actualizar el binario conserva ~/.nearprod/config y rutas/volúmenes existentes.
 Una acción sin --yes muestra preview cuando corresponde. No se guardan contraseñas en argumentos. Los comandos responden JSON cuando se solicita --json; las operaciones esperan salvo --detach. --wait pertenece al comportamiento documentado de reconciliación, no certifica negocio.
 
 `nearprod update --check` solo consulta la última release estable y el asset exacto de la plataforma. `nearprod update` funciona sobre la instalación manual estable en `~/.local/bin/nearprod`; solicita confirmación salvo `--yes`, verifica checksums e identidad, conserva la copia anterior y elimina temporales. No sobrescribe una instalación Homebrew ni un ejecutable abierto desde Descargas o un checkout. El agente ya activo conserva su versión hasta ejecutar, sin tareas en curso, `nearprod agent stop` y `nearprod ui`.
+
+`nearprod mcp serve` habla MCP exclusivamente por stdin/stdout. Inicia o reutiliza el agente loopback del mismo `NEARPROD_HOME`; no abre otro puerto ni imprime mensajes ajenos al protocolo. Consulta [MCP](MCP.md) antes de entregar esta configuración a un cliente, porque concede acceso total al catálogo local.
