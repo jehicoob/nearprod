@@ -2,7 +2,7 @@
 
 ## El contrato
 
-La versión del ejecutable es `0.7.0`. La versión de esquema es **4**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
+La versión del ejecutable es `0.8.0`. La versión de esquema es **4**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
 
 0.6.1 ya persistía `~/.nearprod/catalog.json`. Por ello, reinstalar no debería requerir registrar nuevamente. Cambiar de NEARPROD_HOME, borrar el catálogo, arrancar otra instalación o apuntar a otro Engine sí puede mostrar un entorno distinto. `nearprod config paths` muestra exactamente el catálogo elegido sin arrancar Docker.
 
