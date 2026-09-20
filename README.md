@@ -129,7 +129,7 @@ Pruebas opt-in: crean imágenes/contenedores/redes/volúmenes y bases TEMPORALES
 
 ## Documentación
 
-[Inicio rápido](docs/INICIO-RAPIDO.md) · [Migración y almacenamiento](docs/MIGRACION.md) · [Infraestructura](docs/INFRAESTRUCTURA.md) · [CLI](docs/CLI.md) · [Arquitectura/spec](docs/SPEC-0.7.0.md) · [Auditoría](docs/AUDITORIA-0.7.0.md) · [Pruebas](docs/PRUEBAS.md) · [Compilar](docs/COMPILAR.md)
+[Inicio rápido](docs/INICIO-RAPIDO.md) · [Migración y almacenamiento](docs/MIGRACION.md) · [Infraestructura](docs/INFRAESTRUCTURA.md) · [Ciclo de vida](docs/CICLO-DE-VIDA.md) · [CLI](docs/CLI.md) · [Arquitectura/spec](docs/SPEC-0.7.0.md) · [Auditoría](docs/AUDITORIA-0.7.0.md) · [Pruebas](docs/PRUEBAS.md) · [Compilar](docs/COMPILAR.md)
 
 No incluye TLS/DNS administrado, despliegue remoto, adopción automática de proxies externos, actualización mayor in situ de bases, borrado de datos, migración automática de DBs de proyectos ni soporte universal Compose `include`/`extends`. No garantiza ahorro de RAM de los contenedores: Go sustituye el controlador, no la VM Linux.
 

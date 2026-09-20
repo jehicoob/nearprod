@@ -307,6 +307,10 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 	switch p {
 	case "/api/roots":
 		return s.AddRoot(str(v["root"]))
+	case "/api/roots/remove-preview":
+		return s.RemoveRootPreview(str(v["root"]))
+	case "/api/roots/remove":
+		return s.RemoveRoot(v)
 	case "/api/discover":
 		return s.Discover(ctx, v)
 	case "/api/project-options":
@@ -315,6 +319,10 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 		return s.Group(v, false)
 	case "/api/groups/rename":
 		return s.Group(v, true)
+	case "/api/groups/delete-preview":
+		return s.DeleteGroupPreview(str(v["id"]))
+	case "/api/groups/delete":
+		return s.DeleteGroup(v)
 	case "/api/stacks":
 		return s.Register(v, false)
 	case "/api/stacks/batch":
@@ -323,6 +331,14 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 		return s.Edit(str(v["target"]), obj(v["definition"]))
 	case "/api/stacks/remove":
 		return s.Remove(str(v["target"]), truth(v["confirm"]))
+	case "/api/stacks/archive-preview":
+		return s.ArchiveStackPreview(str(v["target"]))
+	case "/api/stacks/archive":
+		return s.ArchiveStack(ctx, v)
+	case "/api/stacks/restore-preview":
+		return s.RestoreStackPreview(str(v["target"]))
+	case "/api/stacks/restore":
+		return s.RestoreStack(v)
 	case "/api/preview":
 		return s.Preview(ctx, str(v["target"]), text(v["mode"], "dev"))
 	case "/api/trust":
@@ -363,6 +379,16 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 		return s.Infra.Preview(ctx, v)
 	case "/api/infra/stop-preview":
 		return s.Infra.StopPreview(ctx, str(v["instance"]))
+	case "/api/infra/archive-preview":
+		return s.Infra.ArchiveInstancePreview(ctx, str(v["instance"]))
+	case "/api/infra/restore-instance-preview":
+		return s.Infra.RestoreInstancePreview(ctx, str(v["instance"]))
+	case "/api/infra/archive-database-preview":
+		return s.Infra.ArchiveDatabasePreview(str(v["database"]))
+	case "/api/infra/restore-database-preview":
+		return s.Infra.RestoreDatabasePreview(str(v["database"]))
+	case "/api/infra/purge-database-preview":
+		return s.Infra.PurgeDatabasePreview(ctx, v)
 	case "/api/infra/binding-preview":
 		return s.Infra.BindingPreview(ctx, v)
 	case "/api/infra/connection":

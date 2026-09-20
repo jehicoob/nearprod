@@ -27,7 +27,10 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
   assert (h/'.zshrc').read_text().count('# NearProd: comando estable')==1;assert len(list(h.glob('.zshrc.nearprod-*.bak')))==1;ok('Shell conservado con backup privado')
   data=json.loads(run('config','migrate','--dry-run','--json',binary=installed).stdout);assert data['requiresMigration'];assert not (home/'config/catalog.json').exists();ok('Vista previa no escribe ni ejecuta Docker')
   run('config','migrate','--yes','--json',binary=installed);after=json.loads((home/'config/catalog.json').read_text());assert after['version']==4
-  for k in ('owner','roots','groups','stacks','runtime','infra','proxy'):assert after[k]==d[k],k
+  for k in ('owner','roots','groups','stacks','runtime','proxy'):assert after[k]==d[k],k
+  for k in ('instances','databases','bindings'):assert after['infra'][k]==d['infra'][k],k
+  assert after['archivedStacks']==[]
+  assert after['infra']['archivedInstances']==[] and after['infra']['archivedDatabases']==[]
   ok('Migración preserva proyectos URLs credenciales referencias y grupos')
   assert json.loads((home/'catalog.json').read_text())['version']==-1;assert json.loads(vpath.read_text())==vault;ok('Writer antiguo bloqueado sin reubicar vault ni volumen')
   journal=json.loads((home/'config/migration.json').read_text());assert Path(journal['backup']).read_bytes()==legacy;ok('Backup original byte por byte y journal finalizado')
@@ -39,6 +42,8 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
    with get(name) as response:assert len(response.read())>50
   ok('Assets React/TypeScript servidos por HTTP del binario')
   c=json.loads(run('list','--json',binary=installed).stdout);assert len(c['stacks'])==1 and c['groups'][0]['name']=='Máximo Puntaje';ok('CLI y HTTP conservan catálogo migrado sin Docker')
+  run('group-create','--name','Temporal','--id','temporal','--json',binary=installed);run('group-delete','temporal','--yes','--json',binary=installed);assert all(g['id']!='temporal' for g in json.loads(run('groups','--json',binary=installed).stdout)['groups']);ok('CLI elimina únicamente grupo vacío con preview firmado')
+  run('init',str(h),'--json',binary=installed);run('root-remove',str(h),'--yes','--json',binary=installed);assert str(h) not in json.loads(run('list','--json',binary=installed).stdout)['roots'];assert h.is_dir();ok('CLI retira raíz sin dependencias y conserva filesystem')
   data=json.loads(run('config','backup','--yes','--json',binary=installed).stdout);file=Path(data.get('file') or data.get('path') or data.get('backup') or '')
   if not file.is_file(): raise AssertionError(data)
   assert file.stat().st_mode & 0o777==0o600

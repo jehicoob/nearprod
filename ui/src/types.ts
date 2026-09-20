@@ -7,6 +7,7 @@ export interface RouteObserved { host: string; url: string; service: string; por
 export interface ProxyPreview { port: number; image: string; project: string; network: string; impacted: string[]; blockers: string[]; running: boolean; fingerprint: string; note: string }
 export interface RouteCheck { host: string; url: string; state: string; checkedAt: string; dns: {state: string; addresses: string[]}; response: {status?: number; error?: string; marker?: string}; note: string; hostsEntry: string }
 export interface Stack { routes?: WebRoute[]; links?: LocalLink[]; id: string; uid: string; product: string; slug: string; name: string; path: string; projectName: string; modes: { dev: Mode; verify?: Mode }; activeMode: 'dev' | 'verify' | null; trust: Record<string, {fingerprint: string; allowUnsafe: boolean}>; binding?: {engineId: string; endpoint: string} }
+export interface ArchivedStack { routes?: WebRoute[]; id: string; uid: string; product: string; slug: string; name: string; path: string; projectName: string; archivedAt: string; bindingCount: number; lifecycle: 'archived' }
 export interface Operation { id: string; action: string; targets: string[]; state: string; startedAt: string; endedAt?: string; lines: {time: string; text: string; stream: string}[]; error?: {code: string; message: string}; results?: {id: string; state: string; error?: {code: string; message: string}}[] }
 export type RuntimeKind = 'colima' | 'native';
 export interface Runtime { kind: RuntimeKind; context: string; profile: string }
@@ -28,7 +29,7 @@ export interface HostCapabilities {
   startup: { supported: boolean; manager: string };
   proxy: { supported: boolean; location: 'host' | 'virtual-machine' };
 }
-export interface Catalog { proxy?: { enabled: boolean; port: number; image: string }; version: string; host: HostCapabilities; roots: string[]; runtime: Runtime; groups: Group[]; stacks: Stack[]; operations: Operation[] }
+export interface Catalog { proxy?: { enabled: boolean; port: number; image: string }; version: string; host: HostCapabilities; roots: string[]; runtime: Runtime; groups: Group[]; stacks: Stack[]; archivedStacks?: ArchivedStack[]; operations: Operation[] }
 export interface Container { id: string; name: string; service: string; state: string; running: boolean; health: string; exitCode: number | null; oom: boolean; image: string; imageId: string; platform: string | null; owned: boolean; ports: {host: string; port: number; url: string | null; container: string}[] }
 export interface Observed { routes?: RouteObserved[]; id: string; execution: string; health: string; containers: Container[]; watch: {state: string; lines: string[]; error?: {message: string}} }
 export interface Status { proxy?: ProxyInfo; connected: boolean; checkedAt: string | null; info?: {version: string; memoryBytes: number; cpus: number; architecture: string}; error?: {code: string; message: string}; stacks: Observed[] }

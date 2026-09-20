@@ -1,11 +1,12 @@
 import { api, humanBytes, message } from './api.js';
 import { Modal, Icon, Alert, Skeleton, Field, LiveStatus } from './components.js';
 const { useState, useEffect, useRef } = React;
-export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }) {
+export function DiscoverDialog({ roots, stacks, archivedStacks, onClose, onSelect, onRoots, onRemoveRoot }) {
     const [root, setRoot] = useState(roots[0] || ''), [depth, setDepth] = useState('8');
     const [candidates, setCandidates] = useState([]), [selected, setSelected] = useState([]), [error, setError] = useState(''), [busy, setBusy] = useState(false), [result, setResult] = useState('');
     const controller = useRef(null);
     useEffect(() => () => controller.current?.abort(), []);
+    const underRoot = (candidate, value) => value === candidate || value.startsWith(candidate.endsWith('/') ? candidate : candidate + '/');
     async function scan(e) {
         e.preventDefault();
         controller.current?.abort();
@@ -39,6 +40,17 @@ export function DiscoverDialog({ roots, stacks, onClose, onSelect, onRoots }) {
             React.createElement(Field, { label: "Carpeta ra\u00EDz", help: "Carpeta que contiene tus proyectos, por ejemplo ~/Projects. Se revisan subcarpetas; no se ejecuta ni se modifica ning\u00FAn repositorio." },
                 React.createElement("input", { required: true, autoFocus: true, value: root, onChange: e => setRoot(e.target.value), list: "roots", placeholder: "~/Projects" })),
             React.createElement("datalist", { id: "roots" }, roots.map(r => React.createElement("option", { key: r, value: r }))),
+            !!roots.length && React.createElement("details", { className: "advanced compact-details" },
+                React.createElement("summary", null, "Ra\u00EDces guardadas"),
+                React.createElement("div", { className: "root-list" }, roots.map(value => { const active = stacks.filter(s => underRoot(value, s.path)).length, archived = archivedStacks.filter(s => underRoot(value, s.path)).length, blocked = active + archived > 0; return React.createElement("div", { className: "root-row", key: value },
+                    React.createElement("code", null, value),
+                    React.createElement("span", null,
+                        active,
+                        " activas \u00B7 ",
+                        archived,
+                        " archivadas"),
+                    React.createElement("button", { type: "button", className: "danger", disabled: busy || blocked, onClick: () => onRemoveRoot(value) }, "Retirar ra\u00EDz"),
+                    blocked && React.createElement("small", null, "No disponible mientras existan aplicaciones dependientes.")); }))),
             React.createElement("details", { className: "advanced compact-details" },
                 React.createElement("summary", null, "Opciones de b\u00FAsqueda"),
                 React.createElement(Field, { label: "Profundidad de b\u00FAsqueda", help: "Cu\u00E1ntos niveles de subcarpetas recorrer. 8 suele ser suficiente; 0 revisa solo la carpeta elegida. Se omiten dependencias, cach\u00E9s y enlaces a directorios." },

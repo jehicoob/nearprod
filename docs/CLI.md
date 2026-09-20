@@ -25,12 +25,16 @@ Aplicaciones:
   nearprod register --manifest definicion.json
   nearprod edit grupo/app --manifest definicion.json
   nearprod group-create --name "Mi grupo" [--id mi-grupo]
+  nearprod group-delete mi-grupo [--yes]
+  nearprod root-remove ~/Projects [--yes]
   nearprod review grupo/app [--mode dev|verify] [--approve --yes --allow-unsafe]
   nearprod adopt grupo/app [--yes]
   nearprod up|stop|restart|rebuild grupo[/app] [--mode dev|verify] [--wait]
                [--service api] [--confirm-mode] [--start-runtime] [--detach]
   nearprod logs grupo/app [--follow] [--service api] [--tail 100] [--since RFC3339]
   nearprod watch|watch-stop grupo/app
+  nearprod archive grupo/app [--yes]
+  nearprod restore-app grupo/app [--yes]
   nearprod remove grupo/app --yes        solo catálogo, conserva datos
   nearprod operation ID | nearprod cancel ID
 
@@ -61,6 +65,12 @@ Infraestructura compartida:
   nearprod infra check-binding --binding ID
   nearprod infra unbind --binding ID --yes
   nearprod infra stop --instance pg-main [--yes --allow-active]
+  nearprod infra archive-instance --instance pg-main [--yes]
+  nearprod infra restore-instance --instance pg-main [--yes]
+  nearprod infra archive-database --database ID [--yes]
+  nearprod infra restore-database --database ID [--yes]
+  nearprod infra purge-database --database ID --backup [--directory /ruta] [--yes]
+  nearprod infra purge-database --database ID --without-backup --acknowledge-data-loss ID [--yes]
   nearprod infra backup --database ID [--directory /ruta/backups] --yes
   nearprod infra restore --database ID --file /ruta/archivo --trusted-backup --yes
   nearprod infra logs --instance pg-main [--follow]

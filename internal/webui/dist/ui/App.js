@@ -7,12 +7,50 @@ import { InfrastructureView } from './infrastructure.js';
 import { ToolsView } from './tools.js';
 const { useState, useEffect } = React;
 const EMPTY = { connected: false, checkedAt: null, stacks: [] };
+function CatalogLifecycleDialog({ review, onClose, onApplied }) {
+    const [busy, setBusy] = useState(false), [error, setError] = useState('');
+    const action = String(review.value.lifecycleAction || ''), stack = review.value.stack, group = review.value.group;
+    const title = action === 'archive-stack' ? 'Revisar archivo de aplicación' : action === 'restore-stack' ? 'Restaurar aplicación' : action === 'delete-group' ? 'Eliminar grupo vacío' : 'Retirar raíz de descubrimiento';
+    const confirm = action === 'archive-stack' ? 'Archivar del catálogo' : action === 'restore-stack' ? 'Restaurar en el catálogo' : action === 'delete-group' ? 'Eliminar grupo' : 'Retirar raíz';
+    return React.createElement(Modal, { title: title, subtitle: "Revisa el alcance antes de confirmar", onClose: onClose, wide: true },
+        action === 'archive-stack' && React.createElement(Alert, null,
+            React.createElement("strong", null, "Solo se retirar\u00E1 el registro activo."),
+            " No se detendr\u00E1n ni eliminar\u00E1n contenedores, redes, vol\u00FAmenes, checkouts o datos."),
+        action === 'restore-stack' && React.createElement(Alert, null, "La aplicaci\u00F3n y sus vinculaciones volver\u00E1n al cat\u00E1logo sin iniciar ni detener runtime."),
+        stack && React.createElement("section", { className: "panel" },
+            React.createElement("h3", null, stack.name),
+            React.createElement("p", { className: "mono" },
+                stack.id,
+                " \u00B7 ",
+                stack.projectName),
+            React.createElement("p", { className: "mono path" }, stack.path),
+            React.createElement("p", null,
+                "Vinculaciones conservadas: ",
+                Number(review.value.bindingCount || 0))),
+        group && React.createElement("section", { className: "panel" },
+            React.createElement("h3", null, group.name),
+            React.createElement("p", { className: "mono" }, group.id),
+            React.createElement("p", null,
+                "Aplicaciones activas: ",
+                Number(review.value.activeApplications || 0),
+                " \u00B7 archivadas: ",
+                Number(review.value.archivedApplications || 0)),
+            React.createElement("p", null, "Solo se elimina metadata del grupo.")),
+        Boolean(review.value.root) && React.createElement("section", { className: "panel" },
+            React.createElement("h3", null, "Ra\u00EDz sin dependencias"),
+            React.createElement("p", { className: "mono path" }, String(review.value.root)),
+            React.createElement("p", null, "No se borrar\u00E1 ninguna carpeta, checkout o recurso Docker.")),
+        error && React.createElement(Alert, { error: true }, error),
+        React.createElement("div", { className: "modal-actions" },
+            React.createElement("button", { onClick: onClose }, "Cancelar"),
+            React.createElement("button", { className: action === 'restore-stack' ? 'primary' : 'danger', disabled: busy, onClick: () => { setBusy(true); setError(''); void api(review.endpoint, { ...review.body, confirm: true, fingerprint: review.value.fingerprint }).then(onApplied).catch(e => setError(message(e))).finally(() => setBusy(false)); } }, busy ? 'Aplicando…' : confirm)));
+}
 function App() {
     const [catalog, setCatalog] = useState(null), [status, setStatus] = useState(EMPTY), [auth, setAuth] = useState(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
     const [page, setPage] = useState('projects'), [search, setSearch] = useState(''), [discover, setDiscover] = useState(false), [editor, setEditor] = useState(null);
     const [review, setReview] = useState(null), [logs, setLogs] = useState(null), [image, setImage] = useState(null), [mode, setMode] = useState({});
     const [notice, setNotice] = useState(null), [working, setWorking] = useState(false), [adoption, setAdoption] = useState(null);
-    const [batch, setBatch] = useState(null), [groupEditor, setGroupEditor] = useState(null);
+    const [batch, setBatch] = useState(null), [groupEditor, setGroupEditor] = useState(null), [lifecycleReview, setLifecycleReview] = useState(null);
     const notify = (text, error = false) => setNotice({ text, error });
     async function load() {
         setLoadError('');
@@ -82,6 +120,7 @@ function App() {
     finally {
         setWorking(false);
     } }
+    async function openLifecycle(previewEndpoint, endpoint, body) { await work(async () => setLifecycleReview({ value: await api(previewEndpoint, body), endpoint, body })); }
     async function action(stack, action) {
         const selectedMode = mode[stack.id] || stack.activeMode || 'dev';
         if (['up', 'rebuild'].includes(action) && stack.routes?.length && !catalog?.proxy?.enabled) {
@@ -153,8 +192,10 @@ function App() {
     if (!catalog)
         return React.createElement(Busy, null);
     const running = status.stacks.filter(s => s.execution === 'running').length, totalContainers = status.stacks.reduce((n, s) => n + s.containers.length, 0), active = catalog.operations.filter(o => o.state === 'running');
+    const archivedStacks = catalog.archivedStacks || [];
     const filtered = catalog.stacks.filter(s => `${s.name} ${s.id} ${s.path} ${s.projectName} ${catalog.groups?.find(g => g.id === s.product)?.name || ""}`.toLowerCase().includes(search.toLowerCase()));
-    const groups = [...new Set([...(catalog.groups || []).filter(g => !search || g.name.toLowerCase().includes(search.toLowerCase()) || filtered.some(s => s.product === g.id)).map(g => g.id), ...filtered.map(s => s.product)])];
+    const filteredArchived = archivedStacks.filter(s => `${s.name} ${s.id} ${s.path} ${s.projectName} ${catalog.groups?.find(g => g.id === s.product)?.name || ""}`.toLowerCase().includes(search.toLowerCase()));
+    const groups = [...new Set([...(catalog.groups || []).filter(g => !search || g.name.toLowerCase().includes(search.toLowerCase()) || filtered.some(s => s.product === g.id) || filteredArchived.some(s => s.product === g.id)).map(g => g.id), ...filtered.map(s => s.product), ...filteredArchived.map(s => s.product)])];
     const groupName = (id) => catalog.groups?.find(g => g.id === id)?.name || id;
     const checked = Boolean(status.checkedAt);
     return (React.createElement("div", { className: "shell" },
@@ -300,7 +341,7 @@ function App() {
                                 React.createElement(Icon, { name: "folder", size: 14 }),
                                 "Crear grupo"),
                             React.createElement("button", { onClick: () => setEditor({}) }, "Registrar manualmente"))),
-                    !catalog.stacks.length && (React.createElement("div", { className: "empty" },
+                    !catalog.stacks.length && !archivedStacks.length && (React.createElement("div", { className: "empty" },
                         React.createElement("div", { className: "empty-icon" },
                             React.createElement(Icon, { name: "folder", size: 34 })),
                         React.createElement("h2", null, "Empieza por tu carpeta de proyectos"),
@@ -312,7 +353,7 @@ function App() {
                             React.createElement(Icon, { name: "search" }),
                             "Explorar mi carpeta"),
                         React.createElement("code", null, "nearprod init ~/Projects"))),
-                    catalog.stacks.length > 0 && !groups.length && (React.createElement("div", { className: "empty small" },
+                    (catalog.stacks.length > 0 || archivedStacks.length > 0) && !groups.length && (React.createElement("div", { className: "empty small" },
                         React.createElement("p", null,
                             "No hay aplicaciones que coincidan con \u00AB",
                             search,
@@ -324,10 +365,10 @@ function App() {
                             React.createElement("div", null,
                                 React.createElement("h2", null, groupName(product)),
                                 React.createElement("p", null,
-                                    catalog.stacks.filter((s) => s.product === product)
-                                        .length,
-                                    " ",
-                                    "aplicaciones \u00B7 CLI: ",
+                                    catalog.stacks.filter((s) => s.product === product).length,
+                                    " activas \u00B7 ",
+                                    archivedStacks.filter((s) => s.product === product).length,
+                                    " archivadas \u00B7 CLI: ",
                                     React.createElement("code", null, product))),
                             React.createElement("div", { className: "product-actions" },
                                 React.createElement("button", { onClick: () => setGroupEditor({
@@ -340,9 +381,11 @@ function App() {
                                 React.createElement("button", { disabled: working ||
                                         !status.connected ||
                                         active.length > 0 ||
-                                        !catalog.stacks.some((s) => s.product === product), onClick: () => void groupAction(product, "stop") }, "Detener grupo"))),
+                                        !catalog.stacks.some((s) => s.product === product), onClick: () => void groupAction(product, "stop") }, "Detener grupo"),
+                                React.createElement("button", { className: "danger", disabled: working || active.length > 0 || catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product), title: catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product) ? 'Archiva o mueve todas las aplicaciones antes de eliminar el grupo.' : 'Elimina únicamente el grupo vacío.', onClick: () => void openLifecycle('/groups/delete-preview', '/groups/delete', { id: product }) }, "Eliminar grupo"))),
+                        (catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)) && React.createElement("p", { className: "hint lifecycle-hint" }, "Eliminar grupo estar\u00E1 disponible cuando no contenga aplicaciones activas ni archivadas."),
                         React.createElement("div", { className: "stacks" },
-                            !catalog.stacks.some((s) => s.product === product) && (React.createElement("div", { className: "empty small" },
+                            !catalog.stacks.some((s) => s.product === product) && !archivedStacks.some((s) => s.product === product) && (React.createElement("div", { className: "empty small" },
                                 React.createElement("p", null, "Grupo vac\u00EDo. Selecciona aplicaciones desde Descubrir y elige este grupo, o mueve una existente desde Configurar."),
                                 React.createElement("button", { onClick: () => setDiscover(true) }, "A\u00F1adir aplicaciones"))),
                             filtered
@@ -388,17 +431,7 @@ function App() {
                                             React.createElement("button", { disabled: !status.connected || isBusy, onClick: () => void work(async () => setAdoption(await api("/adoption", {
                                                     target: s.id,
                                                 }))), title: "Vincula contenedores existentes de esta aplicaci\u00F3n tras comprobar su identidad" }, "Vincular existentes"),
-                                            React.createElement("button", { title: "Solo elimina el registro; los contenedores siguen existiendo", disabled: isBusy, onClick: () => {
-                                                    if (window.confirm(`¿Quitar ${s.id} del catálogo? NO se detienen contenedores ni se borran datos.`))
-                                                        void work(async () => {
-                                                            await api("/stacks/remove", {
-                                                                target: s.id,
-                                                                confirm: true,
-                                                            });
-                                                            await load();
-                                                            notify("Se quitó únicamente el registro.");
-                                                        });
-                                                } }, "Quitar")),
+                                            React.createElement("button", { className: "danger", title: ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || '') ? 'Detén la aplicación antes de archivarla.' : 'Conserva checkout, runtime y datos; retira solo del catálogo activo.', disabled: isBusy || !status.connected || ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || ''), onClick: () => void openLifecycle('/stacks/archive-preview', '/stacks/archive', { target: s.id }) }, "Archivar del cat\u00E1logo")),
                                         React.createElement("div", { className: "stack-actions" },
                                             React.createElement("button", { disabled: !status.connected, onClick: () => setLogs(s) },
                                                 React.createElement(Icon, { name: "terminal", size: 14 }),
@@ -468,7 +501,29 @@ function App() {
                                                     });
                                                 }) }, "Detener Watch"))),
                                         observed?.watch.error && (React.createElement("span", { className: "warning-text" }, observed.watch.error.message)))));
-                            }))))),
+                            }),
+                            filteredArchived.filter(s => s.product === product).map((s) => React.createElement("article", { className: "stack archived-stack", key: s.uid },
+                                React.createElement("div", { className: "stack-main" },
+                                    React.createElement("div", { className: "stack-symbol" },
+                                        React.createElement(Icon, { name: "cube" })),
+                                    React.createElement("div", { className: "stack-description" },
+                                        React.createElement("h3", null,
+                                            s.name,
+                                            React.createElement("span", { className: "mono" }, s.slug)),
+                                        React.createElement("p", { className: "mono path", title: s.path }, s.path),
+                                        React.createElement("div", { className: "stack-meta" },
+                                            React.createElement("span", { className: "mono" }, s.projectName),
+                                            React.createElement(Badge, { value: "archived" })))),
+                                React.createElement("div", { className: "stack-bottom" },
+                                    React.createElement("div", { className: "stack-secondary" },
+                                        React.createElement("span", { className: "hint" },
+                                            "Archivada ",
+                                            new Date(s.archivedAt).toLocaleString(),
+                                            " \u00B7 ",
+                                            s.bindingCount,
+                                            " vinculaciones conservadas")),
+                                    React.createElement("div", { className: "stack-actions" },
+                                        React.createElement("button", { className: "primary", disabled: working || active.length > 0, onClick: () => void openLifecycle('/stacks/restore-preview', '/stacks/restore', { target: s.id }) }, "Restaurar en el cat\u00E1logo"))))))))),
                     React.createElement("section", { className: "panel recent" },
                         React.createElement("div", { className: "panel-heading" },
                             React.createElement(Icon, { name: "activity" }),
@@ -504,10 +559,10 @@ function App() {
                     status.proxy?.state === "running"
                         ? "activo"
                         : "sin conexión confirmada"))),
-        discover && (React.createElement(DiscoverDialog, { roots: catalog.roots, stacks: catalog.stacks, onClose: () => setDiscover(false), onSelect: (cs) => {
+        discover && (React.createElement(DiscoverDialog, { roots: catalog.roots, stacks: catalog.stacks, archivedStacks: archivedStacks, onClose: () => setDiscover(false), onSelect: (cs) => {
                 setDiscover(false);
                 setBatch(cs);
-            }, onRoots: () => void load() })),
+            }, onRoots: () => void load(), onRemoveRoot: (root) => { setDiscover(false); void openLifecycle('/roots/remove-preview', '/roots/remove', { root }); } })),
         editor && (React.createElement(StackEditor, { ...editor, groups: catalog.groups, onClose: () => setEditor(null), onSaved: () => {
                 setEditor(null);
                 void load();
@@ -523,6 +578,7 @@ function App() {
                 void load();
                 notify("Grupo guardado. No se modificó Docker.");
             } })),
+        lifecycleReview && React.createElement(CatalogLifecycleDialog, { review: lifecycleReview, onClose: () => setLifecycleReview(null), onApplied: () => { setLifecycleReview(null); void load(); notify('Ciclo de vida actualizado sin borrar recursos implícitamente.'); } }),
         review && (React.createElement(ReviewDialog, { ...review, onClose: () => setReview(null), onApproved: () => {
                 setReview(null);
                 void load();

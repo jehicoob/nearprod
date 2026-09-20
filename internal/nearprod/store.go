@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Store has one writer in the agent; its path never includes an app release.
@@ -23,7 +24,7 @@ func initialState() J {
 	if runtime.GOOS == "darwin" {
 		kind, context = "colima", "colima"
 	}
-	return J{"version": SchemaVersion, "owner": token(24), "roots": A{}, "runtime": J{"kind": kind, "context": context, "profile": "default"}, "groups": A{}, "stacks": A{}, "operations": A{}, "toolPaths": J{}, "infra": J{"instances": A{}, "databases": A{}, "bindings": A{}}}
+	return J{"version": SchemaVersion, "owner": token(24), "roots": A{}, "runtime": J{"kind": kind, "context": context, "profile": "default"}, "groups": A{}, "stacks": A{}, "archivedStacks": A{}, "operations": A{}, "toolPaths": J{}, "infra": J{"instances": A{}, "databases": A{}, "archivedDatabases": A{}, "bindings": A{}, "archivedInstances": A{}}}
 }
 func validateState(v J) error {
 	if num(v["version"]) != float64(SchemaVersion) || len(str(v["owner"])) < 8 {
@@ -32,6 +33,11 @@ func validateState(v J) error {
 	for _, k := range []string{"roots", "stacks", "operations", "groups"} {
 		if _, ok := v[k].([]any); !ok {
 			return fail("INVALID_STATE", "Falta la lista "+k+" del catálogo.", 409)
+		}
+	}
+	if v["archivedStacks"] != nil {
+		if _, ok := v["archivedStacks"].([]any); !ok {
+			return fail("INVALID_STATE", "La lista de aplicaciones archivadas no es válida.", 409)
 		}
 	}
 	rt := obj(v["runtime"])
@@ -52,8 +58,7 @@ func validateState(v J) error {
 		groupIDs[str(g["id"])] = true
 	}
 	ids, projects, uids, hosts := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-	for _, raw := range arr(v["stacks"]) {
-		s := obj(raw)
+	validateStack := func(s J) error {
 		id := str(s["id"])
 		uid := str(s["uid"])
 		project := str(s["projectName"])
@@ -83,6 +88,52 @@ func validateState(v J) error {
 			}
 			hosts[h] = true
 		}
+		return nil
+	}
+	activeStackUIDs := map[string]bool{}
+	for _, raw := range arr(v["stacks"]) {
+		s := obj(raw)
+		if e := validateStack(s); e != nil {
+			return e
+		}
+		activeStackUIDs[str(s["uid"])] = true
+	}
+	archivedBindings := A{}
+	for _, raw := range arr(v["archivedStacks"]) {
+		snapshot := obj(raw)
+		for k := range snapshot {
+			if !contains([]string{"lifecycle", "archivedAt", "stack", "bindings", "snapshotDigest"}, k) {
+				return fail("STACK_ARCHIVE", "El snapshot de aplicación contiene campos desconocidos.", 409)
+			}
+		}
+		if str(snapshot["lifecycle"]) != "archived" {
+			return fail("STACK_ARCHIVE", "Estado archivado de aplicación inválido.", 409)
+		}
+		if _, e := time.Parse(time.RFC3339Nano, str(snapshot["archivedAt"])); e != nil {
+			return fail("STACK_ARCHIVE", "Fecha de archivo de aplicación inválida.", 409)
+		}
+		if _, ok := snapshot["bindings"].([]any); !ok {
+			return fail("STACK_ARCHIVE", "Las vinculaciones archivadas no son válidas.", 409)
+		}
+		stack := obj(snapshot["stack"])
+		if e := validateStack(stack); e != nil {
+			return e
+		}
+		for _, bindingRaw := range arr(snapshot["bindings"]) {
+			if str(obj(bindingRaw)["stackUid"]) != str(stack["uid"]) {
+				return fail("STACK_ARCHIVE", "Vinculación archivada asignada a otra aplicación.", 409)
+			}
+		}
+		if str(snapshot["snapshotDigest"]) != archivedStackDigest(snapshot) {
+			return fail("STACK_ARCHIVE_DIGEST", "El snapshot de aplicación no coincide con su digest.", 409)
+		}
+		archivedBindings = append(archivedBindings, arr(snapshot["bindings"])...)
+	}
+	for _, raw := range allInfraInstances(obj(v["infra"])) {
+		project := str(obj(raw)["projectName"])
+		if projects[project] {
+			return fail("PROJECT_RESERVED", "Una aplicación y una instancia de infraestructura comparten identidad Compose.", 409)
+		}
 	}
 	for name, p := range obj(v["toolPaths"]) {
 		if !contains([]string{"docker", "colima"}, name) || !filepath.IsAbs(str(p)) || strings.ContainsAny(str(p), "\x00\r\n") {
@@ -97,7 +148,32 @@ func validateState(v J) error {
 			return fail("PROXY_IMAGE", "Imagen de proxy no reconocida; se preservó el catálogo.", 409)
 		}
 	}
-	return validateInfra(obj(v["infra"]))
+	if e := validateInfra(obj(v["infra"])); e != nil {
+		return e
+	}
+	activeDBIDs, bindingIDs := map[string]bool{}, map[string]bool{}
+	for _, raw := range arr(at(v, "infra", "databases")) {
+		activeDBIDs[str(obj(raw)["id"])] = true
+	}
+	for _, raw := range arr(at(v, "infra", "bindings")) {
+		binding := obj(raw)
+		if !activeStackUIDs[str(binding["stackUid"])] {
+			return fail("INFRA_STATE", "Vinculación sin aplicación activa.", 409)
+		}
+		if e := validateInfraBinding(binding, activeDBIDs, bindingIDs); e != nil {
+			return e
+		}
+	}
+	for _, raw := range archivedBindings {
+		binding := obj(raw)
+		if !archivedStackUID(v, str(binding["stackUid"])) {
+			return fail("STACK_ARCHIVE", "Vinculación archivada inválida o sin base activa.", 409)
+		}
+		if e := validateInfraBinding(binding, activeDBIDs, bindingIDs); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func MigrationPreview(home string) (J, error) {
@@ -150,7 +226,7 @@ func hashFile(file string) string {
 	return hash(string(b))
 }
 func defaults(v J) {
-	for _, k := range []string{"groups", "operations", "roots", "stacks"} {
+	for _, k := range []string{"groups", "operations", "roots", "stacks", "archivedStacks"} {
 		if v[k] == nil {
 			v[k] = A{}
 		}
@@ -162,7 +238,7 @@ func defaults(v J) {
 		v["infra"] = J{}
 	}
 	i := obj(v["infra"])
-	for _, k := range []string{"instances", "databases", "bindings"} {
+	for _, k := range []string{"instances", "databases", "archivedDatabases", "bindings", "archivedInstances"} {
 		if i[k] == nil {
 			i[k] = A{}
 		}

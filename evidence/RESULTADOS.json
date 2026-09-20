@@ -2,23 +2,23 @@
   "version": "0.8.0",
   "status": "candidate",
   "go": {
-    "topLevelPassed": 70,
-    "subtestsPassed": 80,
-    "totalPassEvents": 150,
+    "topLevelPassed": 83,
+    "subtestsPassed": 86,
+    "totalPassEvents": 169,
     "failed": 0,
     "optInBrowserHarnessSkippedInUnitSuite": 1,
-    "coverageStatements": 60.8,
+    "coverageStatements": 63.1,
     "race": "passed",
     "vet": "passed"
   },
   "ui": {
     "macOSPassed": 25,
-    "wsl2EvidencePassed": 27,
+    "wsl2EvidencePassed": 36,
     "transport": "HTTP/SSE real; Docker/Traefik simulado",
     "nativeMacOS": "passed"
   },
   "nativeInstalledPackage": {
-    "passed": 16,
+    "passed": 18,
     "platforms": ["darwin/arm64", "linux/amd64 (WSL2 evidence)"],
     "noNodeInPATH": true
   },
@@ -33,9 +33,9 @@
   },
   "compiler": "go1.27.1",
   "releaseBinaries": {
-    "nearprod-darwin-amd64": { "sha256": "65dd62ba7f47639e47354104e211a2c21b35fe3d3c5fcaaa480a078810088984", "bytes": 9765984 },
-    "nearprod-darwin-arm64": { "sha256": "1f3035e68df293c1f9138f7a494b3af32c2b3697f6495b2c33da8fe5c86cbe88", "bytes": 9065874 },
-    "nearprod-linux-amd64": { "sha256": "032f8d2fb40abe3df808e1e05c4a096cdb78dc56ba9bd9260ec28b77b7d34116", "bytes": 9597088 },
-    "nearprod-linux-arm64": { "sha256": "fa6d3aa2535798fc92e61b3335491d6f83fc3662f3756463895af38dd228e228", "bytes": 8913056 }
+    "nearprod-darwin-amd64": { "sha256": "feb4cf488b35eefdf9b3a00625c378dc66a801376e15484037f8361decbbf6b1", "bytes": 10049088 },
+    "nearprod-darwin-arm64": { "sha256": "89fb6c26d9609b22aa1027476313a7d9c60a5fca15a5030e395a375abbd955d6", "bytes": 9314018 },
+    "nearprod-linux-amd64": { "sha256": "0d5bf697f6fee02f27f5a4e0b58fdebadb604e4395b6ee8d481fa985446d0271", "bytes": 9871484 },
+    "nearprod-linux-arm64": { "sha256": "8b3d29edb2d44b0d05c7ccea215acd163566472bb863a4ffed06f03640c7c529", "bytes": 9109628 }
   }
 }

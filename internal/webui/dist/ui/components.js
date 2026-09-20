@@ -38,7 +38,7 @@ export function Icon({ name, size = 18 }) {
     return React.createElement("svg", { "aria-hidden": "true", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round", strokeLinejoin: "round" }, paths[name] || paths.cube);
 }
 export function Badge({ value }) {
-    const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
+    const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', archived: 'Archivada', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
     return React.createElement("span", { className: `badge badge-${value}` },
         React.createElement("span", { className: "dot" }),
         labels[value] || value);
