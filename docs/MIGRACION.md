@@ -2,7 +2,7 @@
 
 ## El contrato
 
-La versión del ejecutable es `0.9.0`. La versión de esquema es **5**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
+La versión del ejecutable es `0.9.1`. La versión de esquema es **5**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. La identidad estable del ejecutable tampoco codifica la versión actual del schema: se conserva para que las versiones anteriores puedan verificar una actualización. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
 
 0.6.1 ya persistía `~/.nearprod/catalog.json`. Por ello, reinstalar no debería requerir registrar nuevamente. Cambiar de NEARPROD_HOME, borrar el catálogo, arrancar otra instalación o apuntar a otro Engine sí puede mostrar un entorno distinto. `nearprod config paths` muestra exactamente el catálogo elegido sin arrancar Docker.
 
@@ -20,6 +20,16 @@ nearprod ui
 ```
 
 Para un HOME personalizado, configura el mismo valor antes de todos esos comandos. No cambies ese valor para resolver un error de migración: abrirías otro catálogo.
+
+## Compatibilidad del actualizador 0.8 y 0.9
+
+`0.9.0` publicó por error la versión del schema dentro del marcador que los actualizadores anteriores usan para reconocer el ejecutable. `0.9.1` vuelve a tratar ese marcador como un contrato estable y expone el schema por separado en `--identity`.
+
+Tanto `0.8.0` como una instalación normal de `0.9.0` bajo `~/.local/bin/nearprod` pueden usar `nearprod update` para llegar a `0.9.1`. Durante el reemplazo de `0.9.0`, el candidato conserva temporalmente el marcador que espera ese actualizador y vuelve al marcador estable cuando escribe el nuevo registro. No borres ni edites `~/.local/share/nearprod/installation.json` antes de actualizar: si falta o no coincide con la ruta instalada, la comprobación falla cerrada en lugar de adivinar la procedencia del binario.
+
+Si copiaste `0.9.0` manualmente sin ejecutar `nearprod install` y no existe ese registro, descarga el archive oficial `0.9.1`, comprueba su SHA-256 contra `SHA256SUMS.txt` y ejecuta `./nearprod install --configure-shell`. El instalador reconoce el binario transitorio, conserva una copia exacta y sigue negándose a reemplazar comandos ajenos.
+
+Una terminación abrupta justo después de reemplazar el ejecutable puede dejar el registro anterior aunque `nearprod --version` ya muestre `0.9.1`. En ese caso no edites el JSON: vuelve a ejecutar `install` con el mismo binario `0.9.1` cuyo checksum verificaste. La reinstalación conserva catálogo y datos, guarda otra copia de recuperación y normaliza el registro y la identidad estable.
 
 ## Qué hace schema 3 → 5
 
