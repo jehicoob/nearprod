@@ -1,8 +1,8 @@
-# NearProd 0.8.0 — Go + React/TypeScript
+# NearProd 0.9.0 — Go + React/TypeScript
 
 Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por Traefik e infraestructura PostgreSQL/MySQL/Redis. El CLI y el agente están implementados en Go; el panel React/TypeScript compilado se incluye dentro del binario. **No inicia Node ni necesita npm para funcionar.**
 
-**Estado de entrega: candidata a aceptación, no certificada en macOS/Colima.** Las pruebas ejecutadas y los bloqueos están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
+**Estado de entrega: candidata a release.** Las pruebas ejecutadas y sus límites están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
 
 > **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
@@ -32,7 +32,7 @@ nearprod agent stop
 Abre otra terminal. Si el comando sigue apuntando a una instalación vieja, usa directamente `~/.local/bin/nearprod` en las siguientes instrucciones.
 
 ```bash
-nearprod --version                  # 0.8.0
+nearprod --version                  # 0.9.0
 nearprod config migrate --yes       # backup + migración; exige agente anterior cerrado
 nearprod ui
 ```

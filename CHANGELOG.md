@@ -1,3 +1,11 @@
+# 0.9.0
+
+Añade gestión segura del ciclo de vida de grupos, raíces, aplicaciones e infraestructura. Las operaciones destructivas usan vistas previas, confirmaciones específicas y revalidación; las aplicaciones y bases pueden archivarse y restaurarse, y las purgas SQL se reanudan de forma segura después de interrupciones.
+
+Incorpora acceso MCP local por `stdio` mediante `nearprod mcp serve`, con doce herramientas que reutilizan el agente loopback como único escritor. El panel muestra la configuración necesaria sin exponer credenciales ni añadir usuarios o tokens MCP.
+
+Migra el catálogo a schema 5 con backup exacto y recuperación fail-closed, conserva identidades y datos existentes, sincroniza rutas Traefik al archivar/restaurar y exige observación Docker fresca antes de retirar recursos.
+
 # 0.8.0
 
 Añade capacidades de host autoritativas para macOS, Linux, WSL y WSL2. Linux utiliza Docker nativo sin intentar administrar Colima, Homebrew o launchd; macOS conserva Colima y Docker nativo. PostgreSQL 18 con carpeta se bloquea en Docker nativo Linux cuando no puede garantizarse la compatibilidad de permisos.

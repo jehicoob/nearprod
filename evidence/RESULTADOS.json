@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "status": "candidate",
   "go": {
     "topLevelPassed": 87,
@@ -33,8 +33,8 @@
     "webAcceptance": "failed: ACCEPTANCE_HTTP; same result with official 0.7.1 baseline"
   },
   "compiler": "go1.27.1",
-  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.8.0-dev not published",
-  "releaseBinariesScope": "official 0.8.0 baseline; not regenerated from this candidate worktree",
+  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.9.0-dev not published",
+  "releaseBinariesScope": "official 0.8.0 baseline; 0.9.0 artifacts pending clean release-candidate commit",
   "releaseBinaries": {
     "nearprod-darwin-amd64": { "sha256": "f3bc70138acbc6ff32e6b267d5f6550e1a8863f0660c5c3f8b8c687d256debc9", "bytes": 10049088 },
     "nearprod-darwin-arm64": { "sha256": "d28ec1c7c4e82ffde0f09f0f1c0a07da562d389aa2b8865ecc1a62b279b47507", "bytes": 9314018 },
