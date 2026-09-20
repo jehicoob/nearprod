@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { api, message } from './api.js';
 import { RouteEditor } from './proxy.js';
-import { Alert, Field, Icon, Modal, Skeleton } from './components.js';
+import { Alert, Field, Icon, LiveStatus, Modal, Skeleton } from './components.js';
 import type { Candidate, Group, Mode, ProjectOptions, Stack, StackDraft } from './types.js';
 const { useState, useEffect } = React;
 export const slugify = (v: string) => v.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0,48) || 'proyecto';
@@ -57,8 +57,8 @@ function ModeEditor({ title, path, mode, onChange, initialOptions }: {title: str
           {!mode.envFiles.length && <p className="hint">Sin una selección se guardará el comportamiento automático.</p>}</>}
         {!!options?.serviceEnvFiles.length && <p className="hint">El YAML ya declara <code>env_file</code>: {options.serviceEnvFiles.join(', ')}. Compose se encarga de esos archivos; no hace falta seleccionarlos otra vez aquí.</p>}
       </div>
-      <div className="profiles-selector"><h4>Servicios opcionales — perfiles Compose</h4><p className="field-help">No son grupos de NearProd ni perfiles de Colima. Activan servicios que el proyecto marcó como opcionales, por ejemplo un worker o una herramienta de administración.</p>
-        {loading && <span className="hint" role="status">Actualizando perfiles según los archivos seleccionados…</span>}
+      <div className="profiles-selector"><h4>Servicios opcionales — perfiles Compose</h4><p className="field-help">No son grupos de NearProd ni perfiles del runtime. Activan servicios que el proyecto marcó como opcionales, por ejemplo un worker o una herramienta de administración.</p>
+        <LiveStatus message={loading ? 'Actualizando perfiles según los archivos seleccionados.' : ''}/>
         {!profiles.length && !mode.profiles.length && !loading && <p className="hint">Este conjunto de archivos no declara perfiles. No necesitas configurar nada aquí.</p>}
         {profiles.map(p => <label className="file-option" key={p.name}><input type="checkbox" checked={mode.profiles.includes(p.name)} onChange={e => onChange({...mode,profiles:e.target.checked ? [...mode.profiles,p.name] : mode.profiles.filter(v => v !== p.name)})}/><span><code>{p.name}</code><small>Activa: {p.services.join(', ')}</small></span></label>)}
         {mode.profiles.filter(p => !profiles.some(v => v.name === p)).map(p => <label className="file-option" key={p}><input type="checkbox" checked onChange={() => onChange({...mode,profiles:mode.profiles.filter(v => v !== p)})}/><span>{p}<small>No detectado en la lectura estática; revisar con Compose.</small></span></label>)}
@@ -84,7 +84,7 @@ export function StackFields({ value, onChange, existing, onReady }: {value: Stac
   const setMode = (key: 'dev' | 'verify', mode: Mode) => onChange({...value,modes:{...value.modes,[key]:mode}});
   return <div className="stack-fields">
     <Field label="Nombre de la aplicación" help="El nombre visible de esta pieza del grupo; por ejemplo Frontend o API. Un Compose con varios servicios sigue siendo una sola aplicación aquí."><input required value={value.name} onChange={e => onChange({...value,name:e.target.value})} maxLength={120} placeholder="Backend de Máximo Puntaje"/></Field>
-    {existing || options ? <div className="checkout-summary"><Icon name="folder"/><span><strong>Carpeta de la aplicación</strong><code>{value.path}</code></span>{!existing && <button type="button" onClick={() => {setOptions(null); onChange({...value,path:'',projectName:'',modes:{dev:blankMode()}});}}>Cambiar</button>}</div> : <Field label="Carpeta de la aplicación" help="Directorio donde está el Compose. Debe estar dentro de una raíz autorizada desde Descubrir."><input required value={value.path} onChange={e => onChange({...value,path:e.target.value,projectName:'',modes:{dev:blankMode()}})} placeholder="/Users/tu-usuario/Projects/proyecto/backend"/></Field>}
+    {existing || options ? <div className="checkout-summary"><Icon name="folder"/><span><strong>Carpeta de la aplicación</strong><code>{value.path}</code></span>{!existing && <button type="button" onClick={() => {setOptions(null); onChange({...value,path:'',projectName:'',modes:{dev:blankMode()}});}}>Cambiar</button>}</div> : <Field label="Carpeta de la aplicación" help="Directorio donde está el Compose. Debe estar dentro de una raíz autorizada desde Descubrir."><input required value={value.path} onChange={e => onChange({...value,path:e.target.value,projectName:'',modes:{dev:blankMode()}})} placeholder="/ruta/absoluta/proyecto/backend"/></Field>}
     {loading && !options ? <Skeleton label="Buscando configuraciones de esta aplicación" rows={5}/> : <>
       <ModeEditor title="Desarrollo local" path={value.path} mode={value.modes.dev} onChange={m => setMode('dev',m)} initialOptions={options}/>
       <details className="advanced" open={value.modes.verify ? true : undefined}><summary>Prueba de imagen — opcional</summary><p>Desarrollo permite editar código y recargarlo. La prueba de imagen ejecuta el código empaquetado dentro de la imagen, sin montajes del código ni recarga de desarrollo. No hace falta activarla para empezar a usar NearProd.</p>

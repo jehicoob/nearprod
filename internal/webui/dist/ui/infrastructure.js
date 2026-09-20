@@ -1,5 +1,5 @@
 import { api, message } from './api.js';
-import { Alert, Badge, Field, Modal, Skeleton, Icon } from './components.js';
+import { Alert, Badge, Field, Modal, Skeleton, Icon, LiveStatus } from './components.js';
 const { useState, useEffect } = React;
 function Review({ value, onConfirm, onClose, busy }) {
     const def = value.definition;
@@ -14,7 +14,7 @@ function Review({ value, onConfirm, onClose, busy }) {
             React.createElement("p", null,
                 React.createElement("strong", null, "Persistencia:"),
                 " ",
-                def.persistence.kind === 'folder' ? def.persistence.path + '/data' : def.persistence.kind === 'volume' ? 'Volumen Docker dentro de la VM' : 'Sin persistencia'),
+                def.persistence.kind === 'folder' ? def.persistence.path + '/data' : def.persistence.kind === 'volume' ? 'Volumen administrado por Docker' : 'Sin persistencia'),
             React.createElement("p", null,
                 React.createElement("strong", null, "Desde tu equipo:"),
                 " ",
@@ -23,7 +23,7 @@ function Review({ value, onConfirm, onClose, busy }) {
                 React.createElement("strong", null, "L\u00EDmite:"),
                 " ",
                 def.memoryMiB,
-                " MiB. Compartido con el resto de la VM.")),
+                " MiB. Compartido con el resto de las cargas del runtime.")),
         services && React.createElement("section", { className: "panel" },
             React.createElement("h3", null,
                 "Conectar ",
@@ -101,19 +101,21 @@ export function InfrastructureView({ catalog, status, notify }) {
                 React.createElement("h1", null, "Infraestructura compartida"),
                 React.createElement("p", null, "Un motor, varias bases independientes. Enciende solo lo necesario.")),
             React.createElement("div", { className: "button-row" },
-                React.createElement("button", { onClick: () => void load(), disabled: loading },
+                React.createElement("button", { onClick: () => void load(), disabled: loading, "aria-busy": loading },
                     React.createElement(Icon, { name: "refresh" }),
                     "Actualizar"),
                 React.createElement("button", { className: "primary", disabled: !canMutate, onClick: () => setCreate(true) }, "Crear instancia"))),
+        React.createElement(LiveStatus, { message: data && loading ? 'Actualizando infraestructura. Se conserva la última información.' : '' }),
         React.createElement(Alert, null,
             "PostgreSQL/MySQL separan bases y usuarios por proyecto. Redis se crea dedicado a una aplicaci\u00F3n. ",
             React.createElement("strong", null, "Traefik es un componente central"),
             " y se gestiona en Accesos locales, no en esta lista. No se cambia la persistencia de los proyectos que registres."),
-        !status.connected && React.createElement(Alert, { error: true }, "Docker no est\u00E1 conectado. Puedes ver el cat\u00E1logo; inicia/comprueba Colima desde Runtime antes de crear o ejecutar infraestructura."),
+        !status.connected && React.createElement(Alert, { error: true },
+            "Docker no est\u00E1 conectado. Puedes ver el cat\u00E1logo; comprueba ",
+            catalog.host.runtime.displayName,
+            " desde Runtime antes de crear o ejecutar infraestructura."),
         error && React.createElement(Alert, { error: true }, error),
         !data && loading && React.createElement(Skeleton, { label: "Consultando infraestructura", rows: 6 }),
-        " ",
-        data && loading && React.createElement("p", { className: "hint", role: "status" }, "Actualizando\u2026 se conserva la \u00FAltima informaci\u00F3n."),
         data && !data.instances.length && React.createElement("section", { className: "empty" },
             React.createElement(Icon, { name: "cube", size: 32 }),
             React.createElement("h2", null, "Tus servicios reutilizables"),
@@ -223,6 +225,8 @@ function CreateInstance({ data, onClose, onReview }) {
     const [engine, setEngine] = useState('postgres'), [name, setName] = useState('PostgreSQL principal'), [id, setId] = useState('pg-main'), [version, setVersion] = useState(data.engines.postgres.defaultVersion), [kind, setKind] = useState('volume'), [folder, setFolder] = useState(`${data.defaultDataRoot}/postgres/pg-main`), [memory, setMemory] = useState('384'), [max, setMax] = useState('32');
     const [publish, setPublish] = useState(false), [port, setPort] = useState('15432'), [from, setFrom] = useState('15432'), [to, setTo] = useState('15442'), [ports, setPorts] = useState(null), [portLoading, setPortLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
     const def = data.engines[engine];
+    const folderRestriction = data.folderRestrictions.find(r => r.image === `${engine}:${version}`);
+    const folderUnsupported = Boolean(folderRestriction);
     async function scan() {
         setPortLoading(true);
         setError('');
@@ -256,9 +260,9 @@ function CreateInstance({ data, onClose, onReview }) {
             React.createElement("div", { className: "form-grid" },
                 React.createElement(Field, { label: "Motor", help: "Traefik no es un motor de datos: est\u00E1 en Accesos locales." },
                     React.createElement("select", { value: engine, onChange: e => {
-                            const v = e.target.value, d = data.engines[v];
+                            const v = e.target.value, d = data.engines[v], nextVersion = d.defaultVersion;
                             setEngine(v);
-                            setVersion(d.defaultVersion);
+                            setVersion(nextVersion);
                             setName(`${d.name} principal`);
                             setId(`${v}-main`);
                             setFolder(`${data.defaultDataRoot}/${v}/${v}-main`);
@@ -267,31 +271,37 @@ function CreateInstance({ data, onClose, onReview }) {
                             setFrom(String(d.suggestedPort));
                             setTo(String(d.suggestedPort + 10));
                             setPorts(null);
-                            if (v !== 'redis' && kind === 'none')
+                            if (v !== 'redis' && kind === 'none' || data.folderUnsupportedImages.includes(`${v}:${nextVersion}`))
                                 setKind('volume');
                         } }, Object.entries(data.engines).map(([k, d]) => React.createElement("option", { key: k, value: k }, d.name)))),
                 React.createElement(Field, { label: "Familia de versi\u00F3n", help: "Familias admitidas. Se descarga la imagen oficial nativa y se fija su digest; no cambia de versi\u00F3n al reiniciar." },
-                    React.createElement("select", { value: version, onChange: e => setVersion(e.target.value) }, def.versions.map(v => React.createElement("option", { key: v }, v)))),
+                    React.createElement("select", { value: version, onChange: e => { const nextVersion = e.target.value; setVersion(nextVersion); if (data.folderUnsupportedImages.includes(`${engine}:${nextVersion}`))
+                            setKind('volume'); } }, def.versions.map(v => React.createElement("option", { key: v }, v)))),
                 React.createElement(Field, { label: "Nombre visible", help: "Etiqueta que reconocer\u00E1s en el panel." },
                     React.createElement("input", { required: true, value: name, onChange: e => setName(e.target.value) })),
                 React.createElement(Field, { label: "ID estable", help: "Usado por nearprod infra. No es el nombre de una base ni una URL web." },
                     React.createElement("input", { required: true, pattern: "[a-z0-9][a-z0-9-]*", value: id, onChange: e => setId(e.target.value) }))),
             React.createElement(Field, { label: "Persistencia", help: "Se aplica solo al recurso que est\u00E1s creando; no modifica la configuraci\u00F3n de proyectos importados." },
                 React.createElement("select", { value: kind, onChange: e => setKind(e.target.value) },
-                    React.createElement("option", { value: "volume" }, "Volumen Docker \u2014 dentro de la VM"),
-                    React.createElement("option", { value: "folder" }, "Carpeta local dedicada \u2014 visible en tu Mac"),
+                    React.createElement("option", { value: "volume" }, "Volumen administrado por Docker"),
+                    React.createElement("option", { value: "folder", disabled: folderUnsupported },
+                        "Carpeta local dedicada",
+                        folderUnsupported ? ' — no disponible para esta combinación' : ''),
                     engine === 'redis' && React.createElement("option", { value: "none" }, "Sin persistencia \u2014 cach\u00E9 desechable"))),
+            folderRestriction && React.createElement(Alert, null,
+                folderRestriction.message,
+                " Los datos persisten aunque se recree el contenedor."),
             kind === 'folder' && React.createElement(React.Fragment, null,
-                React.createElement(Field, { label: "Carpeta local de esta instancia", help: "Debe estar vac\u00EDa o no existir, no ser enlace simb\u00F3lico y estar compartida con Colima. Se crea data/; se comprueban los permisos desde un contenedor. No uses iCloud ni una carpeta con otros archivos." },
+                React.createElement(Field, { label: "Carpeta local de esta instancia", help: "Debe estar vac\u00EDa o no existir, no ser enlace simb\u00F3lico y ser visible para el runtime Docker. Se crea data/ y se comprueba el montaje desde un contenedor. No uses carpetas sincronizadas ni directorios con otros archivos." },
                     React.createElement("input", { required: true, value: folder, onChange: e => setFolder(e.target.value) })),
-                React.createElement(Alert, null, "Todas las bases l\u00F3gicas de esta instancia usan el mismo directorio f\u00EDsico. Para una carpeta por base debes crear otra instancia. La exportaci\u00F3n de cada base s\u00ED produce un archivo independiente. El rendimiento de un bind mount puede ser distinto al de un volumen dentro de la VM.")),
+                React.createElement(Alert, null, "Todas las bases l\u00F3gicas de esta instancia usan el mismo directorio f\u00EDsico. Para una carpeta por base debes crear otra instancia. La exportaci\u00F3n de cada base s\u00ED produce un archivo independiente. El rendimiento de un bind mount puede ser distinto al de un volumen administrado.")),
             React.createElement("label", { className: "check-label" },
                 React.createElement("input", { type: "checkbox", checked: publish, onChange: e => setPublish(e.target.checked) }),
                 " Permitir acceso desde una herramienta en mi equipo (127.0.0.1)"),
             React.createElement("p", { className: "field-help" }, "Los contenedores conectados a la red de datos no necesitan publicar puertos del host."),
             publish && React.createElement("section", { className: "panel" },
                 React.createElement("div", { className: "form-grid" },
-                    React.createElement(Field, { label: "Puerto local elegido", help: `El motor escucha internamente en ${def.port}; este número es solo para tu Mac.` },
+                    React.createElement(Field, { label: "Puerto local elegido", help: `El motor escucha internamente en ${def.port}; este número solo se publica en tu equipo.` },
                         React.createElement("input", { required: true, type: "number", min: "1024", max: "65535", value: port, onChange: e => setPort(e.target.value) })),
                     React.createElement("div", null,
                         React.createElement("label", null, "Rango a consultar (m\u00E1ximo 128 puertos)"),
@@ -308,7 +318,7 @@ function CreateInstance({ data, onClose, onReview }) {
             React.createElement("details", null,
                 React.createElement("summary", null, "Recursos y conexiones"),
                 React.createElement("div", { className: "form-grid" },
-                    React.createElement(Field, { label: "L\u00EDmite de memoria (MiB)", help: "No es una reserva. Debe quedar RAM para Linux, Traefik y tus aplicaciones; bajar demasiado provoca OOM." },
+                    React.createElement(Field, { label: "L\u00EDmite de memoria (MiB)", help: "No es una reserva. Debe quedar RAM para el runtime, Traefik y tus aplicaciones; bajar demasiado provoca OOM." },
                         React.createElement("input", { required: true, type: "number", min: def.minMemoryMiB, value: memory, onChange: e => setMemory(e.target.value) })),
                     engine !== 'redis' && React.createElement(Field, { label: "Conexiones m\u00E1ximas", help: "Ajusta tambi\u00E9n los pools de API/workers para no agotarlas." },
                         React.createElement("input", { required: true, type: "number", min: "8", max: "300", value: max, onChange: e => setMax(e.target.value) })))),
@@ -421,19 +431,35 @@ function BindingDialog({ database, engine, stacks, onClose, onReview }) {
                 React.createElement("button", { type: "button", onClick: onClose }, "Cancelar"),
                 React.createElement("button", { className: "primary", disabled: busy || !services.length }, "Revisar vinculaci\u00F3n"))));
 }
-function BackupDialog({ db, restore, onClose, onSubmit }) { const [value, setValue] = useState(''), [trusted, setTrusted] = useState(false); return React.createElement(Modal, { title: restore ? 'Restaurar en base vacía' : 'Exportar backup lógico', subtitle: db.name, onClose: onClose },
-    React.createElement("form", { onSubmit: e => { e.preventDefault(); onSubmit({ action: restore ? 'restore' : 'backup', database: db.id, confirm: true, ...(restore ? { file: value, trustedBackup: trusted } : { directory: value || undefined }) }); } },
-        React.createElement(Alert, null, "Un volumen o carpeta persistente no es un backup. El archivo puede contener datos sensibles: se guarda con permisos privados fuera de la VM. El resultado y la ruta aparecen en Actividad."),
-        React.createElement(Field, { label: restore ? 'Archivo de backup' : 'Carpeta de destino (opcional)', help: restore ? 'Selecciona un dump creado por NearProd con su archivo .nearprod.json al lado. Debe corresponder al motor y versión compatibles.' : 'Vacío usa ~/.nearprod/backups/databases (o tu NEARPROD_HOME). No se sobrescriben archivos existentes.' },
-            React.createElement("input", { required: restore, value: value, onChange: e => setValue(e.target.value), placeholder: restore ? '/Users/usuario/Backups/tienda.dump' : '/Users/usuario/Backups' })),
-        restore && React.createElement(React.Fragment, null,
-            React.createElement(Alert, { error: true }, "Solo se acepta una base vac\u00EDa y sin v\u00EDnculos. Un fallo puede dejar objetos parciales; no hay rollback autom\u00E1tico. MySQL no restaura rutinas/eventos y puede rechazar definers ajenos."),
-            React.createElement("label", { className: "check-label" },
-                React.createElement("input", { required: true, type: "checkbox", checked: trusted, onChange: e => setTrusted(e.target.checked) }),
-                " Conf\u00EDo en este backup y acepto importarlo en este destino vac\u00EDo.")),
-        React.createElement("div", { className: "modal-actions" },
-            React.createElement("button", { type: "button", onClick: onClose }, "Cancelar"),
-            React.createElement("button", { className: "primary" }, restore ? 'Restaurar como usuario limitado' : 'Exportar')))); }
+function BackupDialog({ db, restore, onClose, onSubmit, }) {
+    const [value, setValue] = useState(""), [trusted, setTrusted] = useState(false);
+    return (React.createElement(Modal, { title: restore ? "Restaurar en base vacía" : "Exportar backup lógico", subtitle: db.name, onClose: onClose },
+        React.createElement("form", { onSubmit: (e) => {
+                e.preventDefault();
+                onSubmit({
+                    action: restore ? "restore" : "backup",
+                    database: db.id,
+                    confirm: true,
+                    ...(restore
+                        ? { file: value, trustedBackup: trusted }
+                        : { directory: value || undefined }),
+                });
+            } },
+            React.createElement(Alert, null, "Un volumen o carpeta persistente no es un backup. El archivo puede contener datos sensibles: se guarda con permisos privados fuera del runtime. El resultado y la ruta aparecen en Actividad."),
+            React.createElement(Field, { label: restore ? "Archivo de backup" : "Carpeta de destino (opcional)", help: restore
+                    ? "Selecciona un dump creado por NearProd con su archivo .nearprod.json al lado. Debe corresponder al motor y versión compatibles."
+                    : "Vacío usa ~/.nearprod/backups/databases (o tu NEARPROD_HOME). No se sobrescriben archivos existentes." },
+                React.createElement("input", { required: restore, value: value, onChange: (e) => setValue(e.target.value), placeholder: restore ? "~/Backups/tienda.dump" : "~/Backups" })),
+            restore && (React.createElement(React.Fragment, null,
+                React.createElement(Alert, { error: true }, "Solo se acepta una base vac\u00EDa y sin v\u00EDnculos. Un fallo puede dejar objetos parciales; no hay rollback autom\u00E1tico. MySQL no restaura rutinas/eventos y puede rechazar definers ajenos."),
+                React.createElement("label", { className: "check-label" },
+                    React.createElement("input", { required: true, type: "checkbox", checked: trusted, onChange: (e) => setTrusted(e.target.checked) }),
+                    " ",
+                    "Conf\u00EDo en este backup y acepto importarlo en este destino vac\u00EDo."))),
+            React.createElement("div", { className: "modal-actions" },
+                React.createElement("button", { type: "button", onClick: onClose }, "Cancelar"),
+                React.createElement("button", { className: "primary" }, restore ? "Restaurar como usuario limitado" : "Exportar")))));
+}
 function InfraLogs({ instance, onClose }) {
     const [lines, setLines] = useState([]), [error, setError] = useState('');
     useEffect(() => {

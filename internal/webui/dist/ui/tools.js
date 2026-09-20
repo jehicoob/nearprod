@@ -1,14 +1,14 @@
 import { api, message } from './api.js';
 import { Alert, Field, Modal, Skeleton, Icon } from './components.js';
 const { useState, useEffect } = React;
-export function ToolsView({ notify, operations }) {
-    const [data, setData] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(false), [selected, setSelected] = useState(null), [startup, setStartup] = useState(null);
+export function ToolsView({ notify, operations, }) {
+    const [data, setData] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(false), [selected, setSelected] = useState(null), [startup, setStartup] = useState(null);
     async function load() {
         setLoading(true);
         try {
-            setData(await api('/tools'));
-            setStartup(await api('/startup'));
-            setError('');
+            setData(await api("/tools"));
+            setStartup(await api("/startup"));
+            setError("");
         }
         catch (e) {
             setError(message(e));
@@ -17,9 +17,11 @@ export function ToolsView({ notify, operations }) {
             setLoading(false);
         }
     }
-    useEffect(() => { void load(); }, []);
-    const active = operations.some(o => o.state === 'running');
-    return React.createElement(React.Fragment, null,
+    useEffect(() => {
+        void load();
+    }, []);
+    const active = operations.some((o) => o.state === "running");
+    return (React.createElement(React.Fragment, null,
         React.createElement("div", { className: "section-heading" },
             React.createElement("div", null,
                 React.createElement("span", { className: "eyebrow" }, "DEPENDENCIAS Y ARRANQUE"),
@@ -29,9 +31,9 @@ export function ToolsView({ notify, operations }) {
                 React.createElement(Icon, { name: "refresh" }),
                 "Actualizar inventario")),
         error && React.createElement(Alert, { error: true }, error),
-        !data && loading && React.createElement(Skeleton, { label: "Detectando gestores y herramientas", rows: 7 }),
+        !data && loading && (React.createElement(Skeleton, { label: "Detectando gestores y herramientas", rows: 7 })),
         " ",
-        data && React.createElement(React.Fragment, null,
+        data && (React.createElement(React.Fragment, null,
             React.createElement(Alert, null, data.recommendation),
             React.createElement("section", { className: "panel" },
                 React.createElement("h2", null, "Tu entorno detectado"),
@@ -49,53 +51,84 @@ export function ToolsView({ notify, operations }) {
                                 React.createElement("th", null, "Gestor"),
                                 React.createElement("th", null, "\u00C1mbito / evidencia"),
                                 React.createElement("th", null, "Ruta"),
-                                React.createElement("th", null, "Instalaci\u00F3n guiada"))),
-                        React.createElement("tbody", null, data.managers.map((m, i) => React.createElement("tr", { key: `${m.id}-${i}` },
+                                React.createElement("th", null, "Administraci\u00F3n"))),
+                        React.createElement("tbody", null, data.managers.map((m, i) => (React.createElement("tr", { key: `${m.id}-${i}` },
                             React.createElement("td", null, m.id),
                             React.createElement("td", null,
-                                { system: 'Herramientas del sistema', node: 'Node.js', runtimes: 'Runtimes', 'node-packages': 'Paquetes Node' }[m.scope] || m.scope,
-                                " \u00B7 ",
-                                { executable: 'ejecutable encontrado', 'shell-file': 'archivo de shell', 'pinned-runtime-path': 'ruta del Node fijado' }[m.evidence] || m.evidence),
+                                {
+                                    system: "Herramientas del sistema",
+                                    node: "Node.js",
+                                    runtimes: "Runtimes",
+                                    "node-packages": "Paquetes Node",
+                                }[m.scope] || m.scope,
+                                " ",
+                                "\u00B7",
+                                " ",
+                                {
+                                    executable: "ejecutable encontrado",
+                                    "shell-file": "archivo de shell",
+                                    "pinned-runtime-path": "ruta del Node fijado",
+                                }[m.evidence] || m.evidence),
                             React.createElement("td", { className: "mono break-all" }, m.path),
-                            React.createElement("td", null, m.managed ? 'Homebrew disponible' : 'Solo detección'))))))),
-            React.createElement("div", { className: "tool-cards" }, data.tools.map(t => React.createElement("section", { className: "panel", key: t.id },
+                            React.createElement("td", null, m.managed ? "Homebrew disponible" : "Solo detección")))))))),
+            React.createElement("div", { className: "tool-cards" }, data.tools.filter((t) => t.supported).map((t) => (React.createElement("section", { className: "panel", key: t.id },
                 React.createElement("div", { className: "panel-heading" },
                     React.createElement(Icon, { name: "terminal" }),
                     React.createElement("h2", null, t.name),
-                    React.createElement("span", { className: `badge ${t.available ? 'badge-healthy' : 'badge-unknown'}` }, t.available ? 'Disponible' : t.status === 'plugin-not-registered' ? 'Plugin sin registrar' : 'No disponible')),
+                    React.createElement("span", { className: `badge ${t.available ? "badge-healthy" : "badge-unknown"}` }, t.available
+                        ? "Disponible"
+                        : t.status === "plugin-not-registered"
+                            ? "Plugin sin registrar"
+                            : "No disponible")),
                 React.createElement("p", null, t.purpose),
                 React.createElement("p", { className: "mono break-all" },
-                    t.version || 'Versión sin comprobar',
+                    t.version || "Versión sin comprobar",
                     React.createElement("br", null),
-                    t.path || 'No localizado'),
+                    t.path || "No localizado"),
                 React.createElement("small", null,
-                    "Origen: ",
-                    { existing: 'Instalación existente', homebrew: 'Homebrew', none: 'No detectado' }[t.provider] || t.provider,
-                    " \u00B7 ",
-                    t.required ? 'Necesario para operar' : 'Necesario al construir, no para leer logs'),
-                React.createElement("div", { className: "modal-actions" },
-                    React.createElement("button", { disabled: active || data.platform !== 'darwin', onClick: () => setSelected(t) }, "Versiones / instalar / reparar"))))),
+                    "Origen:",
+                    " ",
+                    {
+                        existing: "Instalación existente",
+                        homebrew: "Homebrew",
+                        none: "No detectado",
+                    }[t.provider] || t.provider,
+                    " ",
+                    "\u00B7",
+                    " ",
+                    t.required
+                        ? "Necesario para operar"
+                        : "Necesario al construir, no para leer logs"),
+                data.packageManagement.canInstall && (React.createElement("div", { className: "modal-actions" },
+                    React.createElement("button", { disabled: active, onClick: () => setSelected(t) }, "Versiones / instalar / reparar"))))))),
             React.createElement("section", { className: "panel" },
                 React.createElement("h2", null, "Traefik \u00B7 componente central"),
                 React.createElement("p", null,
                     "Traefik proporciona las URLs ",
                     React.createElement("code", null, "proyecto.localhost"),
-                    ". Se aprovisiona en la VM existente desde ",
+                    ". Se aprovisiona dentro de Docker desde",
+                    " ",
                     React.createElement("strong", null, "Accesos locales"),
-                    ". No se instala mediante Homebrew ni se mezcla con los motores de datos opcionales."))),
+                    ". Se administra como componente central, no como paquete del host ni como motor de datos opcional.")))),
         React.createElement(StoragePanel, null),
         React.createElement("section", { className: "panel" },
-            React.createElement("h2", null, "Iniciar NearProd al entrar en macOS"),
-            startup ? React.createElement("p", null, startup.message) : React.createElement(Skeleton, { label: "Comprobando inicio autom\u00E1tico", rows: 2 }),
-            React.createElement("pre", { className: "console" },
-                "nearprod startup enable",
-                React.createElement("br", null),
-                "nearprod startup status",
-                React.createElement("br", null),
-                "nearprod startup disable"),
-            React.createElement("p", null, "Ejecuta estos comandos como tu usuario, sin sudo. Se inicia el agente despu\u00E9s del inicio de sesi\u00F3n, no antes de desbloquear el equipo. No abre el navegador ni enciende Colima, Traefik o proyectos autom\u00E1ticamente."),
-            React.createElement("p", { className: "hint" }, "Deshabilitar impide pr\u00F3ximos arranques y conserva el agente actual. Para cerrarlo usa nearprod agent stop. El instalador nativo no depende de Node ni de fnm.")),
-        selected && React.createElement(ToolDialog, { tool: selected, onClose: () => setSelected(null), onSubmitted: id => { setSelected(null); notify(`Operación ${id} iniciada. Consulta Actividad y vuelve a comprobar el inventario al terminar.`); } }));
+            React.createElement("h2", null, startup?.supported
+                ? "Iniciar NearProd al entrar en macOS"
+                : "Inicio automático"),
+            startup ? (React.createElement("p", null, startup.message)) : (React.createElement(Skeleton, { label: "Comprobando inicio autom\u00E1tico", rows: 2 })),
+            startup?.supported && (React.createElement(React.Fragment, null,
+                React.createElement("pre", { className: "console" },
+                    "nearprod startup enable",
+                    React.createElement("br", null),
+                    "nearprod startup status",
+                    React.createElement("br", null),
+                    "nearprod startup disable"),
+                React.createElement("p", null, "Ejecuta estos comandos como tu usuario, sin sudo. Se inicia el agente despu\u00E9s del inicio de sesi\u00F3n, no antes de desbloquear el equipo. No abre el navegador ni enciende Colima, Traefik o proyectos autom\u00E1ticamente."),
+                React.createElement("p", { className: "hint" }, "Deshabilitar impide pr\u00F3ximos arranques y conserva el agente actual. Para cerrarlo usa nearprod agent stop. El instalador nativo no depende de Node ni de fnm.")))),
+        selected && (React.createElement(ToolDialog, { tool: selected, onClose: () => setSelected(null), onSubmitted: (id) => {
+                setSelected(null);
+                notify(`Operación ${id} iniciada. Consulta Actividad y vuelve a comprobar el inventario al terminar.`);
+            } }))));
 }
 function ToolDialog({ tool, onClose, onSubmitted }) {
     const [versions, setVersions] = useState(null), [formula, setFormula] = useState(''), [action, setAction] = useState(tool.status === 'plugin-not-registered' ? 'repair' : 'install'), [preview, setPreview] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);

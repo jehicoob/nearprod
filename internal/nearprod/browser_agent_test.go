@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -20,13 +21,21 @@ func TestBrowserAgent(t *testing.T) {
 	}
 	f := newFixture(t, true)
 	must(t, f.S.Store.Update(func(v J) error {
-		v["runtime"] = J{"kind": "colima", "context": "colima", "profile": "default"}
+		if runtime.GOOS == "darwin" {
+			v["runtime"] = J{"kind": "colima", "context": "colima", "profile": "default"}
+		} else {
+			v["runtime"] = J{"kind": "native", "context": "default", "profile": "default"}
+		}
 		return nil
 	}))
 	f.F.Set(func() {
 		f.F.Connected = false
-		f.F.ColimaRunning = false
-		f.F.Endpoint = "unix://" + filepath.Join(userHome(), ".colima", "default", "docker.sock")
+		if runtime.GOOS == "darwin" {
+			f.F.ColimaRunning = false
+			f.F.Endpoint = "unix://" + filepath.Join(userHome(), ".colima", "default", "docker.sock")
+		} else {
+			f.F.Endpoint = "unix:///var/run/docker.sock"
+		}
 	})
 	for _, name := range []string{"backend", "frontend"} {
 		p := filepath.Join(f.Root, "Tienda", name)
@@ -58,7 +67,7 @@ func TestBrowserAgent(t *testing.T) {
 	})}
 	go server.Serve(ln)
 	defer server.Close()
-	info := merge(f.A.Info, J{"code": f.A.HTTP.Pair()["code"], "root": f.Root, "home": f.Home, "proxyPort": ln.Addr().(*net.TCPAddr).Port})
+	info := merge(f.A.Info, J{"code": f.A.HTTP.Pair()["code"], "root": f.Root, "home": f.Home, "proxyPort": ln.Addr().(*net.TCPAddr).Port, "host": f.S.Runtime.Capabilities()})
 	json.NewEncoder(os.Stdout).Encode(info)
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -68,9 +77,15 @@ func TestBrowserAgent(t *testing.T) {
 		}
 		switch str(request["action"]) {
 		case "connect":
-			f.F.Set(func() { f.F.Connected = true; f.F.ColimaRunning = true })
+			f.F.Set(func() {
+				f.F.Connected = true
+				f.F.ColimaRunning = runtime.GOOS == "darwin"
+			})
 		case "engine-down":
-			f.F.Set(func() { f.F.Connected = false; f.F.ColimaRunning = true })
+			f.F.Set(func() {
+				f.F.Connected = false
+				f.F.ColimaRunning = runtime.GOOS == "darwin"
+			})
 		case "disconnect":
 			f.F.Set(func() { f.F.Connected = false; f.F.ColimaRunning = false })
 		case "unhealthy":

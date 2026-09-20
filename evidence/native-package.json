@@ -1,6 +1,6 @@
 {
-  "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
-  "binarySha256": "e2381d07de5d2341f731a0b3825a8f9654b69420f80b3f63e19826daf6fe1ca3",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.35",
+  "binarySha256": "acd3a3fe03f58569d04a9d6234b6382f6916b704f6c2a3bc79aa6f1fd09bfa36",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",

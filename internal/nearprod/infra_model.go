@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -16,6 +17,37 @@ var imagesRE = map[string]*regexp.Regexp{
 	"postgres": regexp.MustCompile(`^postgres:(17|18)(?:\.\d+)?(?:-alpine|-bookworm)?$`),
 	"mysql":    regexp.MustCompile(`^mysql:8\.4(?:\.\d+)?$`),
 	"redis":    regexp.MustCompile(`^redis:(?:7\.4(?:\.\d+)?|8(?:\.\d+){0,2})(?:-alpine)?$`),
+}
+
+func imageMajor(image string) int {
+	_, tag, ok := strings.Cut(image, ":")
+	if !ok {
+		return 0
+	}
+	return integer(regexp.MustCompile(`^\d+`).FindString(tag))
+}
+
+func validateFolderPlatform(state, def J) error {
+	if runtime.GOOS == "linux" && str(at(state, "runtime", "kind")) == "native" &&
+		str(def["engine"]) == "postgres" && imageMajor(str(def["requestedImage"])) >= 18 &&
+		str(at(def, "persistence", "kind")) == "folder" {
+		return fail("FOLDER_PLATFORM_UNSUPPORTED", "PostgreSQL 18 con Docker nativo en Linux/WSL2 requiere persistencia volume en esta versión. No se modificaron datos.", 409)
+	}
+	return nil
+}
+
+func folderUnsupportedImages(state J) A {
+	if runtime.GOOS == "linux" && str(at(state, "runtime", "kind")) == "native" {
+		return A{"postgres:18"}
+	}
+	return A{}
+}
+
+func folderRestrictions(state J) A {
+	if len(folderUnsupportedImages(state)) == 0 {
+		return A{}
+	}
+	return A{J{"image": "postgres:18", "code": "FOLDER_PLATFORM_UNSUPPORTED", "message": "PostgreSQL 18 con Docker nativo en Linux/WSL2 requiere un volumen administrado por Docker para evitar permisos incompatibles con el UID del motor."}}
 }
 
 func normalizeInstance(v J, home string) (J, error) {

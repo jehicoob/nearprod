@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -42,7 +43,7 @@ type Service struct {
 func NewService(parent context.Context, store *Store, runner Runner) *Service {
 	ctx, cancel := context.WithCancel(parent)
 	if runner == nil {
-		runner = &ExecRunner{ToolPath: func(name string) string { return str(at(store.Get(), "toolPaths", name)) }}
+		runner = &ExecRunner{ToolPath: func(name string) string { return platformToolPath(store.Get(), runtime.GOOS, name) }}
 	}
 	bus := NewBus()
 	docker := &Docker{Runner: runner, Store: store}
@@ -82,7 +83,7 @@ func (s *Service) Catalog() J {
 			ops = append(ops, v)
 		}
 	}
-	return J{"version": Version, "runtimeLanguage": "Go", "roots": d["roots"], "runtime": d["runtime"], "proxy": s.Proxy.Settings(), "groups": groups, "stacks": d["stacks"], "operations": ops, "infrastructure": s.Infra.List(s.Observed()), "storage": configPaths(s.Store.Home)}
+	return J{"version": Version, "runtimeLanguage": "Go", "host": s.Runtime.Capabilities(), "roots": d["roots"], "runtime": d["runtime"], "proxy": s.Proxy.Settings(), "groups": groups, "stacks": d["stacks"], "operations": ops, "infrastructure": s.Infra.List(s.Observed()), "storage": configPaths(s.Store.Home)}
 }
 func (s *Service) Observed() J {
 	s.observedMu.RLock()
@@ -939,6 +940,9 @@ func (s *Service) SetRuntime(req J) (J, error) {
 	rt := J{"kind": req["kind"], "context": req["context"], "profile": text(req["profile"], "default")}
 	if !contains([]string{"colima", "native"}, str(rt["kind"])) || !validID(str(rt["profile"])) || !validID(str(rt["context"])) {
 		return nil, fail("RUNTIME_INVALID", "Contexto/perfil no válidos.", 400)
+	}
+	if !contains(ss(at(s.Runtime.Capabilities(), "runtime", "supportedKinds")), str(rt["kind"])) {
+		return nil, fail("RUNTIME_PLATFORM", "Ese tipo de runtime no está soportado en esta plataforma.", 400)
 	}
 	s.mutation.Lock()
 	defer s.mutation.Unlock()

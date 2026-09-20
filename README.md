@@ -108,8 +108,12 @@ Solo inicia el agente, no el navegador, Colima, Traefik, bases o proyectos. Tras
 ## Validación con tu Docker real
 
 ```bash
+# macOS / Colima
 nearprod self-test --yes --context colima
 nearprod self-test --yes --context colima --infra-only --folder
+
+# Linux / WSL2 con Docker nativo
+nearprod self-test --yes --context default
 ```
 
 Pruebas opt-in: crean imágenes/contenedores/redes/volúmenes y bases TEMPORALES, comprueban rutas, SQL, separación, persistencia y recuperación; limpian solo sus recursos identificados. No cambian tu catálogo, datos, DNS o Colima; imágenes/caché permanecen. Revisa el informe `nearprod-acceptance-*/result.json`. Código 77 es bloqueo, no aprobado. La modalidad completa ejecuta motores secuencialmente, pero no promete caber junto a todas tus aplicaciones en 2 GiB.
