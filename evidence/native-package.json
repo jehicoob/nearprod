@@ -1,6 +1,6 @@
 {
   "platform": "macOS-15.8-arm64-arm-64bit-Mach-O",
-  "binarySha256": "3d3e3f299068ab159475a84e65ae274f4ad6bc095ce2f7a93e543e83475a79f4",
+  "binarySha256": "df6334e9a052519ccc940ce0878c873331bb5ebe8144245caaaa3695117c5867",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",
@@ -20,7 +20,9 @@
     "Parada nativa sin tocar Docker",
     "Reinstalación conserva catálogo y configuración shell única",
     "Reinicio/reinstalación sin registrar nuevamente",
-    "Instalador rechaza reemplazar un comando ajeno"
+    "Instalador rechaza reemplazar un comando ajeno",
+    "Instalador reemplaza 0.9.0 transitorio y conserva backup exacto",
+    "Reinstalación repara registro transitorio interrumpido"
   ],
   "state": "passed",
   "docker": "not used"

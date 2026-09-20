@@ -13,7 +13,11 @@ import (
 )
 
 const launchMarker = "<!-- NearProd managed LaunchAgent v1 -->"
-const BinaryMarker = "NearProd native executable; Go control plane; schema 5"
+
+// BinaryMarker is a stable executable identity used by older installers and
+// updaters. Catalog compatibility is reported separately through SchemaVersion.
+const BinaryMarker = "NearProd native executable; Go control plane; schema 4"
+const transitionalBinaryMarker = "NearProd native executable; Go control plane; schema 5"
 
 type Startup struct {
 	Home, CatalogHome, Platform string

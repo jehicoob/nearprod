@@ -1,3 +1,7 @@
+# 0.9.1
+
+Restaura la actualización automática desde 0.8.0 al mantener estable la identidad binaria entre migraciones de catálogo. El schema 5 se reporta ahora por separado, 0.9.1 conserva compatibilidad durante el reemplazo de instalaciones 0.9.0 y los errores CLI ya no imprimen `null` antes del diagnóstico.
+
 # 0.9.0
 
 Añade gestión segura del ciclo de vida de grupos, raíces, aplicaciones e infraestructura. Las operaciones destructivas usan vistas previas, confirmaciones específicas y revalidación; las aplicaciones y bases pueden archivarse y restaurarse, y las purgas SQL se reanudan de forma segura después de interrupciones.

@@ -1,5 +1,5 @@
 {
-  "version": "0.9.0",
+  "version": "0.9.1",
   "status": "candidate",
   "go": {
     "topLevelPassed": 87,
@@ -19,9 +19,20 @@
     "nativeMacOS": "passed"
   },
   "nativeInstalledPackage": {
-    "passed": 19,
+    "passed": 21,
     "platforms": ["darwin/arm64", "linux/amd64 (WSL2 evidence)"],
     "noNodeInPATH": true
+  },
+  "updateCompatibility": {
+    "releasedVerifier08AcceptsCandidate091": true,
+    "releasedVerifier09AcceptsCandidate091": true,
+    "transitional09ReplacementWithExactBackup": "passed",
+    "interruptedTransitionalRecordRepair": "passed by reinstalling the verified 0.9.1 package"
+  },
+  "securityReview": {
+    "verdict": "comment_only",
+    "pendingMediumOrHigh": 0,
+    "residualLow": "an abrupt stop after replacement can retain the 0.9.0 record; verified package reinstall repairs it"
   },
   "mac": {
     "crossCompilation": "passed arm64/amd64",
@@ -29,16 +40,16 @@
     "notarization": "none"
   },
   "realDocker": {
-    "infrastructure": "passed: 18 checks",
+    "infrastructure": "passed on 0.9.0: 18 checks; 0.9.1 does not change lifecycle or Docker",
     "webAcceptance": "failed: ACCEPTANCE_HTTP; same result with official 0.7.1 baseline"
   },
   "compiler": "go1.27.1",
-  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.9.0-dev not published",
-  "releaseBinariesScope": "official 0.8.0 baseline; 0.9.0 artifacts pending clean release-candidate commit",
+  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.9.1-dev not published",
+  "releaseBinariesScope": "local 0.9.1-dev snapshot; artifacts are validation-only and were not published",
   "releaseBinaries": {
-    "nearprod-darwin-amd64": { "sha256": "f3bc70138acbc6ff32e6b267d5f6550e1a8863f0660c5c3f8b8c687d256debc9", "bytes": 10049088 },
-    "nearprod-darwin-arm64": { "sha256": "d28ec1c7c4e82ffde0f09f0f1c0a07da562d389aa2b8865ecc1a62b279b47507", "bytes": 9314018 },
-    "nearprod-linux-amd64": { "sha256": "4f602bd197ebd1e5be675d30ac91161da2d3808de3af3fcc2954203cecb400c4", "bytes": 9875580 },
-    "nearprod-linux-arm64": { "sha256": "6d713617ea2d0ffac868e5a31a32efb7c672c0dbafcb5f44f36e78f7e3f381bd", "bytes": 9109628 }
+    "nearprod-darwin-amd64": { "sha256": "e05cb6464328b5f2e076a28dea9d045414ec15d37e311ba3a9f44c90c39a5af7", "bytes": 11570848 },
+    "nearprod-darwin-arm64": { "sha256": "b2d5efba54d0b340dd666c4b6370a7495e2c15580638315b3fdf1f70e490027c", "bytes": 10736210 },
+    "nearprod-linux-amd64": { "sha256": "332d750a7cf81110ddad35276fd3583b2d80fabb7827077effabd0eff23a446e", "bytes": 11350140 },
+    "nearprod-linux-arm64": { "sha256": "a87b1e5f9825cc9f429ceabe07664c46de139fa51d9106f86150ab415ecb1461", "bytes": 10485884 }
   }
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shutil
 import subprocess
 import tempfile
@@ -34,6 +35,15 @@ def main() -> None:
                                     capture_output=True, timeout=10, check=True)
             assert result.stdout.strip() == args.expected, result.stdout
         print("PASS version y --version fuera del repositorio, sin Node/Go/Docker en PATH", flush=True)
+        result = subprocess.run([str(executable), "--identity"], cwd=root, env=env, text=True,
+                                capture_output=True, timeout=10, check=True)
+        identity = json.loads(result.stdout)
+        assert identity["service"] == "nearprod" and identity["version"] == args.expected
+        assert identity["marker"] == "NearProd native executable; Go control plane; schema 4"
+        assert isinstance(identity.get("schemaVersion"), int) and identity["schemaVersion"] > 0
+        arch = {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine()]
+        assert identity["platform"] == f"{platform.system().lower()}/{arch}"
+        print("PASS identidad binaria estable y schema de catálogo separado", flush=True)
         with (root / "agent.log").open("w+") as log:
             process = subprocess.Popen([str(executable), "serve", "--foreground", "--port", "0"],
                                        cwd=root, env=env, stdout=log, stderr=log)
