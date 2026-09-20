@@ -5,6 +5,7 @@ import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
 import { InfrastructureView } from './infrastructure.js';
 import { ToolsView } from './tools.js';
+import { McpAccessView } from './McpAccessView.js';
 const { useState, useEffect } = React;
 const EMPTY = { connected: false, checkedAt: null, stacks: [] };
 function CatalogLifecycleDialog({ review, onClose, onApplied }) {
@@ -220,9 +221,12 @@ function App() {
                 React.createElement("button", { className: page === "infra" ? "active" : "", onClick: () => setPage("infra") },
                     React.createElement(Icon, { name: "cube" }),
                     "Infraestructura"),
-                React.createElement("button", { className: page === "tools" ? "active" : "", onClick: () => setPage("tools") },
+                React.createElement("button", { className: page === "tools" ? "active" : "", title: "Herramientas", onClick: () => setPage("tools") },
                     React.createElement(Icon, { name: "terminal" }),
                     "Herramientas"),
+                React.createElement("button", { className: page === "mcp" ? "active" : "", title: "Acceso MCP", onClick: () => setPage("mcp") },
+                    React.createElement(Icon, { name: "network" }),
+                    "Acceso MCP"),
                 React.createElement("button", { className: page === "runtime" ? "active" : "", onClick: () => setPage("runtime") },
                     React.createElement(Icon, { name: "settings" }),
                     "Runtime y recursos"),
@@ -245,6 +249,16 @@ function App() {
                 React.createElement("button", { className: "text-button", onClick: () => void api("/logout", {}).then(() => setAuth(false)) }, "Cerrar sesi\u00F3n del panel"))),
         React.createElement("div", { className: "main" },
             React.createElement("header", { className: "topbar" },
+                React.createElement("label", { className: "mobile-navigation" },
+                    React.createElement("span", { className: "sr-only" }, "Secci\u00F3n"),
+                    React.createElement("select", { value: page, onChange: event => setPage(event.target.value), "aria-label": "Secci\u00F3n de NearProd" },
+                        React.createElement("option", { value: "projects" }, "Aplicaciones"),
+                        React.createElement("option", { value: "proxy" }, "Accesos locales"),
+                        React.createElement("option", { value: "infra" }, "Infraestructura"),
+                        React.createElement("option", { value: "tools" }, "Herramientas"),
+                        React.createElement("option", { value: "mcp" }, "Acceso MCP"),
+                        React.createElement("option", { value: "runtime" }, "Runtime y recursos"),
+                        React.createElement("option", { value: "activity" }, "Actividad"))),
                 React.createElement("div", { className: "breadcrumb" },
                     "Workspace ",
                     React.createElement(Icon, { name: "chevron", size: 13 }),
@@ -258,7 +272,9 @@ function App() {
                                     ? "Infraestructura"
                                     : page === "tools"
                                         ? "Herramientas"
-                                        : "Actividad")),
+                                        : page === "mcp"
+                                            ? "Acceso MCP"
+                                            : "Actividad")),
                 React.createElement("div", { className: "topbar-status" },
                     React.createElement("span", { className: status.connected ? "live-dot" : "offline-dot" }),
                     !checked
@@ -532,6 +548,7 @@ function App() {
                         React.createElement(OperationsView, { operations: catalog.operations.slice(0, 3), cancel: cancel })))),
                 page === "infra" && (React.createElement(InfrastructureView, { catalog: catalog, status: status, notify: notify })),
                 page === "tools" && (React.createElement(ToolsView, { operations: catalog.operations, notify: notify })),
+                page === "mcp" && React.createElement(McpAccessView, null),
                 page === "proxy" && (React.createElement(ProxyView, { catalog: catalog, status: status, notify: notify, onSaved: () => void load(), onConfigure: (s) => setEditor({ stack: s }) })),
                 page === "runtime" && (React.createElement(RuntimeView, { runtime: catalog.runtime, host: catalog.host, connected: status.connected, operations: catalog.operations, onSaved: () => void load(), notify: notify })),
                 page === "activity" && (React.createElement(React.Fragment, null,

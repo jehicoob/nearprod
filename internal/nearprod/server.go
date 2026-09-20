@@ -290,6 +290,8 @@ func (h *HTTP) get(ctx context.Context, p string, r *http.Request) (any, error) 
 		return configPaths(s.Store.Home), nil
 	case "/api/config/migration":
 		return MigrationPreview(s.Store.Home)
+	case "/api/mcp":
+		return MCPInfo(s.Store.Home), nil
 	case "/api/images":
 		id := r.URL.Query().Get("id")
 		if !strings.HasPrefix(id, "sha256:") || !cidRE.MatchString(strings.TrimPrefix(id, "sha256:")) {
@@ -330,7 +332,7 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 	case "/api/stacks/edit":
 		return s.Edit(str(v["target"]), obj(v["definition"]))
 	case "/api/stacks/remove":
-		return s.Remove(str(v["target"]), truth(v["confirm"]))
+		return s.Remove(ctx, str(v["target"]), truth(v["confirm"]))
 	case "/api/stacks/archive-preview":
 		return s.ArchiveStackPreview(str(v["target"]))
 	case "/api/stacks/archive":

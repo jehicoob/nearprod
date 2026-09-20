@@ -78,6 +78,9 @@ func (i *Infrastructure) CreateDatabase(ctx context.Context, req J, line func(st
 		}
 		return J{"database": existing, "noOp": true}, nil
 	}
+	if existing != nil && str(existing["state"]) == "purging" {
+		return nil, fail("DATABASE_PURGING", "La base tiene una purga pendiente; termínala antes de aprovisionarla.", 409)
+	}
 	if str(r["engine"]) == "redis" {
 		for _, v := range allInfraDatabases(i.State()) {
 			d := obj(v)

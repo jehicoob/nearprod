@@ -283,6 +283,21 @@ func validateInfra(v J) error {
 		if uid != instanceUID || !validID(id) || !validDB(str(d["name"])) || !validUser(str(d["username"])) || dbids[id] || names[uid+":"+str(d["name"])] || users[uid+":"+str(d["username"])] {
 			return fail("INFRA_STATE", "Base/cuenta inválida, duplicada o sin instancia.", 409)
 		}
+		state := str(d["state"])
+		if !contains([]string{"pending", "ready", "failed", "purging"}, state) {
+			return fail("INFRA_STATE", "Estado de base inválido.", 409)
+		}
+		purge := obj(d["purge"])
+		if state == "purging" {
+			if !contains([]string{"backup-purge", "purge"}, str(purge["mode"])) || !contains([]string{"database", "account", "metadata"}, str(purge["phase"])) || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(str(purge["recordDigest"])) {
+				return fail("INFRA_STATE", "Estado de purga inválido.", 409)
+			}
+			if _, e := time.Parse(time.RFC3339Nano, str(purge["startedAt"])); e != nil {
+				return fail("INFRA_STATE", "Fecha de purga inválida.", 409)
+			}
+		} else if d["purge"] != nil {
+			return fail("INFRA_STATE", "Una base fuera de purga conserva progreso inválido.", 409)
+		}
 		dbids[id], names[uid+":"+str(d["name"])], users[uid+":"+str(d["username"])] = true, true, true
 		if active {
 			activeDBIDs[id] = true

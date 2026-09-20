@@ -507,12 +507,18 @@ func (s *Service) Edit(id string, input J) (J, error) {
 	s.emitCatalog()
 	return s.Store.Stack(str(replacement["id"]))
 }
-func (s *Service) Remove(id string, confirm bool) (J, error) {
+func (s *Service) Remove(ctx context.Context, id string, confirm bool) (J, error) {
 	if !confirm {
 		return nil, fail("CONFIRM_REQUIRED", "Confirma quitar del catálogo; no borra recursos.", 409)
 	}
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "La solicitud terminó antes de comprobar Docker; no se quitó la aplicación.", 408)
+	}
 	s.mutation.Lock()
 	defer s.mutation.Unlock()
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "La solicitud terminó antes de comprobar Docker; no se quitó la aplicación.", 408)
+	}
 	if e := s.Idle(id); e != nil {
 		return nil, e
 	}
@@ -520,24 +526,48 @@ func (s *Service) Remove(id string, confirm bool) (J, error) {
 	if e != nil {
 		return nil, e
 	}
+	s.Refresh(ctx)
+	if ctx.Err() != nil || s.ctx.Err() != nil {
+		return nil, fail("REQUEST_CANCELLED", "No se pudo completar una observación fresca de Docker; no se quitó la aplicación.", 408)
+	}
+	observed := s.Observed()
+	if !truth(observed["connected"]) {
+		return nil, fail("DOCKER_UNAVAILABLE", "Conecta el Engine para confirmar que la aplicación está detenida.", 503)
+	}
+	for _, raw := range arr(observed["containers"]) {
+		container := obj(raw)
+		if str(container["project"]) != str(old["projectName"]) {
+			continue
+		}
+		if !ownsContainer(old, container, str(s.Store.Get()["owner"])) {
+			return nil, fail("STACK_OWNERSHIP", "Hay contenedores ajenos con la identidad Compose de la aplicación.", 409)
+		}
+		if truth(container["running"]) || contains([]string{"restarting", "paused", "starting"}, str(container["state"])) {
+			return nil, fail("STACK_RUNNING", "Detén la aplicación antes de quitarla del catálogo.", 409)
+		}
+	}
+	for _, raw := range arr(at(s.Store.Get(), "infra", "bindings")) {
+		if str(obj(raw)["stackUid"]) == str(old["uid"]) {
+			return nil, fail("STACK_BOUND", "Desvincula las bases antes de quitar la aplicación, o usa el archivo reversible.", 409)
+		}
+	}
 	s.StopWatch(id)
 	e = s.Store.Update(func(v J) error {
 		if e := s.Idle(id); e != nil {
 			return e
 		}
-		stacks, bindings := A{}, A{}
+		stacks := A{}
 		for _, x := range arr(v["stacks"]) {
 			if str(obj(x)["id"]) != id {
 				stacks = append(stacks, x)
 			}
 		}
 		for _, x := range arr(at(v, "infra", "bindings")) {
-			if str(obj(x)["stackUid"]) != str(old["uid"]) {
-				bindings = append(bindings, x)
+			if str(obj(x)["stackUid"]) == str(old["uid"]) {
+				return fail("STACK_BOUND", "La aplicación recibió una vinculación; no se quitó del catálogo.", 409)
 			}
 		}
 		v["stacks"] = stacks
-		obj(v["infra"])["bindings"] = bindings
 		return nil
 	})
 	if e != nil {

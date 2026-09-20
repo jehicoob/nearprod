@@ -68,13 +68,16 @@ func TestOfflineRegistrationDiscoveryAndGroups(t *testing.T) {
 	if moved["uid"] != a["uid"] || moved["projectName"] != a["projectName"] {
 		t.Fatal("moving group renamed Docker identity")
 	}
-	_, e = f.S.Remove(str(moved["id"]), false)
+	_, e = f.S.Remove(context.Background(), str(moved["id"]), false)
 	expectCode(t, e, "CONFIRM_REQUIRED")
-	_, e = f.S.Remove(str(moved["id"]), true)
-	must(t, e)
-	if len(f.F.History()) != 0 {
-		t.Fatal("offline group edits touched Docker")
+	beforeRemove := len(f.F.History())
+	_, e = f.S.Remove(context.Background(), str(moved["id"]), true)
+	expectCode(t, e, "DOCKER_UNAVAILABLE")
+	if len(f.F.History()) <= beforeRemove {
+		t.Fatal("remove did not require a fresh Docker observation")
 	}
+	_, e = f.S.Store.Stack(str(moved["id"]))
+	must(t, e)
 }
 func TestBatchRegistrationAtomicAndDuplicateRoutes(t *testing.T) {
 	f := newFixture(t, false)

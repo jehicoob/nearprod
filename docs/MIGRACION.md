@@ -2,7 +2,7 @@
 
 ## El contrato
 
-La versión del ejecutable es `0.8.0`. La versión de esquema es **4**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
+La versión del ejecutable es `0.8.0`. La versión de esquema es **5**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
 
 0.6.1 ya persistía `~/.nearprod/catalog.json`. Por ello, reinstalar no debería requerir registrar nuevamente. Cambiar de NEARPROD_HOME, borrar el catálogo, arrancar otra instalación o apuntar a otro Engine sí puede mostrar un entorno distinto. `nearprod config paths` muestra exactamente el catálogo elegido sin arrancar Docker.
 
@@ -21,7 +21,7 @@ nearprod ui
 
 Para un HOME personalizado, configura el mismo valor antes de todos esos comandos. No cambies ese valor para resolver un error de migración: abrirías otro catálogo.
 
-## Qué hace schema 3 → 4
+## Qué hace schema 3 → 5
 
 1. Adquiere el socket `agent.sock` usado por Node y un guard de bloqueo Go. Un agente antiguo vivo impide el cambio, sin matar un PID supuesto.
 2. Valida JSON, versión exacta y estructura. Un registro corrupto, de una versión futura, duplicado o con referencias inválidas NO se sustituye por uno vacío.
@@ -29,6 +29,15 @@ Para un HOME personalizado, configura el mismo valor antes de todos esos comando
 4. Escribe de forma atómica `config/catalog.json`, conservando campos desconocidos y las identidades de recursos.
 5. Sustituye el `catalog.json` raíz por un marcador de versión -1, que el código 0.6.x rechaza en lugar de escribir un segundo catálogo.
 6. Marca la migración terminada. Un nuevo arranque no la repite; si quedó interrumpida, verifica hashes y reanuda o bloquea ante conflictos.
+
+## Qué hace schema 4 → 5
+
+1. Valida primero el catálogo canónico `config/catalog.json` y crea en `backups/config` una copia privada **byte por byte** del schema 4.
+2. Registra en `config/migration.json` los hashes de origen, backup y destino antes de sustituir el catálogo de forma atómica.
+3. Conserva todas las identidades y añade solo la metadata de migración necesaria para auditar el origen. No ejecuta Docker, SQL ni mueve datos físicos.
+4. Si el proceso se interrumpe antes o después de escribir el destino, el siguiente arranque compara los hashes y reanuda o confirma la misma migración. Cualquier copia divergente bloquea con `MIGRATION_CONFLICT`.
+
+El cambio de versión evita que un binario anterior que solo comprende schema 4 escriba nuevas identidades sobre un catálogo con snapshots archivados que no sabe validar.
 
 Nunca elimina el original sin el backup; los archivos privados quedan 0600. Un journal no transforma una interrupción de Docker en un rollback. Las operaciones antiguas que quedaron running/queued pasan a interrumpidas para no afirmar que continúan ejecutándose bajo el nuevo proceso.
 
@@ -58,7 +67,7 @@ Guarda estos backups en un lugar privado externo si necesitas recuperación fren
 
 ## Volver a una versión anterior
 
-No hay un botón de downgrade. **0.6.x no debe escribir schema 4.** Conservar el ejecutable anterior no basta para volver atrás. Un rollback de metadata solo se considera con ambos agentes cerrados, backup íntegro y sin cambios posteriores de recursos que hagan obsoleto el catálogo 3.
+No hay un botón de downgrade. **Un binario anterior no debe escribir schema 5.** Los binarios que solo admiten schema 4 lo rechazan; 0.6.x además queda bloqueado por el marcador del catálogo raíz. Conservar el ejecutable anterior no basta para volver atrás. Un rollback de metadata solo se considera con ambos agentes cerrados, backup íntegro y sin cambios posteriores de recursos que hagan obsoleta la copia anterior.
 
 Antes de una restauración manual, archiva el HOME actual completo sin copiar en vivo bases como si fueran consistentes, conserva ambos catálogos y verifica hashes. Restaura solo metadata compatible en un procedimiento offline; no borres volúmenes ni datos. El documento no propone `rm -rf ~/.nearprod` ni borrar config para ocultar el marcador. Para recuperar información creada después de migrar se necesita un plan específico; prefiere corregir hacia delante con 0.7.
 

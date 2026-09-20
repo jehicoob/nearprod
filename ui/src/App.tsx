@@ -5,9 +5,10 @@ import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
 import {InfrastructureView} from './infrastructure.js';
 import {ToolsView} from './tools.js';
+import {McpAccessView} from './McpAccessView.js';
 import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container } from './types.js';
 const { useState, useEffect } = React;
-type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools';
+type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools' | 'mcp';
 const EMPTY: Status = { connected: false, checkedAt: null, stacks: [] };
 interface LifecycleReview { value: Record<string, unknown>; endpoint: string; body: Record<string, unknown> }
 function CatalogLifecycleDialog({review,onClose,onApplied}: {review: LifecycleReview; onClose: () => void; onApplied: () => void}) {
@@ -135,10 +136,19 @@ function App() {
           </button>
           <button
             className={page === "tools" ? "active" : ""}
+            title="Herramientas"
             onClick={() => setPage("tools")}
           >
             <Icon name="terminal" />
             Herramientas
+          </button>
+          <button
+            className={page === "mcp" ? "active" : ""}
+            title="Acceso MCP"
+            onClick={() => setPage("mcp")}
+          >
+            <Icon name="network" />
+            Acceso MCP
           </button>
           <button
             className={page === "runtime" ? "active" : ""}
@@ -182,6 +192,12 @@ function App() {
       </aside>
       <div className="main">
         <header className="topbar">
+          <label className="mobile-navigation">
+            <span className="sr-only">Sección</span>
+            <select value={page} onChange={event => setPage(event.target.value as Page)} aria-label="Sección de NearProd">
+              <option value="projects">Aplicaciones</option><option value="proxy">Accesos locales</option><option value="infra">Infraestructura</option><option value="tools">Herramientas</option><option value="mcp">Acceso MCP</option><option value="runtime">Runtime y recursos</option><option value="activity">Actividad</option>
+            </select>
+          </label>
           <div className="breadcrumb">
             Workspace <Icon name="chevron" size={13} />
             <strong>
@@ -195,7 +211,9 @@ function App() {
                       ? "Infraestructura"
                       : page === "tools"
                         ? "Herramientas"
-                        : "Actividad"}
+                        : page === "mcp"
+                          ? "Acceso MCP"
+                          : "Actividad"}
             </strong>
           </div>
           <div className="topbar-status">
@@ -782,6 +800,7 @@ function App() {
           {page === "tools" && (
             <ToolsView operations={catalog.operations} notify={notify} />
           )}
+          {page === "mcp" && <McpAccessView/>}
           {page === "proxy" && (
             <ProxyView
               catalog={catalog}

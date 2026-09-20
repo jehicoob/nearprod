@@ -20,6 +20,14 @@ func databaseSummary(database J) J {
 	return J{"id": database["id"], "instanceUid": database["instanceUid"], "name": database["name"], "username": database["username"], "state": database["state"]}
 }
 
+func purgeDatabaseRecordDigest(database J) string {
+	record := copyJ(database)
+	delete(record, "state")
+	delete(record, "error")
+	delete(record, "purge")
+	return hash(record)
+}
+
 func databaseLifecycleBindings(state J, databaseID string) A {
 	out := A{}
 	for _, raw := range arr(at(state, "infra", "bindings")) {
@@ -43,6 +51,9 @@ func (i *Infrastructure) ArchiveDatabasePreview(id string) (J, error) {
 	database, e := i.Database(id)
 	if e != nil {
 		return nil, e
+	}
+	if str(database["state"]) != "ready" {
+		return nil, fail("DATABASE_STATE", "La base debe estar lista antes de archivarla.", 409)
 	}
 	r, e := i.Instance(str(database["instanceUid"]))
 	if e != nil {
@@ -190,6 +201,14 @@ func (i *Infrastructure) PurgeDatabasePreview(ctx context.Context, req J) (J, er
 	if e != nil {
 		return nil, e
 	}
+	progress := obj(database["purge"])
+	if str(database["state"]) == "purging" {
+		if str(progress["mode"]) != mode {
+			return nil, fail("PURGE_MODE", "La purga pendiente debe reanudarse con el mismo modo.", 409)
+		}
+	} else if str(database["state"]) != "ready" {
+		return nil, fail("DATABASE_STATE", "La base debe estar lista para iniciar una purga.", 409)
+	}
 	r, e := i.Instance(str(database["instanceUid"]))
 	if e != nil {
 		return nil, e
@@ -211,14 +230,26 @@ func (i *Infrastructure) PurgeDatabasePreview(ctx context.Context, req J) (J, er
 	if e != nil {
 		return nil, e
 	}
-	if str(at(vault, "databases", str(database["id"]), "password")) == "" {
+	if str(progress["phase"]) != "metadata" && str(at(vault, "databases", str(database["id"]), "password")) == "" {
 		return nil, fail("SECRETS_MISSING", "La credencial registrada no existe; no se purgará la base.", 409)
 	}
-	physical, e := i.verifyPurgeOwnership(ctx, r, database)
+	phase := "initial"
+	if len(progress) > 0 {
+		phase = str(progress["phase"])
+	}
+	physical, e := i.verifyPurgePhysical(ctx, r, database, phase)
 	if e != nil {
 		return nil, e
 	}
-	preview := J{"lifecycleAction": "purge-database", "mode": mode, "database": databaseSummary(database), "instance": J{"id": r["id"], "name": r["name"], "engine": r["engine"], "location": instanceLocation(r)}, "bindingCount": 0, "physical": physical, "recordDigest": hash(database), "directory": req["directory"], "irreversible": true, "backupRequired": mode == "backup-purge", "note": "La purga elimina físicamente la base y su cuenta limitada. No afecta bases hermanas ni la instancia."}
+	recordDigest := purgeDatabaseRecordDigest(database)
+	directory := req["directory"]
+	backup := any(nil)
+	if len(progress) > 0 {
+		recordDigest = str(progress["recordDigest"])
+		directory = progress["directory"]
+		backup = progress["backup"]
+	}
+	preview := J{"lifecycleAction": "purge-database", "mode": mode, "database": databaseSummary(database), "instance": J{"id": r["id"], "name": r["name"], "engine": r["engine"], "location": instanceLocation(r)}, "bindingCount": 0, "physical": physical, "recordDigest": recordDigest, "directory": directory, "backup": backup, "purgePhase": progress["phase"], "irreversible": true, "backupRequired": mode == "backup-purge" && backup == nil, "note": "La purga elimina físicamente la base y su cuenta limitada. No afecta bases hermanas ni la instancia."}
 	preview["fingerprint"] = hash(preview)
 	return preview, nil
 }
@@ -238,8 +269,10 @@ func (i *Infrastructure) PurgeDatabase(ctx context.Context, req J) (J, error) {
 	if str(preview["fingerprint"]) != str(req["fingerprint"]) {
 		return nil, fail("PREVIEW_CHANGED", "La base cambió desde la revisión.", 409)
 	}
-	var backup J
-	if mode == "backup-purge" {
+	database, _ := i.Database(str(req["database"]))
+	progress := obj(database["purge"])
+	backup := obj(progress["backup"])
+	if len(progress) == 0 && mode == "backup-purge" {
 		backup, e = i.Backup(ctx, J{"database": req["database"], "directory": req["directory"], "confirm": true})
 		if e != nil {
 			return nil, detailed("PURGE_BACKUP_FAILED", "El backup falló; no se purgó ningún dato.", 422, J{"cause": publicError(e)})
@@ -249,18 +282,93 @@ func (i *Infrastructure) PurgeDatabase(ctx context.Context, req J) (J, error) {
 			return nil, detailed("PREVIEW_CHANGED", "La base cambió después del backup; no se purgó.", 409, J{"backup": backup})
 		}
 	}
-	database, _ := i.Database(str(req["database"]))
-	r, _ := i.Instance(str(database["instanceUid"]))
-	if str(r["engine"]) == "postgres" {
-		if _, e = i.Admin(ctx, r, "DROP DATABASE IF EXISTS "+pgID(str(database["name"]))+" WITH (FORCE);", "postgres"); e == nil {
-			_, e = i.Admin(ctx, r, "DROP ROLE IF EXISTS "+pgID(str(database["username"]))+";", "postgres")
+	if len(progress) == 0 {
+		e = i.Store.Update(func(state J) error {
+			if len(databaseLifecycleBindings(state, str(database["id"]))) > 0 {
+				return fail("DATABASE_BOUND", "La base recibió una vinculación durante la purga.", 409)
+			}
+			for _, raw := range arr(at(state, "infra", "databases")) {
+				current := obj(raw)
+				if str(current["id"]) != str(database["id"]) {
+					continue
+				}
+				if purgeDatabaseRecordDigest(current) != str(preview["recordDigest"]) || str(current["state"]) != "ready" {
+					return fail("PREVIEW_CHANGED", "La metadata cambió antes de iniciar la purga.", 409)
+				}
+				current["state"] = "purging"
+				delete(current, "error")
+				current["purge"] = J{"mode": mode, "phase": "database", "startedAt": now(), "recordDigest": preview["recordDigest"], "directory": preview["directory"], "backup": backup}
+				return nil
+			}
+			return fail("DATABASE_NOT_FOUND", "La base ya no está activa.", 409)
+		})
+		if e != nil {
+			return nil, e
 		}
-	} else {
-		_, e = i.Admin(ctx, r, "DROP DATABASE IF EXISTS "+myID(str(database["name"]))+"; DROP USER IF EXISTS "+sqlString(str(database["username"]))+"@'%';", "")
+		database, _ = i.Database(str(req["database"]))
+		progress = obj(database["purge"])
 	}
-	if e != nil {
-		return nil, detailed("PURGE_PARTIAL", "La purga física no terminó. La metadata y credencial se conservaron para diagnóstico/reintento.", 422, J{"backup": backup, "cause": publicError(e)})
+	r, _ := i.Instance(str(database["instanceUid"]))
+	advance := func(from, to string) error {
+		return i.Store.Update(func(state J) error {
+			for _, raw := range arr(at(state, "infra", "databases")) {
+				current := obj(raw)
+				if str(current["id"]) == str(database["id"]) {
+					purge := obj(current["purge"])
+					if str(current["state"]) != "purging" || str(purge["phase"]) != from || str(purge["recordDigest"]) != str(preview["recordDigest"]) || purgeDatabaseRecordDigest(current) != str(preview["recordDigest"]) {
+						return fail("PREVIEW_CHANGED", "El progreso de la purga cambió.", 409)
+					}
+					purge["phase"] = to
+					return nil
+				}
+			}
+			return fail("DATABASE_NOT_FOUND", "La base ya no está activa.", 409)
+		})
 	}
+	for {
+		phase := str(progress["phase"])
+		switch phase {
+		case "database":
+			if _, e = i.verifyPurgePhysical(ctx, r, database, phase); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "El estado físico cambió antes de eliminar la base. El progreso se conservó para revisión.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			query, adminDB := "DROP DATABASE IF EXISTS "+pgID(str(database["name"]))+" WITH (FORCE);", "postgres"
+			if str(r["engine"]) == "mysql" {
+				query, adminDB = "DROP DATABASE IF EXISTS "+myID(str(database["name"]))+";", ""
+			}
+			if _, e = i.Admin(ctx, r, query, adminDB); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "No se pudo completar la eliminación de la base. El progreso quedó guardado para reintentar.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			if e = advance("database", "account"); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "La base se eliminó, pero no se pudo guardar el progreso. El reintento comprobará el estado físico.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			progress["phase"] = "account"
+		case "account":
+			if _, e = i.verifyPurgePhysical(ctx, r, database, phase); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "El estado físico cambió antes de eliminar la cuenta. El progreso se conservó para revisión.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			query, adminDB := "DROP ROLE IF EXISTS "+pgID(str(database["username"]))+";", "postgres"
+			if str(r["engine"]) == "mysql" {
+				query, adminDB = "DROP USER IF EXISTS "+sqlString(str(database["username"]))+"@'%';", ""
+			}
+			if _, e = i.Admin(ctx, r, query, adminDB); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "La base se eliminó, pero la cuenta sigue pendiente. Corrige sus dependencias y reintenta.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			if e = advance("account", "metadata"); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "Los objetos físicos se eliminaron, pero no se pudo guardar el progreso. El reintento continuará con metadata.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			progress["phase"] = "metadata"
+		case "metadata":
+			if _, e = i.verifyPurgePhysical(ctx, r, database, phase); e != nil {
+				return nil, detailed("PURGE_PARTIAL", "Los objetos físicos cambiaron antes de limpiar metadata. El progreso se conservó para revisión.", 422, J{"backup": backup, "phase": phase, "cause": publicError(e)})
+			}
+			goto cleanup
+		default:
+			return nil, fail("PURGE_STATE", "El progreso de la purga no es válido.", 409)
+		}
+	}
+
+cleanup:
 	vault, e := i.Secrets(r)
 	if e != nil {
 		return nil, detailed("PURGE_METADATA", "Los datos físicos se eliminaron, pero no se pudo leer el vault para finalizar la limpieza.", 422, J{"backup": backup})
@@ -280,7 +388,8 @@ func (i *Infrastructure) PurgeDatabase(ctx context.Context, req J) (J, error) {
 		for _, raw := range arr(infra["databases"]) {
 			current := obj(raw)
 			if str(current["id"]) == str(database["id"]) {
-				found = hash(current) == str(preview["recordDigest"])
+				purge := obj(current["purge"])
+				found = str(current["state"]) == "purging" && str(purge["phase"]) == "metadata" && str(purge["recordDigest"]) == str(preview["recordDigest"]) && purgeDatabaseRecordDigest(current) == str(preview["recordDigest"])
 				continue
 			}
 			databases = append(databases, current)
@@ -305,74 +414,101 @@ func (i *Infrastructure) PurgeDatabase(ctx context.Context, req J) (J, error) {
 }
 
 func (i *Infrastructure) verifyPurgeOwnership(ctx context.Context, instance, database J) (J, error) {
+	return i.verifyPurgePhysical(ctx, instance, database, "initial")
+}
+
+func (i *Infrastructure) verifyPurgePhysical(ctx context.Context, instance, database J, phase string) (J, error) {
 	name, username := str(database["name"]), str(database["username"])
 	if str(instance["engine"]) == "postgres" {
 		owner, e := i.Admin(ctx, instance, "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname="+sqlString(name)+";", "postgres")
 		if e != nil {
 			return nil, e
 		}
-		if strings.TrimSpace(owner.Stdout) != username {
+		databaseOwner := strings.TrimSpace(owner.Stdout)
+		if databaseOwner != "" && databaseOwner != username {
 			return nil, fail("DATABASE_OWNERSHIP", "La base física falta o ya no pertenece a la cuenta registrada; no se purgará.", 409)
 		}
 		role, e := i.Admin(ctx, instance, "SELECT rolname FROM pg_roles WHERE rolname="+sqlString(username)+";", "postgres")
 		if e != nil {
 			return nil, e
 		}
-		if strings.TrimSpace(role.Stdout) != username {
+		account := strings.TrimSpace(role.Stdout)
+		if account != "" && account != username {
 			return nil, fail("DATABASE_OWNERSHIP", "La cuenta física registrada no existe; no se purgará.", 409)
 		}
-		limited, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_roles WHERE rolname="+sqlString(username)+" AND rolcanlogin AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls;", "postgres")
-		if e != nil {
-			return nil, e
+		if phase == "initial" && (databaseOwner != username || account != username) {
+			return nil, fail("DATABASE_OWNERSHIP", "La base o su cuenta física registrada no existe; no se purgará.", 409)
 		}
-		memberships, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname="+sqlString(username)+");", "postgres")
-		if e != nil {
-			return nil, e
+		if contains([]string{"account", "metadata"}, phase) && databaseOwner != "" {
+			return nil, fail("DATABASE_OWNERSHIP", "La base reapareció durante la purga; no se continuará automáticamente.", 409)
 		}
-		otherDatabases, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_database WHERE datdba=(SELECT oid FROM pg_roles WHERE rolname="+sqlString(username)+") AND datname<>"+sqlString(name)+";", "postgres")
-		if e != nil {
-			return nil, e
+		if phase == "metadata" && account != "" {
+			return nil, fail("DATABASE_OWNERSHIP", "La cuenta reapareció durante la purga; no se limpiará metadata.", 409)
 		}
-		if strings.TrimSpace(limited.Stdout) != "1" || strings.TrimSpace(memberships.Stdout) != "0" || strings.TrimSpace(otherDatabases.Stdout) != "0" {
-			return nil, fail("DATABASE_OWNERSHIP", "La cuenta física adquirió privilegios, membresías o bases ajenas; no se purgará.", 409)
+		if account != "" {
+			limited, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_roles WHERE rolname="+sqlString(username)+" AND rolcanlogin AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls;", "postgres")
+			if e != nil {
+				return nil, e
+			}
+			memberships, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname="+sqlString(username)+");", "postgres")
+			if e != nil {
+				return nil, e
+			}
+			otherDatabases, e := i.Admin(ctx, instance, "SELECT count(*) FROM pg_database WHERE datdba=(SELECT oid FROM pg_roles WHERE rolname="+sqlString(username)+") AND datname<>"+sqlString(name)+";", "postgres")
+			if e != nil {
+				return nil, e
+			}
+			if strings.TrimSpace(limited.Stdout) != "1" || strings.TrimSpace(memberships.Stdout) != "0" || strings.TrimSpace(otherDatabases.Stdout) != "0" {
+				return nil, fail("DATABASE_OWNERSHIP", "La cuenta física adquirió privilegios, membresías o bases ajenas; no se purgará.", 409)
+			}
 		}
-		return J{"databaseOwner": username, "account": username, "limited": true}, nil
+		return J{"databaseOwner": databaseOwner, "databaseExists": databaseOwner != "", "account": account, "accountExists": account != "", "limited": account != ""}, nil
 	}
 
 	schema, e := i.Admin(ctx, instance, "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME="+sqlString(name)+";", "")
 	if e != nil {
 		return nil, e
 	}
-	if strings.TrimSpace(schema.Stdout) != name {
-		return nil, fail("DATABASE_OWNERSHIP", "El esquema físico registrado no existe; no se purgará.", 409)
-	}
+	databaseExists := strings.TrimSpace(schema.Stdout) == name
 	accountName := username + "@%"
 	account, e := i.Admin(ctx, instance, "SELECT CONCAT(User,'@',Host) FROM mysql.user WHERE User="+sqlString(username)+" AND Host='%';", "")
 	if e != nil {
 		return nil, e
 	}
-	if strings.TrimSpace(account.Stdout) != accountName {
-		return nil, fail("DATABASE_OWNERSHIP", "La cuenta física registrada no existe o cambió de host; no se purgará.", 409)
+	accountExists := strings.TrimSpace(account.Stdout) == accountName
+	if phase == "initial" && (!databaseExists || !accountExists) {
+		return nil, fail("DATABASE_OWNERSHIP", "El esquema o la cuenta física registrada no existe; no se purgará.", 409)
 	}
-	grants, e := i.Admin(ctx, instance, "SHOW GRANTS FOR "+sqlString(username)+"@'%';", "")
-	if e != nil {
-		return nil, e
+	if contains([]string{"account", "metadata"}, phase) && databaseExists {
+		return nil, fail("DATABASE_OWNERSHIP", "El esquema reapareció durante la purga; no se continuará automáticamente.", 409)
+	}
+	if phase == "metadata" && accountExists {
+		return nil, fail("DATABASE_OWNERSHIP", "La cuenta reapareció durante la purga; no se limpiará metadata.", 409)
+	}
+	if databaseExists && !accountExists {
+		return nil, fail("DATABASE_OWNERSHIP", "El esquema existe pero su cuenta registrada falta; no se purgará.", 409)
 	}
 	targetGrant := false
-	targetScope := " ON " + myID(name) + ".* TO "
-	for _, raw := range strings.Split(strings.TrimSpace(grants.Stdout), "\n") {
-		line, upper := strings.TrimSpace(raw), strings.ToUpper(strings.TrimSpace(raw))
-		if line == "" || strings.HasPrefix(upper, "GRANT USAGE ON *.* TO ") {
-			continue
+	if accountExists {
+		grants, e := i.Admin(ctx, instance, "SHOW GRANTS FOR "+sqlString(username)+"@'%';", "")
+		if e != nil {
+			return nil, e
 		}
-		if strings.HasPrefix(upper, "GRANT ") && strings.Contains(line, targetScope) {
-			targetGrant = true
-			continue
+		targetScope := " ON " + myID(name) + ".* TO "
+		for _, raw := range strings.Split(strings.TrimSpace(grants.Stdout), "\n") {
+			line, upper := strings.TrimSpace(raw), strings.ToUpper(strings.TrimSpace(raw))
+			if line == "" || strings.HasPrefix(upper, "GRANT USAGE ON *.* TO ") {
+				continue
+			}
+			if strings.HasPrefix(upper, "GRANT ") && strings.Contains(line, targetScope) {
+				targetGrant = true
+				continue
+			}
+			return nil, fail("DATABASE_OWNERSHIP", "La cuenta física tiene privilegios fuera de la base registrada; no se purgará.", 409)
 		}
-		return nil, fail("DATABASE_OWNERSHIP", "La cuenta física tiene privilegios fuera de la base registrada; no se purgará.", 409)
 	}
-	if !targetGrant {
+	if databaseExists && !targetGrant {
 		return nil, fail("DATABASE_OWNERSHIP", "La cuenta física ya no está limitada a la base registrada; no se purgará.", 409)
 	}
-	return J{"schema": name, "account": accountName, "limited": true}, nil
+	return J{"schema": strings.TrimSpace(schema.Stdout), "databaseExists": databaseExists, "account": strings.TrimSpace(account.Stdout), "accountExists": accountExists, "limited": accountExists}, nil
 }

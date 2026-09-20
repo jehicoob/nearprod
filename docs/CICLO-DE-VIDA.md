@@ -47,5 +47,8 @@ Esta matriz distingue metadata de NearProd, runtime Docker y datos persistentes.
 - Una instancia no puede archivarse mientras contenga bases archivadas individualmente; primero deben restaurarse o purgarse.
 - `backup-purge` termina y verifica dump/manifiesto/hash antes de ejecutar `DROP DATABASE`; si el backup falla, no se purga.
 - `purge` sin backup exige confirmación, aceptación explícita de pérdida y el ID exacto de la base.
-- PostgreSQL usa `DROP DATABASE ... WITH (FORCE)` fuera de la base destino y elimina después el rol limitado. MySQL elimina esquema y cuenta limitada. Una falla parcial conserva metadata/vault para diagnóstico y reintento.
+- PostgreSQL usa `DROP DATABASE ... WITH (FORCE)` fuera de la base destino y elimina después el rol limitado. MySQL elimina esquema y cuenta limitada.
+- Al comenzar, la base pasa a `purging` y guarda modo, digest, backup y fase (`database`, `account` o `metadata`). Una falla parcial conserva metadata/vault y ese progreso para reintentar con el mismo modo.
+- Cada reintento verifica el estado físico esperado antes de continuar: no elimina una base o cuenta reaparecida, ni una identidad que haya adquirido privilegios o recursos ajenos. Las fases ya completadas son idempotentes.
+- Una base en `purging` no puede vincularse, archivarse ni aprovisionarse como si estuviera lista. Al completar SQL, se retira la credencial y por último la metadata; si esa escritura final falla, NearProd intenta restaurar y verificar el vault.
 - Redis no ofrece purga por credencial: su instancia dedicada comparte el espacio de datos y debe archivarse o retirarse completa.

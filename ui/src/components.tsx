@@ -7,6 +7,7 @@ export function Icon({ name, size = 18 }: {name: string; size?: number}) {
     cube: <><path d="m12 3 9 5v8l-9 5-9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8M7.5 5.5l9 5"/></>,
     grid: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
     terminal: <><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/></>,
+    network: <><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="m10.5 7-4 8.5M13.5 7l4 8.5M7.5 18h9"/></>,
     folder: <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>,
     settings: <><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></>,
     activity: <path d="M2 12h5l3-8 4 16 3-8h5"/>,
@@ -29,7 +30,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: {tit
   useEffect(() => { ref.current?.showModal(); }, []);
   return <dialog ref={ref} className={wide ? 'modal wide' : 'modal'} onCancel={e => {e.preventDefault(); onClose();}} onClick={e => { if (e.target === ref.current) { const r = ref.current.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }} aria-label={title}><div className="modal-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="Cerrar diálogo" onClick={onClose}><Icon name="close"/></button></div>{children}</dialog>;
 }
-export function Alert({ children, error = false }: {children: ReactNode; error?: boolean}) { return <div className={`alert ${error ? 'error' : ''}`} role={error ? 'alert' : 'note'}><Icon name={error ? 'warning' : 'terminal'}/><div>{children}</div></div>; }
+export function Alert({ children, error = false, warning = false }: {children: ReactNode; error?: boolean; warning?: boolean}) { return <div className={`alert ${error ? 'error' : warning ? 'warning' : ''}`} role={error || warning ? 'alert' : 'note'}><Icon name={error || warning ? 'warning' : 'terminal'}/><div>{children}</div></div>; }
 export function Busy() { return <div className="busy"><span className="spinner"/> Consultando…</div>; }
 export function LiveStatus({ message }: {message: string}) {
   return <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{message}</span>;

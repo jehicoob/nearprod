@@ -150,6 +150,9 @@ func (s *Service) ArchiveStack(ctx context.Context, req J) (J, error) {
 	if e != nil {
 		return nil, e
 	}
+	if e = s.Proxy.SyncRoutes(); e != nil {
+		return nil, e
+	}
 	s.emitCatalog()
 	return J{"stack": at(preview, "stack", "id"), "archived": true, "runtimeChanged": false, "dataPreserved": true}, nil
 }
@@ -218,6 +221,9 @@ func (s *Service) RestoreStack(req J) (J, error) {
 		return nil
 	})
 	if e != nil {
+		return nil, e
+	}
+	if e = s.Proxy.SyncRoutes(); e != nil {
 		return nil, e
 	}
 	s.emitCatalog()

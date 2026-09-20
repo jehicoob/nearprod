@@ -181,6 +181,25 @@ func MigrationPreview(home string) (J, error) {
 	legacy := filepath.Join(home, "catalog.json")
 	report := J{"home": home, "catalog": canonical, "legacyCatalog": legacy, "requiresMigration": false, "schemaVersion": SchemaVersion, "movesDatabaseFiles": false, "note": "Se conserva owner, IDs, proyectos Compose, rutas, credenciales y volúmenes. No se ejecuta Docker."}
 	if v, e := readJSON(canonical, 16<<20); e == nil {
+		version := integer(v["version"])
+		if version == 4 {
+			migrated := copyJ(v)
+			migrated["version"] = SchemaVersion
+			defaults(migrated)
+			if err := validateState(migrated); err != nil {
+				return nil, err
+			}
+			report["state"] = "canonical"
+			report["requiresMigration"] = true
+			report["fromSchema"] = 4
+			report["projects"] = len(arr(v["stacks"]))
+			report["instances"] = len(arr(at(v, "infra", "instances")))
+			report["sourceHash"] = hashFile(canonical)
+			return report, nil
+		}
+		if version != SchemaVersion {
+			return nil, fail("SCHEMA_UNSUPPORTED", "El catálogo usa un schema no compatible. No se sobrescribirá.", 409)
+		}
 		if err := validateState(v); err != nil {
 			return nil, err
 		}
@@ -246,6 +265,67 @@ func defaults(v J) {
 	v["infra"] = i
 }
 
+func migrateCanonicalV4(home, file, journal string, v J) (J, error) {
+	data, e := os.ReadFile(file)
+	if e != nil {
+		return nil, e
+	}
+	sourceHash := hash(string(data))
+	migrated := copyJ(v)
+	migrated["version"] = SchemaVersion
+	defaults(migrated)
+	backup, migrationAt := "", now()
+	var j J
+	if existing, je := readJSON(journal, 1<<20); je == nil && str(existing["phase"]) != "committed" && integer(existing["fromSchema"]) == 4 {
+		j = existing
+		migrationAt = str(j["migrationAt"])
+		if migrationAt == "" {
+			return nil, fail("MIGRATION_CONFLICT", "El journal de schema 4 está incompleto; no se sobrescribirá el catálogo.", 409)
+		}
+		if str(j["sourceHash"]) != sourceHash {
+			return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante una migración incompleta. Conserva el backup y revisa el informe.", 409)
+		}
+		backup = str(j["backup"])
+		if backup == "" || hashFile(backup) != sourceHash {
+			return nil, fail("MIGRATION_CONFLICT", "El backup de schema 4 falta o cambió; no se sobrescribirá el catálogo.", 409)
+		}
+	} else {
+		backup = filepath.Join(home, "backups", "config", strings.ReplaceAll(now(), ":", "-")+"-"+token(4), "catalog-v4.json")
+		if e = atomicBytes(backup, data, 0600); e != nil {
+			return nil, e
+		}
+		if hashFile(backup) != sourceHash {
+			return nil, fail("BACKUP_VERIFY", "No coincide el backup; migración detenida.", 500)
+		}
+	}
+	migrated["migration"] = J{"fromSchema": 4, "at": migrationAt, "backup": backup, "sourceHash": sourceHash}
+	if e = validateState(migrated); e != nil {
+		return nil, e
+	}
+	target, _ := json.MarshalIndent(migrated, "", "  ")
+	target = append(target, '\n')
+	targetHash := hash(string(target))
+	if j == nil {
+		j = J{"phase": "prepared", "fromSchema": 4, "migrationAt": migrationAt, "source": file, "sourceHash": sourceHash, "target": file, "targetHash": targetHash, "backup": backup, "version": Version}
+		if e = writeJSON(journal, j); e != nil {
+			return nil, e
+		}
+	} else if str(j["targetHash"]) != targetHash {
+		return nil, fail("MIGRATION_CONFLICT", "El resultado de la migración incompleta ya no coincide; no se sobrescribirá el catálogo.", 409)
+	}
+	if hashFile(file) != sourceHash {
+		return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante el backup.", 409)
+	}
+	if e = atomicBytes(file, target, 0600); e != nil {
+		return nil, e
+	}
+	j["phase"] = "committed"
+	if e = writeJSON(journal, j); e != nil {
+		return nil, e
+	}
+	return migrated, nil
+}
+
 // Init must only be called after the root-level legacy-compatible agent.sock lock.
 // The journal makes migration resumable after interruption. The old path becomes
 // a fail-closed marker, preventing 0.6.x from creating a competing catalog.
@@ -262,6 +342,12 @@ func OpenStore(home string) (*Store, error) {
 	s := &Store{Home: home, File: file}
 	v, e := readJSON(file, 16<<20)
 	if e == nil {
+		if integer(v["version"]) == 4 {
+			v, e = migrateCanonicalV4(home, file, journal, v)
+			if e != nil {
+				return nil, e
+			}
+		}
 		if e = validateState(v); e != nil {
 			return nil, e
 		}
@@ -270,15 +356,31 @@ func OpenStore(home string) (*Store, error) {
 			if hashFile(file) != str(j["targetHash"]) {
 				return nil, fail("MIGRATION_CONFLICT", "El catálogo cambió durante una migración incompleta. Conserva ambas copias y revisa el informe.", 409)
 			}
-			if old, oe := readJSON(legacy, 16<<20); oe == nil && integer(old["version"]) == 3 && hashFile(legacy) != str(j["sourceHash"]) {
-				return nil, fail("MIGRATION_CONFLICT", "El catálogo antiguo cambió después del backup; no se sobrescribe.", 409)
-			}
-			if e = writeLegacyMarker(legacy, file, str(j["backup"])); e != nil {
-				return nil, e
-			}
-			j["phase"] = "committed"
-			if e = writeJSON(journal, j); e != nil {
-				return nil, e
+			if integer(j["fromSchema"]) == 4 {
+				if hashFile(str(j["backup"])) != str(j["sourceHash"]) {
+					return nil, fail("MIGRATION_CONFLICT", "El backup de schema 4 cambió; no se confirmará la migración.", 409)
+				}
+				j["phase"] = "committed"
+				if e = writeJSON(journal, j); e != nil {
+					return nil, e
+				}
+			} else {
+				markerMatches := false
+				if marker, markerErr := readJSON(legacy, 16<<20); markerErr == nil {
+					markerMatches = hash(marker) == hash(legacyMarker(file, str(j["backup"])))
+				}
+				if hashFile(legacy) != str(j["sourceHash"]) && !markerMatches {
+					return nil, fail("MIGRATION_CONFLICT", "El catálogo antiguo cambió después del backup; no se sobrescribe.", 409)
+				}
+				if !markerMatches {
+					if e = writeLegacyMarker(legacy, file, str(j["backup"])); e != nil {
+						return nil, e
+					}
+				}
+				j["phase"] = "committed"
+				if e = writeJSON(journal, j); e != nil {
+					return nil, e
+				}
 			}
 		}
 		if old, oe := readJSON(legacy, 16<<20); oe == nil && integer(old["version"]) == 3 {
@@ -319,7 +421,7 @@ func OpenStore(home string) (*Store, error) {
 			}
 			target, _ := json.MarshalIndent(v, "", "  ")
 			target = append(target, '\n')
-			j := J{"phase": "prepared", "source": legacy, "sourceHash": sourceHash, "target": file, "targetHash": hash(string(target)), "backup": backup, "version": Version}
+			j := J{"phase": "prepared", "fromSchema": 3, "source": legacy, "sourceHash": sourceHash, "target": file, "targetHash": hash(string(target)), "backup": backup, "version": Version}
 			if e = writeJSON(journal, j); e != nil {
 				return nil, e
 			}
@@ -364,7 +466,10 @@ func OpenStore(home string) (*Store, error) {
 	return s, nil
 }
 func writeLegacyMarker(legacy, canonical, backup string) error {
-	return writeJSON(legacy, J{"version": -1, "migratedTo": canonical, "backup": backup, "message": "NearProd 0.7: catálogo canónico en config/catalog.json. No iniciar 0.6 con este HOME ni borrar este marcador."})
+	return writeJSON(legacy, legacyMarker(canonical, backup))
+}
+func legacyMarker(canonical, backup string) J {
+	return J{"version": -1, "migratedTo": canonical, "backup": backup, "message": "NearProd 0.7: catálogo canónico en config/catalog.json. No iniciar 0.6 con este HOME ni borrar este marcador."}
 }
 func (s *Store) Get() J { s.mu.RLock(); defer s.mu.RUnlock(); return copyJ(s.value) }
 func (s *Store) Update(fn func(J) error) error {

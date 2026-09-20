@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,15 @@ func TestApplicationArchiveRestorePreservesBindingsAndReservations(t *testing.T)
 	_, e = f.S.Infra.Bind(context.Background(), request)
 	must(t, e)
 	f.S.Refresh(context.Background())
+	_, e = f.S.Remove(context.Background(), str(app["id"]), true)
+	expectCode(t, e, "STACK_BOUND")
+	must(t, f.S.Store.Update(func(state J) error {
+		return editStack(state, str(app["id"]), func(stack J) error {
+			stack["proxyApplied"] = J{"mode": "dev", "routes": A{J{"host": "archive-test.localhost", "service": "api", "port": 8080}}}
+			return nil
+		})
+	}))
+	must(t, f.S.Proxy.SyncRoutes())
 
 	preview, e := f.S.ArchiveStackPreview(str(app["id"]))
 	must(t, e)
@@ -31,6 +41,11 @@ func TestApplicationArchiveRestorePreservesBindingsAndReservations(t *testing.T)
 	expectCode(t, e, "STACK_NOT_FOUND")
 	if len(arr(f.S.Store.Get()["archivedStacks"])) != 1 || len(arr(at(f.S.Store.Get(), "infra", "bindings"))) != 0 {
 		t.Fatal("application or bindings were not moved atomically")
+	}
+	routes, e := os.ReadFile(str(f.S.Proxy.Paths()["dynamic"]))
+	must(t, e)
+	if strings.Contains(string(routes), "archive-test.localhost") {
+		t.Fatal("archived application remained in proxy routes")
 	}
 	corrupt := f.S.Store.Get()
 	obj(at(arr(corrupt["archivedStacks"])[0], "stack"))["name"] = "Alterada"
@@ -51,6 +66,11 @@ func TestApplicationArchiveRestorePreservesBindingsAndReservations(t *testing.T)
 	if !truth(result["restored"]) || len(arr(at(f.S.Store.Get(), "infra", "bindings"))) != 1 {
 		t.Fatal("application restore lost bindings")
 	}
+	routes, e = os.ReadFile(str(f.S.Proxy.Paths()["dynamic"]))
+	must(t, e)
+	if !strings.Contains(string(routes), "archive-test.localhost") {
+		t.Fatal("restored application route was not synchronized")
+	}
 }
 
 func TestApplicationArchiveRequiresStoppedOwnedRuntime(t *testing.T) {
@@ -61,6 +81,8 @@ func TestApplicationArchiveRequiresStoppedOwnedRuntime(t *testing.T) {
 	must(t, e)
 	f.trust(t, str(app["id"]), "dev")
 	assertPass(t, f.act(t, str(app["id"]), "up", J{"mode": "dev"}))
+	_, e = f.S.Remove(context.Background(), str(app["id"]), true)
+	expectCode(t, e, "STACK_RUNNING")
 	_, e = f.S.ArchiveStack(context.Background(), J{"target": app["id"], "confirm": true, "fingerprint": stoppedPreview["fingerprint"]})
 	expectCode(t, e, "STACK_RUNNING")
 	_, e = f.S.ArchiveStackPreview(str(app["id"]))
@@ -76,6 +98,18 @@ func TestApplicationArchiveRejectsCancelledFreshObservation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, e = f.S.ArchiveStack(ctx, J{"target": app["id"], "confirm": true, "fingerprint": preview["fingerprint"]})
+	expectCode(t, e, "REQUEST_CANCELLED")
+	_, e = f.S.Store.Stack(str(app["id"]))
+	must(t, e)
+}
+
+func TestApplicationRemoveRejectsCancelledFreshObservation(t *testing.T) {
+	f := newFixture(t, false)
+	app := f.app(t, "cancelled-remove", "api", nil)
+	f.S.Refresh(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, e := f.S.Remove(ctx, str(app["id"]), true)
 	expectCode(t, e, "REQUEST_CANCELLED")
 	_, e = f.S.Store.Stack(str(app["id"]))
 	must(t, e)
@@ -195,6 +229,62 @@ func TestDatabasePurgeRejectsPhysicalOwnershipDrift(t *testing.T) {
 	expectCode(t, e, "DATABASE_OWNERSHIP")
 	if f.F.DBs[str(database["name"])] != "foreign_owner" {
 		t.Fatal("ownership drift must not execute DROP DATABASE")
+	}
+}
+
+func TestDatabasePurgeResumesAfterDatabaseDroppedButRoleFailed(t *testing.T) {
+	f := newFixture(t, false)
+	instance := f.createInstance(t, "postgres")
+	database := createDB(t, f, instance, "partial_purge")
+	req := J{"database": database["id"], "mode": "purge", "acknowledgeDataLoss": true, "typedId": database["id"]}
+	preview, e := f.S.Infra.PurgeDatabasePreview(context.Background(), req)
+	must(t, e)
+	req["confirm"], req["fingerprint"] = true, preview["fingerprint"]
+	f.F.SQLFailContains = "DROP ROLE"
+	_, e = f.S.Infra.PurgeDatabase(context.Background(), req)
+	expectCode(t, e, "PURGE_PARTIAL")
+	current, e := f.S.Infra.Database(str(database["id"]))
+	must(t, e)
+	if str(current["state"]) != "purging" || str(at(current, "purge", "phase")) != "account" {
+		t.Fatal(current)
+	}
+	if _, exists := f.F.DBs[str(database["name"])]; exists || f.F.Roles[str(database["username"])] == "" {
+		t.Fatal("fixture did not preserve the expected partial physical state")
+	}
+
+	retryPreview, e := f.S.Infra.PurgeDatabasePreview(context.Background(), req)
+	must(t, e)
+	req["fingerprint"] = retryPreview["fingerprint"]
+	result, e := f.S.Infra.PurgeDatabase(context.Background(), req)
+	must(t, e)
+	if !truth(result["purged"]) || f.F.Roles[str(database["username"])] != "" {
+		t.Fatal(result)
+	}
+	_, e = f.S.Infra.Database(str(database["id"]))
+	expectCode(t, e, "DATABASE_NOT_FOUND")
+}
+
+func TestDatabasePurgeRevalidatesBetweenPhysicalPhases(t *testing.T) {
+	f := newFixture(t, false)
+	instance := f.createInstance(t, "postgres")
+	database := createDB(t, f, instance, "purge_race")
+	req := J{"database": database["id"], "mode": "purge", "acknowledgeDataLoss": true, "typedId": database["id"]}
+	preview, e := f.S.Infra.PurgeDatabasePreview(context.Background(), req)
+	must(t, e)
+	req["confirm"], req["fingerprint"] = true, preview["fingerprint"]
+	f.F.AfterDropDatabase = func() {
+		f.F.AfterDropDatabase = nil
+		f.F.DBs["foreign_db"] = str(database["username"])
+	}
+	_, e = f.S.Infra.PurgeDatabase(context.Background(), req)
+	expectCode(t, e, "PURGE_PARTIAL")
+	if f.F.Roles[str(database["username"])] == "" {
+		t.Fatal("account was removed after acquiring another database")
+	}
+	current, e := f.S.Infra.Database(str(database["id"]))
+	must(t, e)
+	if str(at(current, "purge", "phase")) != "account" {
+		t.Fatal(current)
 	}
 }
 

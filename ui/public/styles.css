@@ -753,6 +753,10 @@ main {
   color:#f0b7a9;
   border-color:#65413f;
   background:#291e23}
+.alert.warning {
+  color:#e8c48f;
+  border-color:#675134;
+  background:#29231c}
 .toast {
   display:flex;
   align-items:center;
@@ -1205,7 +1209,15 @@ nav button span {
   display:none}
 }
 @media(max-width:600px) {
-  .sidebar {
+.sidebar {
+  display:none}
+.mobile-navigation {
+  display:block}
+.mobile-navigation select {
+  max-width:150px;
+  min-height:34px;
+  font-size:11px}
+.breadcrumb {
   display:none}
 .main {
   margin:0;
@@ -1394,3 +1406,16 @@ input[type=radio] {width:16px;height:16px;accent-color:var(--cyan);flex-shrink:0
 .infra-console {height:55vh;max-height:600px;overflow:auto;white-space:pre-wrap}
 .port-options {display:flex;gap:.5rem;flex-wrap:wrap;margin:.75rem 0}
 @media(max-width:900px){.infra-facts,.tool-cards{grid-template-columns:1fr}.infra-instance{padding:1rem}}
+
+/* Local MCP access reuses the existing panels and console language. */
+.mobile-navigation {display:none}
+.mobile-table-hint {display:none}
+.mcp-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1.25rem 0}
+.mcp-facts {display:grid;gap:.75rem;margin:1.25rem 0 0}
+.mcp-facts div {display:grid;grid-template-columns:90px minmax(0,1fr);gap:.75rem;align-items:start}
+.mcp-facts dt {color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.mcp-facts dd {margin:0;min-width:0;overflow-wrap:anywhere}
+.mcp-config {max-height:310px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.mcp-steps {display:grid;gap:.8rem;padding-left:1.2rem;color:var(--muted)}
+@media(max-width:900px){.mcp-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.mobile-navigation{display:block}.mobile-table-hint{display:block;margin-bottom:.6rem;font-size:11px}.mcp-facts div{grid-template-columns:1fr;gap:.2rem}}

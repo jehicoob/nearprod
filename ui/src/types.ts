@@ -54,3 +54,14 @@ export interface StackDraft {
   product: string; groupName?: string; slug: string; name: string; path: string;
   projectName: string; modes: {dev: Mode; verify?: Mode}; links: LocalLink[]; routes?: WebRoute[];
 }
+
+export type MCPInfo = {
+  available: boolean;
+  transport: 'stdio';
+  command: string;
+  args: string[];
+  home: string;
+  config: Record<string, unknown>;
+  capabilities: { area: string; access: string; detail: string }[];
+  notes: string[];
+};

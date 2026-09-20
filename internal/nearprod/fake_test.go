@@ -38,8 +38,10 @@ type fakeRunner struct {
 	Counter                                int
 	Streams                                int
 	FailProject, Help, FailCmd, SQLFailure string
+	SQLFailContains                        string
 	ColimaRunning                          bool
 	BeforeUp                               func()
+	AfterDropDatabase, AfterDropAccount    func()
 	BlockUp                                chan struct{}
 	FailAfterUp                            bool
 }
@@ -376,6 +378,10 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 		if f.SQLFailure != "" {
 			return fakeFail(f.SQLFailure)
 		}
+		if f.SQLFailContains != "" && strings.Contains(input, f.SQLFailContains) {
+			f.SQLFailContains = ""
+			return fakeFail("forced SQL failure")
+		}
 		if contains(rest, "ACL") {
 			return fakeOK("OK")
 		}
@@ -460,15 +466,27 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 		}
 		for _, m := range regexp.MustCompile(`DROP DATABASE IF EXISTS "([^"]+)"`).FindAllStringSubmatch(input, -1) {
 			delete(f.DBs, m[1])
+			if f.AfterDropDatabase != nil {
+				f.AfterDropDatabase()
+			}
 		}
 		for _, m := range regexp.MustCompile(`DROP ROLE IF EXISTS "([^"]+)"`).FindAllStringSubmatch(input, -1) {
 			delete(f.Roles, m[1])
+			if f.AfterDropAccount != nil {
+				f.AfterDropAccount()
+			}
 		}
 		for _, m := range regexp.MustCompile("DROP DATABASE IF EXISTS `([^`]+)`").FindAllStringSubmatch(input, -1) {
 			delete(f.DBs, m[1])
+			if f.AfterDropDatabase != nil {
+				f.AfterDropDatabase()
+			}
 		}
 		for _, m := range regexp.MustCompile(`DROP USER IF EXISTS '([^']+)'@'%'`).FindAllStringSubmatch(input, -1) {
 			delete(f.Roles, m[1])
+			if f.AfterDropAccount != nil {
+				f.AfterDropAccount()
+			}
 		}
 		return fakeOK("")
 	case "run":

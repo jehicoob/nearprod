@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const Help = `NearProd 0.8 — controlador Go + panel React/TypeScript
@@ -29,6 +31,7 @@ Instalación y configuración (no requieren Docker):
   nearprod startup enable|disable|status
   nearprod ui [--no-open]
   nearprod agent stop
+  nearprod mcp serve                    servidor MCP local por stdio
 
 Aplicaciones:
   nearprod init ~/Projects
@@ -294,6 +297,11 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			}
 		case "self-test":
 			return SelfTest(ctx, a, out)
+		case "mcp":
+			if sub != "serve" {
+				return nil, fail("USAGE", "Usa nearprod mcp serve.", 400)
+			}
+			return nil, RunMCPServer(ctx, home, &mcpsdk.StdioTransport{})
 		}
 		start := true
 		allowMismatch := false
