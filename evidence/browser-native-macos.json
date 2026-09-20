@@ -1,13 +1,12 @@
 {
   "mode": "native",
+  "platform": "macOS-15.8-arm64",
   "runtime": "Go real + Docker/Traefik SIMULATED",
   "checks": [
     "UI compilada abre contra agente Go sin Engine",
     "Acceso inválido rechazado",
     "Código de un uso y catálogo offline",
     "Agente Go y configuración permanente config/catalog.json visibles",
-    "Herramientas Linux ocultan Colima, Homebrew administrado y launchd",
-    "Runtime Linux/WSL2 usa Docker nativo sin controles de VM",
     "Ruta permanente para nuevas instancias de datos visible",
     "Backup privado desde UI",
     "Descubrimiento recursivo con Docker detenido",

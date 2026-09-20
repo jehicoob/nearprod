@@ -47,6 +47,8 @@ interface Instance {
 }
 interface Infra {
     defaultDataRoot: string;
+    folderUnsupportedImages: string[];
+    folderRestrictions: { image: string; code: string; message: string }[];
     instances: Instance[];
     bindings: Binding[];
     connected: boolean;
@@ -116,7 +118,7 @@ function Review({ value, onConfirm, onClose, busy }: {
     }[] | undefined;
     const services = value.services as string[] | undefined;
     return <Modal title="Revisar cambio de infraestructura" subtitle="Solo se aplicará cuando confirmes" onClose={onClose} wide>
-    {def && <section className="panel"><h3>{def.name} · {def.requestedImage}</h3><p><strong>Persistencia:</strong> {def.persistence.kind === 'folder' ? def.persistence.path + '/data' : def.persistence.kind === 'volume' ? 'Volumen Docker dentro de la VM' : 'Sin persistencia'}</p><p><strong>Desde tu equipo:</strong> {def.hostPort ? `127.0.0.1:${def.hostPort}` : 'Puerto no publicado'}</p><p><strong>Límite:</strong> {def.memoryMiB} MiB. Compartido con el resto de la VM.</p></section>}
+    {def && <section className="panel"><h3>{def.name} · {def.requestedImage}</h3><p><strong>Persistencia:</strong> {def.persistence.kind === 'folder' ? def.persistence.path + '/data' : def.persistence.kind === 'volume' ? 'Volumen administrado por Docker' : 'Sin persistencia'}</p><p><strong>Desde tu equipo:</strong> {def.hostPort ? `127.0.0.1:${def.hostPort}` : 'Puerto no publicado'}</p><p><strong>Límite:</strong> {def.memoryMiB} MiB. Compartido con el resto de las cargas del runtime.</p></section>}
     {services && <section className="panel"><h3>Conectar {String(value.target)} a {String(value.instance)}</h3><p>Servicios consumidores: {services.join(', ')}.</p><p>Destino interno: <code>{String(value.host)}:{String(value.port)}</code>. Las contraseñas no se muestran en esta revisión.</p></section>}
     {consumers && <section className="panel"><h3>Detener {String(value.instance)}</h3>{consumers.length ? consumers.map((c, i) => <p key={i}>{c.stack} · {c.active ? 'Consumidor activo' : 'No observado en ejecución'}</p>) : <p>No hay consumidores registrados. Puede haber clientes externos.</p>}<p>Se detiene el motor, no se eliminan sus datos.</p></section>}
     {value.warnings?.map((w, i) => <Alert key={i}>{w}</Alert>)}{value.note && <p>{value.note}</p>}
@@ -162,7 +164,7 @@ export function InfrastructureView({ catalog, status, notify }: Props) {
     return <><div className="section-heading"><div><span className="eyebrow">SERVICIOS PARA TUS APLICACIONES</span><h1>Infraestructura compartida</h1><p>Un motor, varias bases independientes. Enciende solo lo necesario.</p></div><div className="button-row"><button onClick={() => void load()} disabled={loading} aria-busy={loading}><Icon name="refresh"/>Actualizar</button><button className="primary" disabled={!canMutate} onClick={() => setCreate(true)}>Crear instancia</button></div></div>
     <LiveStatus message={data && loading ? 'Actualizando infraestructura. Se conserva la última información.' : ''}/>
     <Alert>PostgreSQL/MySQL separan bases y usuarios por proyecto. Redis se crea dedicado a una aplicación. <strong>Traefik es un componente central</strong> y se gestiona en Accesos locales, no en esta lista. No se cambia la persistencia de los proyectos que registres.</Alert>
-    {!status.connected && <Alert error>Docker no está conectado. Puedes ver el catálogo; inicia/comprueba Colima desde Runtime antes de crear o ejecutar infraestructura.</Alert>}
+    {!status.connected && <Alert error>Docker no está conectado. Puedes ver el catálogo; comprueba {catalog.host.runtime.displayName} desde Runtime antes de crear o ejecutar infraestructura.</Alert>}
     {error && <Alert error>{error}</Alert>}{!data && loading && <Skeleton label="Consultando infraestructura" rows={6}/>}
     {data && !data.instances.length && <section className="empty"><Icon name="cube" size={32}/><h2>Tus servicios reutilizables</h2><p>Crea PostgreSQL o MySQL, añade una base y vincula los backends que deban utilizarla.<br />La base que un proyecto ya declara en su Compose no se elimina ni sustituye automáticamente.</p><button disabled={!canMutate} onClick={() => setCreate(true)}>Crear mi primera instancia</button></section>}
     {data?.instances.map(r => <section className="panel infra-instance" key={r.uid}><div className="panel-heading"><Icon name="cube"/><div><h2>{r.name}</h2><span className="mono muted">{r.id} · {r.requestedImage}</span></div><Badge value={r.execution}/><Badge value={r.health}/></div><div className="infra-facts"><div><span>Persistencia de la instancia</span><code>{r.location}</code><small>Compartida físicamente por sus bases; no es un backup.</small></div><div><span>Conexión dentro de Docker</span><code>{r.internalHost}:{r.internalPort}</code><small>Solo servicios unidos a esta red de datos.</small></div><div><span>Acceso desde tu equipo</span><code>{r.hostPort ? `127.0.0.1:${r.hostPort}` : 'No publicado'}</code><small>Límite de contenedor: {r.memoryMiB} MiB; no reserva RAM.</small></div></div><div className="button-row"><button disabled={!canMutate} onClick={() => void action({ action: 'start', instance: r.id })}>Iniciar / comprobar</button><button disabled={!canMutate} onClick={() => { void api<Preview>('/infra/stop-preview', { instance: r.id }).then(value => setReview({ value, body: { action: 'stop', instance: r.id, allowActive: window.confirm('Detener una instancia puede interrumpir TODOS sus consumidores. Se mostrará una revisión antes de aplicar. ¿Permitir detenerla aunque haya consumidores activos?') } })).catch(e => setError(message(e))); }}>Detener instancia</button><button disabled={!status.connected} onClick={() => setLogs(r)}>Logs</button><button disabled={!canMutate || (r.engine === 'redis' && r.databases.length > 0)} onClick={() => setDbFor(r)}>{r.engine === 'redis' ? 'Crear credencial de aplicación' : 'Crear base + usuario'}</button></div>
@@ -193,6 +195,8 @@ function CreateInstance({ data, onClose, onReview }: {
         reason: string;
     }[] | null>(null), [portLoading, setPortLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
     const def = data.engines[engine];
+    const folderRestriction = data.folderRestrictions.find(r => r.image === `${engine}:${version}`);
+    const folderUnsupported = Boolean(folderRestriction);
     async function scan() { setPortLoading(true); setError(''); try {
         const value = await api<{
             ports: {
@@ -220,13 +224,14 @@ function CreateInstance({ data, onClose, onReview }: {
     finally {
         setBusy(false);
     } }
-    return <Modal title="Crear instancia de datos" subtitle="Una instancia puede contener varias bases PostgreSQL/MySQL, cada una con su cuenta" onClose={onClose} wide><form onSubmit={e => { e.preventDefault(); void submit(); }}><div className="form-grid"><Field label="Motor" help="Traefik no es un motor de datos: está en Accesos locales."><select value={engine} onChange={e => { const v = e.target.value as Engine, d = data.engines[v]; setEngine(v); setVersion(d.defaultVersion); setName(`${d.name} principal`); setId(`${v}-main`); setFolder(`${data.defaultDataRoot}/${v}/${v}-main`); setMemory(String(d.memoryMiB)); setPort(String(d.suggestedPort)); setFrom(String(d.suggestedPort)); setTo(String(d.suggestedPort + 10)); setPorts(null); if (v !== 'redis' && kind === 'none')
-        setKind('volume'); }}>{Object.entries(data.engines).map(([k, d]) => <option key={k} value={k}>{d.name}</option>)}</select></Field><Field label="Familia de versión" help="Familias admitidas. Se descarga la imagen oficial nativa y se fija su digest; no cambia de versión al reiniciar."><select value={version} onChange={e => setVersion(e.target.value)}>{def.versions.map(v => <option key={v}>{v}</option>)}</select></Field><Field label="Nombre visible" help="Etiqueta que reconocerás en el panel."><input required value={name} onChange={e => setName(e.target.value)}/></Field><Field label="ID estable" help="Usado por nearprod infra. No es el nombre de una base ni una URL web."><input required pattern="[a-z0-9][a-z0-9-]*" value={id} onChange={e => setId(e.target.value)}/></Field></div>
-    <Field label="Persistencia" help="Se aplica solo al recurso que estás creando; no modifica la configuración de proyectos importados."><select value={kind} onChange={e => setKind(e.target.value)}><option value="volume">Volumen Docker — dentro de la VM</option><option value="folder">Carpeta local dedicada — visible en tu Mac</option>{engine === 'redis' && <option value="none">Sin persistencia — caché desechable</option>}</select></Field>
-    {kind === 'folder' && <><Field label="Carpeta local de esta instancia" help="Debe estar vacía o no existir, no ser enlace simbólico y estar compartida con Colima. Se crea data/; se comprueban los permisos desde un contenedor. No uses iCloud ni una carpeta con otros archivos."><input required value={folder} onChange={e => setFolder(e.target.value)}/></Field><Alert>Todas las bases lógicas de esta instancia usan el mismo directorio físico. Para una carpeta por base debes crear otra instancia. La exportación de cada base sí produce un archivo independiente. El rendimiento de un bind mount puede ser distinto al de un volumen dentro de la VM.</Alert></>}
+    return <Modal title="Crear instancia de datos" subtitle="Una instancia puede contener varias bases PostgreSQL/MySQL, cada una con su cuenta" onClose={onClose} wide><form onSubmit={e => { e.preventDefault(); void submit(); }}><div className="form-grid"><Field label="Motor" help="Traefik no es un motor de datos: está en Accesos locales."><select value={engine} onChange={e => { const v = e.target.value as Engine, d = data.engines[v], nextVersion = d.defaultVersion; setEngine(v); setVersion(nextVersion); setName(`${d.name} principal`); setId(`${v}-main`); setFolder(`${data.defaultDataRoot}/${v}/${v}-main`); setMemory(String(d.memoryMiB)); setPort(String(d.suggestedPort)); setFrom(String(d.suggestedPort)); setTo(String(d.suggestedPort + 10)); setPorts(null); if (v !== 'redis' && kind === 'none' || data.folderUnsupportedImages.includes(`${v}:${nextVersion}`))
+        setKind('volume'); }}>{Object.entries(data.engines).map(([k, d]) => <option key={k} value={k}>{d.name}</option>)}</select></Field><Field label="Familia de versión" help="Familias admitidas. Se descarga la imagen oficial nativa y se fija su digest; no cambia de versión al reiniciar."><select value={version} onChange={e => { const nextVersion = e.target.value; setVersion(nextVersion); if (data.folderUnsupportedImages.includes(`${engine}:${nextVersion}`)) setKind('volume'); }}>{def.versions.map(v => <option key={v}>{v}</option>)}</select></Field><Field label="Nombre visible" help="Etiqueta que reconocerás en el panel."><input required value={name} onChange={e => setName(e.target.value)}/></Field><Field label="ID estable" help="Usado por nearprod infra. No es el nombre de una base ni una URL web."><input required pattern="[a-z0-9][a-z0-9-]*" value={id} onChange={e => setId(e.target.value)}/></Field></div>
+    <Field label="Persistencia" help="Se aplica solo al recurso que estás creando; no modifica la configuración de proyectos importados."><select value={kind} onChange={e => setKind(e.target.value)}><option value="volume">Volumen administrado por Docker</option><option value="folder" disabled={folderUnsupported}>Carpeta local dedicada{folderUnsupported ? ' — no disponible para esta combinación' : ''}</option>{engine === 'redis' && <option value="none">Sin persistencia — caché desechable</option>}</select></Field>
+    {folderRestriction && <Alert>{folderRestriction.message} Los datos persisten aunque se recree el contenedor.</Alert>}
+    {kind === 'folder' && <><Field label="Carpeta local de esta instancia" help="Debe estar vacía o no existir, no ser enlace simbólico y ser visible para el runtime Docker. Se crea data/ y se comprueba el montaje desde un contenedor. No uses carpetas sincronizadas ni directorios con otros archivos."><input required value={folder} onChange={e => setFolder(e.target.value)}/></Field><Alert>Todas las bases lógicas de esta instancia usan el mismo directorio físico. Para una carpeta por base debes crear otra instancia. La exportación de cada base sí produce un archivo independiente. El rendimiento de un bind mount puede ser distinto al de un volumen administrado.</Alert></>}
     <label className="check-label"><input type="checkbox" checked={publish} onChange={e => setPublish(e.target.checked)}/> Permitir acceso desde una herramienta en mi equipo (127.0.0.1)</label><p className="field-help">Los contenedores conectados a la red de datos no necesitan publicar puertos del host.</p>
-    {publish && <section className="panel"><div className="form-grid"><Field label="Puerto local elegido" help={`El motor escucha internamente en ${def.port}; este número es solo para tu Mac.`}><input required type="number" min="1024" max="65535" value={port} onChange={e => setPort(e.target.value)}/></Field><div><label>Rango a consultar (máximo 128 puertos)</label><div className="button-row"><input aria-label="Puerto inicial" type="number" value={from} onChange={e => setFrom(e.target.value)}/><input aria-label="Puerto final" type="number" value={to} onChange={e => setTo(e.target.value)}/><button type="button" disabled={portLoading} onClick={() => void scan()}>Buscar libres</button></div></div></div>{portLoading && <Skeleton label="Comprobando puertos" rows={2}/>}<div className="port-options">{ports?.map(p => <button type="button" key={p.port} disabled={!p.available} className={port === String(p.port) ? 'primary' : ''} title={p.reason} onClick={() => setPort(String(p.port))}>{p.port} · {p.available ? 'libre' : 'ocupado'}</button>)}</div><p className="hint">La consulta no reserva puertos. Se vuelven a comprobar al confirmar e iniciar; otro proceso todavía puede ocuparlos.</p></section>}
-    <details><summary>Recursos y conexiones</summary><div className="form-grid"><Field label="Límite de memoria (MiB)" help="No es una reserva. Debe quedar RAM para Linux, Traefik y tus aplicaciones; bajar demasiado provoca OOM."><input required type="number" min={def.minMemoryMiB} value={memory} onChange={e => setMemory(e.target.value)}/></Field>{engine !== 'redis' && <Field label="Conexiones máximas" help="Ajusta también los pools de API/workers para no agotarlas."><input required type="number" min="8" max="300" value={max} onChange={e => setMax(e.target.value)}/></Field>}</div></details>
+    {publish && <section className="panel"><div className="form-grid"><Field label="Puerto local elegido" help={`El motor escucha internamente en ${def.port}; este número solo se publica en tu equipo.`}><input required type="number" min="1024" max="65535" value={port} onChange={e => setPort(e.target.value)}/></Field><div><label>Rango a consultar (máximo 128 puertos)</label><div className="button-row"><input aria-label="Puerto inicial" type="number" value={from} onChange={e => setFrom(e.target.value)}/><input aria-label="Puerto final" type="number" value={to} onChange={e => setTo(e.target.value)}/><button type="button" disabled={portLoading} onClick={() => void scan()}>Buscar libres</button></div></div></div>{portLoading && <Skeleton label="Comprobando puertos" rows={2}/>}<div className="port-options">{ports?.map(p => <button type="button" key={p.port} disabled={!p.available} className={port === String(p.port) ? 'primary' : ''} title={p.reason} onClick={() => setPort(String(p.port))}>{p.port} · {p.available ? 'libre' : 'ocupado'}</button>)}</div><p className="hint">La consulta no reserva puertos. Se vuelven a comprobar al confirmar e iniciar; otro proceso todavía puede ocuparlos.</p></section>}
+    <details><summary>Recursos y conexiones</summary><div className="form-grid"><Field label="Límite de memoria (MiB)" help="No es una reserva. Debe quedar RAM para el runtime, Traefik y tus aplicaciones; bajar demasiado provoca OOM."><input required type="number" min={def.minMemoryMiB} value={memory} onChange={e => setMemory(e.target.value)}/></Field>{engine !== 'redis' && <Field label="Conexiones máximas" help="Ajusta también los pools de API/workers para no agotarlas."><input required type="number" min="8" max="300" value={max} onChange={e => setMax(e.target.value)}/></Field>}</div></details>
     {error && <Alert error>{error}</Alert>}<div className="modal-actions"><button type="button" onClick={onClose}>Cancelar</button><button className="primary" disabled={busy}>{busy ? 'Comprobando…' : 'Revisar creación'}</button></div></form></Modal>;
 }
 function CreateDatabase({ instance, onClose, onSubmit }: {
@@ -275,12 +280,92 @@ function BindingDialog({ database, engine, stacks, onClose, onReview }: {
     } }
     return <Modal title="Vincular con un proyecto" subtitle={`${database.name} · solo se aplica después de revisar e iniciar el proyecto`} onClose={onClose} wide><form onSubmit={e => { e.preventDefault(); void submit(); }}><Field label="Aplicación registrada" help="No se elimina la base que ya pueda existir en su Compose; el usuario decide cuál utilizar."><select required value={target} onChange={e => { setTarget(e.target.value); setMode('dev'); }}><option value="">Selecciona aplicación</option>{stacks.map(s => <option key={s.id}>{s.id}</option>)}</select></Field><Field label="Modo" help="Desarrollo y prueba de imagen pueden apuntar a bases distintas. Este vínculo no separa datos por sí solo."><select value={mode} onChange={e => setMode(e.target.value)}><option value="dev">Desarrollo</option>{stack?.modes.verify && <option value="verify">Prueba de imagen</option>}</select></Field><fieldset><legend>Servicios consumidores</legend><p className="hint">Selecciona API y workers. No envíes contraseñas a código de frontend servido al navegador.</p>{loading && <Skeleton label="Leyendo servicios Compose" rows={2}/>} {choices.map(s => <label className="check-label" key={s}><input type="checkbox" checked={services.includes(s)} onChange={e => setServices(e.target.checked ? [...services, s] : services.filter(v => v !== s))}/>{s}</label>)}</fieldset><Field label="Formato que espera tu aplicación" help="Comprueba los nombres en su configuración. NearProd entrega variables, no modifica el código del framework."><select value={format} onChange={e => setFormat(e.target.value)}><option value="url">Una URL de conexión</option><option value="fields">Campos separados</option></select></Field><div className="form-grid">{Object.keys(vars).filter(k => format === 'url' ? k === 'url' : k !== 'url').map(k => <Field key={k} label={`Variable para ${k}`}><input required pattern="[A-Z][A-Z0-9_]*" value={vars[k]} onChange={e => setVars({ ...vars, [k]: e.target.value })}/></Field>)}</div>{error && <Alert error>{error}</Alert>}<div className="modal-actions"><button type="button" onClick={onClose}>Cancelar</button><button className="primary" disabled={busy || !services.length}>Revisar vinculación</button></div></form></Modal>;
 }
-function BackupDialog({ db, restore, onClose, onSubmit }: {
-    db: Database;
-    restore: boolean;
-    onClose: () => void;
-    onSubmit: (body: Data) => void;
-}) { const [value, setValue] = useState(''), [trusted, setTrusted] = useState(false); return <Modal title={restore ? 'Restaurar en base vacía' : 'Exportar backup lógico'} subtitle={db.name} onClose={onClose}><form onSubmit={e => { e.preventDefault(); onSubmit({ action: restore ? 'restore' : 'backup', database: db.id, confirm: true, ...(restore ? { file: value, trustedBackup: trusted } : { directory: value || undefined }) }); }}><Alert>Un volumen o carpeta persistente no es un backup. El archivo puede contener datos sensibles: se guarda con permisos privados fuera de la VM. El resultado y la ruta aparecen en Actividad.</Alert><Field label={restore ? 'Archivo de backup' : 'Carpeta de destino (opcional)'} help={restore ? 'Selecciona un dump creado por NearProd con su archivo .nearprod.json al lado. Debe corresponder al motor y versión compatibles.' : 'Vacío usa ~/.nearprod/backups/databases (o tu NEARPROD_HOME). No se sobrescriben archivos existentes.'}><input required={restore} value={value} onChange={e => setValue(e.target.value)} placeholder={restore ? '/Users/usuario/Backups/tienda.dump' : '/Users/usuario/Backups'}/></Field>{restore && <><Alert error>Solo se acepta una base vacía y sin vínculos. Un fallo puede dejar objetos parciales; no hay rollback automático. MySQL no restaura rutinas/eventos y puede rechazar definers ajenos.</Alert><label className="check-label"><input required type="checkbox" checked={trusted} onChange={e => setTrusted(e.target.checked)}/> Confío en este backup y acepto importarlo en este destino vacío.</label></>}<div className="modal-actions"><button type="button" onClick={onClose}>Cancelar</button><button className="primary">{restore ? 'Restaurar como usuario limitado' : 'Exportar'}</button></div></form></Modal>; }
+function BackupDialog({
+  db,
+  restore,
+  onClose,
+  onSubmit,
+}: {
+  db: Database;
+  restore: boolean;
+  onClose: () => void;
+  onSubmit: (body: Data) => void;
+}) {
+  const [value, setValue] = useState(""),
+    [trusted, setTrusted] = useState(false);
+  return (
+    <Modal
+      title={restore ? "Restaurar en base vacía" : "Exportar backup lógico"}
+      subtitle={db.name}
+      onClose={onClose}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit({
+            action: restore ? "restore" : "backup",
+            database: db.id,
+            confirm: true,
+            ...(restore
+              ? { file: value, trustedBackup: trusted }
+              : { directory: value || undefined }),
+          });
+        }}
+      >
+        <Alert>
+          Un volumen o carpeta persistente no es un backup. El archivo puede
+          contener datos sensibles: se guarda con permisos privados fuera del
+          runtime. El resultado y la ruta aparecen en Actividad.
+        </Alert>
+        <Field
+          label={
+            restore ? "Archivo de backup" : "Carpeta de destino (opcional)"
+          }
+          help={
+            restore
+              ? "Selecciona un dump creado por NearProd con su archivo .nearprod.json al lado. Debe corresponder al motor y versión compatibles."
+              : "Vacío usa ~/.nearprod/backups/databases (o tu NEARPROD_HOME). No se sobrescriben archivos existentes."
+          }
+        >
+          <input
+            required={restore}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={
+              restore ? "~/Backups/tienda.dump" : "~/Backups"
+            }
+          />
+        </Field>
+        {restore && (
+          <>
+            <Alert error>
+              Solo se acepta una base vacía y sin vínculos. Un fallo puede dejar
+              objetos parciales; no hay rollback automático. MySQL no restaura
+              rutinas/eventos y puede rechazar definers ajenos.
+            </Alert>
+            <label className="check-label">
+              <input
+                required
+                type="checkbox"
+                checked={trusted}
+                onChange={(e) => setTrusted(e.target.checked)}
+              />{" "}
+              Confío en este backup y acepto importarlo en este destino vacío.
+            </label>
+          </>
+        )}
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary">
+            {restore ? "Restaurar como usuario limitado" : "Exportar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
 function InfraLogs({ instance, onClose }: {
     instance: Instance;
     onClose: () => void;

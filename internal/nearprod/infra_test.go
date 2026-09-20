@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -110,6 +111,18 @@ func TestRedisDedicatedAndConnection(t *testing.T) {
 	}
 	_, e = f.S.Infra.Backup(context.Background(), J{"database": a["id"], "confirm": true})
 	expectCode(t, e, "BACKUP_ENGINE")
+	foundHost := false
+	for _, call := range f.F.History() {
+		if contains(call.Args, "redis-cli") {
+			if contains(call.Args, "--host") {
+				t.Fatal("redis-cli long host option is not portable")
+			}
+			foundHost = foundHost || contains(call.Args, "-h")
+		}
+	}
+	if !foundHost {
+		t.Fatal("redis client host option absent")
+	}
 }
 func TestPersistentVolumeMissingBlocksReinitialization(t *testing.T) {
 	f := newFixture(t, false)
@@ -132,6 +145,13 @@ func TestFolderPersistenceAndSecretPermissions(t *testing.T) {
 		t.Run(image, func(t *testing.T) {
 			f := newFixture(t, false)
 			engine := strings.Split(image, ":")[0]
+			if image == "postgres:18" {
+				f.F.Endpoint = "unix://" + filepath.Join(userHome(), ".colima", "default", "docker.sock")
+				must(t, f.S.Store.Update(func(v J) error {
+					v["runtime"] = J{"kind": "colima", "context": "colima", "profile": "default"}
+					return nil
+				}))
+			}
 			req := J{"engine": engine, "id": "main", "image": image, "persistence": J{"kind": "folder"}}
 			p, e := f.S.Infra.Preview(context.Background(), req)
 			must(t, e)
@@ -188,6 +208,74 @@ func TestFolderPersistenceAndSecretPermissions(t *testing.T) {
 		})
 	}
 }
+
+func TestPostgres18FolderRejectedOnNativeLinux(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("restriction applies to native Linux")
+	}
+	f := newFixture(t, false)
+	req := J{"engine": "postgres", "id": "pg18-folder", "image": "postgres:18", "persistence": J{"kind": "folder"}}
+	before := len(f.F.History())
+	_, e := f.S.Infra.Preview(context.Background(), req)
+	expectCode(t, e, "FOLDER_PLATFORM_UNSUPPORTED")
+	if len(f.F.History()) != before {
+		t.Fatal("unsupported folder preview called Docker")
+	}
+	_, e = f.S.Infra.Create(context.Background(), merge(req, J{"confirm": true, "fingerprint": "unused"}), nil)
+	expectCode(t, e, "FOLDER_PLATFORM_UNSUPPORTED")
+	if len(f.F.History()) != before || len(arr(at(f.S.Store.Get(), "infra", "instances"))) != 0 {
+		t.Fatal("unsupported folder create changed Docker or store")
+	}
+	path := filepath.Join(f.Home, "databases", "postgres", "pg18-folder")
+	if _, e = os.Stat(path); !os.IsNotExist(e) {
+		t.Fatal("unsupported folder preview or create changed filesystem")
+	}
+	unsupported := ss(f.S.Infra.List(J{})["folderUnsupportedImages"])
+	if !contains(unsupported, "postgres:18") {
+		t.Fatal("UI capability missing")
+	}
+	restrictions := arr(f.S.Infra.List(J{})["folderRestrictions"])
+	if len(restrictions) != 1 || str(obj(restrictions[0])["code"]) != "FOLDER_PLATFORM_UNSUPPORTED" || str(obj(restrictions[0])["message"]) == "" {
+		t.Fatal("UI restriction details missing")
+	}
+
+	must(t, f.S.Store.Update(func(v J) error {
+		v["runtime"] = J{"kind": "colima", "context": "colima", "profile": "default"}
+		return nil
+	}))
+	f.F.Endpoint = "unix://" + filepath.Join(userHome(), ".colima", "default", "docker.sock")
+	p, e := f.S.Infra.Preview(context.Background(), req)
+	must(t, e)
+	req["confirm"] = true
+	req["fingerprint"] = p["fingerprint"]
+	_, e = f.S.Infra.Create(context.Background(), req, nil)
+	must(t, e)
+	must(t, f.S.Store.Update(func(v J) error {
+		v["runtime"] = J{"kind": "native", "context": "default", "profile": "default"}
+		return nil
+	}))
+	before = len(f.F.History())
+	_, e = f.S.Infra.Start(context.Background(), "pg18-folder", nil)
+	expectCode(t, e, "FOLDER_PLATFORM_UNSUPPORTED")
+	if len(f.F.History()) != before {
+		t.Fatal("blocked existing folder instance called Docker")
+	}
+}
+
+func TestImageMajor(t *testing.T) {
+	for image, want := range map[string]int{
+		"postgres:18":          18,
+		"postgres:18.1":        18,
+		"postgres:18-alpine":   18,
+		"postgres:18-bookworm": 18,
+		"postgres:17":          17,
+	} {
+		if got := imageMajor(image); got != want {
+			t.Errorf("imageMajor(%q) = %d, want %d", image, got, want)
+		}
+	}
+}
+
 func TestInfraPreviewValidations(t *testing.T) {
 	f := newFixture(t, false)
 	for _, req := range []J{

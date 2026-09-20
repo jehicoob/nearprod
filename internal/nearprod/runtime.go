@@ -15,16 +15,32 @@ import (
 )
 
 type Runtime struct {
-	Runner Runner
-	Store  *Store
-	Docker *Docker
+	Runner   Runner
+	Store    *Store
+	Docker   *Docker
+	Platform string
 }
 
+func (r *Runtime) platform() string {
+	if r.Platform != "" {
+		return r.Platform
+	}
+	return runtime.GOOS
+}
+func (r *Runtime) Capabilities() J {
+	return platformCapabilitiesFor(r.Store.Get(), r.platform(), runtime.GOARCH, "")
+}
+func (r *Runtime) managedVirtualMachine() bool {
+	return truth(at(r.Capabilities(), "runtime", "managedVirtualMachine"))
+}
+func (r *Runtime) supported() bool {
+	return truth(at(r.Capabilities(), "runtime", "supported"))
+}
 func (r *Runtime) Prefix(args ...string) []string {
 	return append([]string{"--profile", text(at(r.Store.Get(), "runtime", "profile"), "default")}, args...)
 }
 func (r *Runtime) Allocation() (J, error) {
-	if str(at(r.Store.Get(), "runtime", "kind")) != "colima" {
+	if !r.managedVirtualMachine() {
 		return nil, nil
 	}
 	profile := text(at(r.Store.Get(), "runtime", "profile"), "default")
@@ -58,8 +74,11 @@ func (r *Runtime) Allocation() (J, error) {
 var stoppedRE = regexp.MustCompile(`(?i)not running|is stopped|has not been started`)
 
 func (r *Runtime) Status(ctx context.Context) J {
-	if str(at(r.Store.Get(), "runtime", "kind")) != "colima" {
-		return J{"state": "not-applicable", "message": "Docker local sin VM Colima administrada."}
+	if !r.supported() {
+		return J{"state": "unsupported", "message": "El runtime guardado no está soportado en esta plataforma. Selecciona una opción disponible antes de usar Docker."}
+	}
+	if !r.managedVirtualMachine() {
+		return J{"state": "not-applicable", "message": "Docker nativo sin máquina virtual administrada por NearProd."}
 	}
 	profile := at(r.Store.Get(), "runtime", "profile")
 	a, e := r.Allocation()
@@ -96,15 +115,30 @@ var toolDefinitions = []toolDefinition{
 }
 
 func (r *Runtime) ToolStatus(ctx context.Context) A {
+	return r.toolStatus(ctx, r.platform())
+}
+func (r *Runtime) toolStatus(ctx context.Context, platform string) A {
 	out := make(A, len(toolDefinitions))
 	var wg sync.WaitGroup
 	for index, def := range toolDefinitions {
 		wg.Add(1)
 		go func(n int, d toolDefinition) {
 			defer wg.Done()
-			v := J{"id": d.ID, "name": d.Name, "required": d.Required, "purpose": d.Purpose, "hint": d.Hint, "available": false, "status": "unavailable", "version": nil}
-			if d.ID == "colima" && str(at(r.Store.Get(), "runtime", "kind")) != "colima" {
-				v["required"] = false
+			supported := d.ID != "colima" || platform == "darwin" && str(at(r.Store.Get(), "runtime", "kind")) == "colima"
+			hint := d.Hint
+			if platform != "darwin" {
+				hint = map[string]string{
+					"docker":  "Instala Docker CLI con el mecanismo aprobado para tu distribución.",
+					"compose": "Instala o habilita el plugin Docker Compose para tu Docker CLI.",
+					"buildx":  "Instala o habilita el plugin Docker Buildx para tu Docker CLI.",
+					"colima":  "Colima solo aplica al runtime administrado en macOS.",
+				}[d.ID]
+			}
+			v := J{"id": d.ID, "name": d.Name, "required": d.Required && supported, "supported": supported, "purpose": d.Purpose, "hint": hint, "available": false, "status": "unavailable", "version": nil}
+			if !supported {
+				v["status"] = "not-applicable"
+				out[n] = v
+				return
 			}
 			res, e := r.Runner.Run(ctx, d.Command, d.Args, RunOptions{Timeout: 15 * time.Second})
 			if e == nil && res.Code == 0 {
@@ -128,7 +162,7 @@ func (r *Runtime) ToolStatus(ctx context.Context) A {
 func (r *Runtime) Doctor(ctx context.Context) J {
 	info, e := r.Docker.Info(ctx)
 	allocation, ae := r.Allocation()
-	j := J{"nearprod": Version, "runtimeLanguage": "Go", "goVersion": runtime.Version(), "binary": binaryPath(), "platform": runtime.GOOS + "/" + runtime.GOARCH, "tools": r.ToolStatus(ctx), "runtime": r.Store.Get()["runtime"], "colima": r.Status(ctx), "allocation": allocation, "engine": info, "hostMemoryBytes": hostMemory(), "agentRssBytes": processRSS(), "checkedAt": now()}
+	j := J{"nearprod": Version, "runtimeLanguage": "Go", "goVersion": runtime.Version(), "binary": binaryPath(), "platform": r.platform() + "/" + runtime.GOARCH, "host": r.Capabilities(), "tools": r.ToolStatus(ctx), "runtime": r.Store.Get()["runtime"], "colima": r.Status(ctx), "allocation": allocation, "engine": info, "hostMemoryBytes": hostMemory(), "agentRssBytes": processRSS(), "checkedAt": now()}
 	if e != nil {
 		j["error"] = publicError(e)
 	}
@@ -138,7 +172,10 @@ func (r *Runtime) Doctor(ctx context.Context) J {
 	return j
 }
 func (r *Runtime) Start(ctx context.Context, line func(string, string)) (J, error) {
-	if str(at(r.Store.Get(), "runtime", "kind")) != "colima" {
+	if !r.supported() {
+		return nil, fail("RUNTIME_PLATFORM", "El runtime guardado no está soportado en esta plataforma.", 409)
+	}
+	if !r.managedVirtualMachine() {
 		return nil, fail("RUNTIME_NATIVE", "Inicia Docker con tu administrador del sistema; no se ejecuta sudo.", 409)
 	}
 	a, e := r.Allocation()
@@ -178,7 +215,10 @@ func (r *Runtime) activateCapability(ctx context.Context) error {
 	return nil
 }
 func (r *Runtime) Preview(ctx context.Context, req J) (J, error) {
-	if str(at(r.Store.Get(), "runtime", "kind")) != "colima" {
+	if !r.supported() {
+		return nil, fail("RUNTIME_PLATFORM", "El runtime guardado no está soportado en esta plataforma.", 409)
+	}
+	if !r.managedVirtualMachine() {
 		return nil, fail("RUNTIME_NATIVE", "La asignación de VM pertenece a Colima.", 400)
 	}
 	mem := num(req["memory"])
@@ -262,7 +302,7 @@ func (r *Runtime) Metrics(ctx context.Context) J {
 	if e == nil {
 		containers, e = r.Docker.Stats(ctx)
 	}
-	if info != nil && str(at(r.Store.Get(), "runtime", "kind")) == "colima" {
+	if info != nil && r.managedVirtualMachine() {
 		res, err := checked(ctx, r.Runner, "colima", r.Prefix("ssh", "--", "cat", "/proc/meminfo"), RunOptions{Timeout: 10 * time.Second})
 		if err == nil {
 			v := parseMeminfo(res.Stdout)
@@ -272,7 +312,17 @@ func (r *Runtime) Metrics(ctx context.Context) J {
 		}
 	}
 	allocation, _ := r.Allocation()
-	return J{"host": J{"totalBytes": hostMemory(), "freeBytes": nil, "note": "Consulta la presión de memoria en Monitor de Actividad."}, "agent": J{"rssBytes": processRSS(), "runtime": "Go"}, "allocation": allocation, "guest": guest, "engine": info, "containers": containers, "error": publicError(e), "checkedAt": now(), "note": "No sumes memoria de los contenedores a la VM: consumos anidados. La pestaña de navegador se mide aparte."}
+	hostNote := "Consulta la presión de memoria con las herramientas del sistema operativo."
+	if r.platform() == "darwin" {
+		hostNote = "Consulta la presión de memoria en Monitor de Actividad."
+	} else if detectHostEnvironment(r.platform()) == "wsl2" {
+		hostNote = "Consulta la presión de memoria de WSL2 y Windows; el límite global no lo administra NearProd."
+	}
+	note := "La memoria del Engine y los contenedores es consumo relacionado, no valores para sumar. La pestaña del navegador se mide aparte."
+	if r.managedVirtualMachine() {
+		note = "No sumes memoria de los contenedores a la VM: consumos anidados. La pestaña de navegador se mide aparte."
+	}
+	return J{"host": J{"totalBytes": hostMemory(), "freeBytes": nil, "note": hostNote}, "agent": J{"rssBytes": processRSS(), "runtime": "Go"}, "allocation": allocation, "guest": guest, "engine": info, "containers": containers, "error": publicError(e), "checkedAt": now(), "note": note}
 }
 func parseMeminfo(s string) map[string]int64 {
 	v := map[string]int64{}
@@ -286,6 +336,9 @@ func parseMeminfo(s string) map[string]int64 {
 	return v
 }
 func (r *Runtime) Updates(ctx context.Context) (J, error) {
+	if r.platform() != "darwin" {
+		return J{"status": "unsupported", "items": A{}, "checkedAt": now(), "message": "NearProd no administra actualizaciones de herramientas en Linux/WSL2; usa el mecanismo aprobado de tu distribución."}, nil
+	}
 	res, e := r.Runner.Run(ctx, "brew", []string{"outdated", "--json=v2", "--formula"}, RunOptions{Exact: true, Limit: 2 << 20, Timeout: 45 * time.Second})
 	if e != nil {
 		return J{"status": "unavailable", "items": A{}, "checkedAt": now(), "message": "Homebrew no disponible; no se cambió ningún paquete."}, nil

@@ -39,6 +39,24 @@ nearprod ui
 
 `install` crea una instalación manual en tu HOME; no toca las bases, no instala Docker ni habilita inicio automático. Para conservar el PATH, configura tu shell. `install --configure-shell` es una alternativa específica de zsh que ya existe en NearProd; hace backup de `.zshrc`, pero crea una función que debes revisar al migrar a Homebrew.
 
+## Actualizar una instalación manual
+
+```bash
+nearprod update --check
+nearprod update
+```
+
+La comprobación consulta la última release estable sin descargar el ejecutable. La actualización muestra el cambio de versión y pide confirmación; `--yes` queda disponible para automatización explícita. Solo reemplaza el ejecutable estable `~/.local/bin/nearprod`: un binario ejecutado desde Descargas o desde un checkout debe instalarse primero.
+
+NearProd exige el asset exacto para macOS/Linux y ARM64/AMD64, compara el digest publicado por GitHub con `SHA256SUMS.txt`, rechaza rutas, enlaces y archivos especiales dentro del archive, ejecuta `--identity` antes y después de instalar, conserva la versión anterior bajo `~/.local/share/nearprod/releases` y elimina todos los temporales de la operación. En Linux/WSL2, la consulta HTTPS requiere el paquete de certificados CA del sistema. SHA-256 y TLS comprueban integridad respecto a GitHub, pero esta distribución sigue sin firma de código del editor.
+
+La actualización no reinicia un agente activo y no toca Docker, contenedores, catálogo o datos. Cuando no existan tareas de NearProd en curso:
+
+```bash
+nearprod agent stop
+nearprod ui
+```
+
 ## Docker, Compose y Colima siguen siendo externos
 
 El binario contiene NearProd, no Docker ni una VM. Para gestionar proyectos necesitas Docker CLI, Compose y un Engine Linux accesible. En macOS puedes seguir utilizando Colima. No necesitas Docker Desktop por el solo hecho de instalar este paquete. No ejecutes el controlador con `sudo`.
@@ -54,7 +72,7 @@ nearprod ui
 
 `OWNER` es el titular real, no un nombre preconfigurado. La fórmula elige el binario adecuado. No vuelvas a ejecutar `nearprod install`: eso mezclaría dos instalaciones; NearProd lo rechaza al reconocer Homebrew.
 
-Para actualizar:
+Para actualizar una instalación Homebrew:
 
 ```bash
 brew update

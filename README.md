@@ -1,4 +1,4 @@
-# NearProd 0.7.0 — Go + React/TypeScript
+# NearProd 0.8.0 — Go + React/TypeScript
 
 Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por Traefik e infraestructura PostgreSQL/MySQL/Redis. El CLI y el agente están implementados en Go; el panel React/TypeScript compilado se incluye dentro del binario. **No inicia Node ni necesita npm para funcionar.**
 
@@ -32,7 +32,7 @@ nearprod agent stop
 Abre otra terminal. Si el comando sigue apuntando a una instalación vieja, usa directamente `~/.local/bin/nearprod` en las siguientes instrucciones.
 
 ```bash
-nearprod --version                  # 0.7.0
+nearprod --version                  # 0.8.0
 nearprod config migrate --yes       # backup + migración; exige agente anterior cerrado
 nearprod ui
 ```
@@ -54,6 +54,15 @@ nearprod ui
 Mac Intel: utiliza `bin/nearprod-darwin-amd64`. Linux x86_64: `bin/nearprod-linux-amd64`; el autoarranque administrado es exclusivo de macOS. Los binarios Mac están compilados, pero no fueron ejecutados en un Mac en esta revisión. Si Gatekeeper impide abrir el binario, verifica origen y checksum y utiliza la autorización individual de macOS o compila localmente; no desactives Gatekeeper globalmente.
 
 El instalador guarda `~/.local/bin/nearprod` y copias de versiones bajo `~/.local/share/nearprod/releases`. Hace backup de `.zshrc` al añadir su función/ruta; no sustituye aliases ajenos, Node ni gestores de paquetes. No utiliza `sudo`.
+
+Para una instalación manual estable:
+
+```bash
+nearprod update --check
+nearprod update
+```
+
+El segundo comando muestra la versión y solicita confirmación. Descarga desde la release pública oficial, verifica el digest de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del nuevo ejecutable antes y después de instalarlo. Conserva una copia anterior y limpia los temporales; no reinicia el agente que ya estaba en ejecución ni toca contenedores o datos. Las instalaciones Homebrew deben usar `brew upgrade nearprod`.
 
 ## Dónde permanece todo
 
@@ -108,8 +117,12 @@ Solo inicia el agente, no el navegador, Colima, Traefik, bases o proyectos. Tras
 ## Validación con tu Docker real
 
 ```bash
+# macOS / Colima
 nearprod self-test --yes --context colima
 nearprod self-test --yes --context colima --infra-only --folder
+
+# Linux / WSL2 con Docker nativo
+nearprod self-test --yes --context default
 ```
 
 Pruebas opt-in: crean imágenes/contenedores/redes/volúmenes y bases TEMPORALES, comprueban rutas, SQL, separación, persistencia y recuperación; limpian solo sus recursos identificados. No cambian tu catálogo, datos, DNS o Colima; imágenes/caché permanecen. Revisa el informe `nearprod-acceptance-*/result.json`. Código 77 es bloqueo, no aprobado. La modalidad completa ejecuta motores secuencialmente, pero no promete caber junto a todas tus aplicaciones en 2 GiB.

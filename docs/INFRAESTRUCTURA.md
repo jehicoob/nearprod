@@ -10,14 +10,14 @@ Ejemplo de CLI (cada mutación usa confirmación):
 
 ```bash
 nearprod infra ports --from 15432 --to 15442
-nearprod infra create --engine postgres --id pg-main --persistence folder --port 15432
-nearprod infra create --engine postgres --id pg-main --persistence folder --port 15432 --yes
+nearprod infra create --engine postgres --id pg-main --persistence volume --port 15432
+nearprod infra create --engine postgres --id pg-main --persistence volume --port 15432 --yes
 nearprod infra database --instance pg-main --name tienda_dev --yes
 nearprod infra list
 nearprod infra connection --database ID_DEVUELTO
 ```
 
-`--persistence folder` sin ruta propone `~/.nearprod/databases/postgres/pg-main`; los archivos del motor quedan en su subcarpeta data. `--data-dir` permite otra carpeta dedicada nueva/vacía. `--persistence volume` conserva datos en un volumen Docker de la VM. El puerto es opcional; para acceso solo entre contenedores no hace falta publicarlo.
+`--persistence volume` conserva los datos en un volumen administrado por Docker aunque se recree el contenedor; no uses `docker volume prune` ni `docker compose down -v` sobre recursos que quieras conservar. `--persistence folder` sin ruta propone `~/.nearprod/databases/postgres/pg-main`; los archivos del motor quedan en su subcarpeta data. `--data-dir` permite otra carpeta dedicada nueva/vacía. PostgreSQL 18 con Docker nativo en Linux/WSL2 requiere `volume` en esta versión porque el UID del motor no puede atravesar de forma segura una carpeta privada del usuario host; NearProd lo rechaza antes de crear recursos. El puerto es opcional; para acceso solo entre contenedores no hace falta publicarlo.
 
 Memoria se expresa en MiB para instancia y GiB para Colima. Es un límite, no una reserva. No hay garantía de que todas las bases y aplicaciones quepan en 2 GiB. MySQL requiere más margen en sus defaults. La cuenta de app no es root/postgres/npadmin.
 
@@ -49,7 +49,7 @@ Su base, depends_on, volumes y migraciones no se eliminan. Puedes no usar infrae
 
 ## Protección de datos
 
-Las carpetas se validan y tienen marcador de propiedad. No se adopta un directorio existente por adivinar su motor. En Colima, comprobar visibilidad/escritura puede fallar por montajes/permisos: utiliza carpeta compartida o volumen, no chmod777. No muevas ni sincronices con nube una carpeta de DB activa.
+Las carpetas se validan y tienen marcador de propiedad. No se adopta un directorio existente por adivinar su motor. En Colima, comprobar visibilidad/escritura puede fallar por montajes/permisos: utiliza carpeta compartida o volumen, no chmod777. En Linux/WSL2 no cambies propietario o permisos recursivamente para forzar PostgreSQL 18: crea otra instancia con volumen y restaura un backup lógico si ya había datos. No muevas ni sincronices con nube una carpeta de DB activa.
 
 El secreto administrativo se almacena en vault0600; el archivo de secreto que lee el entrypoint tiene permisos de lectura para el UID del contenedor dentro de una carpeta privada del host. Esto evita que el entrypoint cambie a postgres/mysql y deje de poder leer un bind 0600 propiedad del UID macOS. No promete secreto frente al propio usuario o un administrador Docker.
 
@@ -74,4 +74,4 @@ Instancia dedicada a una aplicación; no aislamiento por prefijos o números de 
 
 ## Comprobación real
 
-`nearprod self-test --yes --context colima --infra-only --folder` prepara recursos temporales, comprueba SQL, credenciales, persistencia tras recreación, restore y Redis. No se ejecutó aquí por ausencia de Docker. La aceptación de tus migraciones y framework requiere tu proyecto real.
+`nearprod self-test --yes --context colima --infra-only --folder` comprueba carpetas en Colima. En Linux/WSL2 usa `nearprod self-test --yes --context default --infra-only`, que valida volúmenes, SQL, credenciales, persistencia tras recreación, restore y Redis. La aceptación de tus migraciones y framework requiere tu proyecto real.

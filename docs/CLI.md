@@ -3,10 +3,12 @@
 Ayuda extraída del binario de esta entrega. Todos los comandos de mutación comparten el coordinador del panel.
 
 ```text
-NearProd 0.7 — controlador Go + panel React/TypeScript
+NearProd 0.8 — controlador Go + panel React/TypeScript
 
 Instalación y configuración (no requieren Docker):
   nearprod install [--configure-shell]
+  nearprod update --check
+  nearprod update                       solicita confirmación; --yes para automatización
   nearprod config paths
   nearprod config migrate --dry-run
   nearprod config migrate --yes
@@ -77,3 +79,5 @@ Actualizar el binario conserva ~/.nearprod/config y rutas/volúmenes existentes.
 ```
 
 Una acción sin --yes muestra preview cuando corresponde. No se guardan contraseñas en argumentos. Los comandos responden JSON cuando se solicita --json; las operaciones esperan salvo --detach. --wait pertenece al comportamiento documentado de reconciliación, no certifica negocio.
+
+`nearprod update --check` solo consulta la última release estable y el asset exacto de la plataforma. `nearprod update` funciona sobre la instalación manual estable en `~/.local/bin/nearprod`; solicita confirmación salvo `--yes`, verifica checksums e identidad, conserva la copia anterior y elimina temporales. No sobrescribe una instalación Homebrew ni un ejecutable abierto desde Descargas o un checkout. El agente ya activo conserva su versión hasta ejecutar, sin tareas en curso, `nearprod agent stop` y `nearprod ui`.
