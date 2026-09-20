@@ -2,23 +2,24 @@
   "version": "0.8.0",
   "status": "candidate",
   "go": {
-    "topLevelPassed": 83,
-    "subtestsPassed": 86,
-    "totalPassEvents": 169,
+    "topLevelPassed": 87,
+    "subtestsPassed": 88,
+    "totalPassEvents": 175,
     "failed": 0,
     "optInBrowserHarnessSkippedInUnitSuite": 1,
-    "coverageStatements": 63.1,
+    "coverageStatements": 62.6,
     "race": "passed",
     "vet": "passed"
   },
   "ui": {
     "macOSPassed": 25,
-    "wsl2EvidencePassed": 36,
+    "currentChromiumPassed": 35,
+    "wsl2HistoricalPassed": 36,
     "transport": "HTTP/SSE real; Docker/Traefik simulado",
     "nativeMacOS": "passed"
   },
   "nativeInstalledPackage": {
-    "passed": 18,
+    "passed": 19,
     "platforms": ["darwin/arm64", "linux/amd64 (WSL2 evidence)"],
     "noNodeInPATH": true
   },
@@ -28,10 +29,12 @@
     "notarization": "none"
   },
   "realDocker": {
-    "infrastructure": "passed: 16 checks",
+    "infrastructure": "passed: 18 checks",
     "webAcceptance": "failed: ACCEPTANCE_HTTP; same result with official 0.7.1 baseline"
   },
   "compiler": "go1.27.1",
+  "snapshotCrossCompilation": "passed: darwin/linux amd64/arm64; artifacts 0.8.0-dev not published",
+  "releaseBinariesScope": "official 0.8.0 baseline; not regenerated from this candidate worktree",
   "releaseBinaries": {
     "nearprod-darwin-amd64": { "sha256": "f3bc70138acbc6ff32e6b267d5f6550e1a8863f0660c5c3f8b8c687d256debc9", "bytes": 10049088 },
     "nearprod-darwin-arm64": { "sha256": "d28ec1c7c4e82ffde0f09f0f1c0a07da562d389aa2b8865ecc1a62b279b47507", "bytes": 9314018 },
