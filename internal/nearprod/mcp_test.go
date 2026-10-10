@@ -27,7 +27,7 @@ func TestMCPListsBoundedToolsAndUsesLocalAgent(t *testing.T) {
 	client := connectMCP(t, f.A.Info)
 	tools, err := client.ListTools(context.Background(), nil)
 	must(t, err)
-	if len(tools.Tools) != 12 {
+	if len(tools.Tools) != 22 {
 		t.Fatalf("tools=%d", len(tools.Tools))
 	}
 	names := []string{}

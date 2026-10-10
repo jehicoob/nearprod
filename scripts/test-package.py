@@ -45,10 +45,36 @@ with tempfile.TemporaryDirectory(prefix='np-native-install-',dir='/tmp') as temp
   ok('Assets React/TypeScript servidos por HTTP del binario')
   initialize={'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'package-test','version':'1'}}}
   mcp_process=subprocess.Popen([str(installed),'mcp','serve'],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
-  mcp_process.stdin.write(json.dumps(initialize)+'\n');mcp_process.stdin.flush();ready,_,_=select.select([mcp_process.stdout],[],[],10);assert ready
-  mcp_response=json.loads(mcp_process.stdout.readline());mcp_process.stdin.close();mcp_process.wait(timeout=10);mcp_error=mcp_process.stderr.read()
-  assert mcp_process.returncode==0 and not mcp_error and mcp_response['result']['serverInfo']['name']=='nearprod'
-  ok('Servidor MCP stdio responde sin contaminar stdout')
+  def mcp_call(identifier,method,params=None):
+   message={'jsonrpc':'2.0','id':identifier,'method':method}
+   if params is not None:message['params']=params
+   mcp_process.stdin.write(json.dumps(message)+'\n');mcp_process.stdin.flush()
+   deadline=time.monotonic()+10
+   while time.monotonic()<deadline:
+    ready,_,_=select.select([mcp_process.stdout],[],[],max(0,deadline-time.monotonic()));assert ready,'MCP response timeout'
+    response=json.loads(mcp_process.stdout.readline())
+    if response.get('id')==identifier:
+     assert 'error' not in response,response
+     return response['result']
+   raise AssertionError('MCP response missing')
+  try:
+   mcp_response=mcp_call(1,'initialize',initialize['params'])
+   assert mcp_response['serverInfo']['name']=='nearprod' and 'nearprod_guide' in mcp_response['instructions']
+   mcp_process.stdin.write(json.dumps({'jsonrpc':'2.0','method':'notifications/initialized'})+'\n');mcp_process.stdin.flush()
+   tools=mcp_call(2,'tools/list')['tools'];names={tool['name'] for tool in tools}
+   assert {'nearprod_guide','nearprod_capabilities','nearprod_infrastructure_logs','nearprod_application_lifecycle'}<=names
+   resources=mcp_call(3,'resources/list')['resources'];assert {'nearprod://guide','nearprod://operations'}<={r['uri'] for r in resources}
+   guide=mcp_call(4,'resources/read',{'uri':'nearprod://guide'});assert 'Compose V2' in guide['contents'][0]['text']
+   capabilities=mcp_call(5,'tools/call',{'name':'nearprod_capabilities','arguments':{'area':'applications','operation':'purge'}})
+   operation=capabilities['structuredContent']['result']['operations'][0]
+   assert {'fingerprint','typedId','acknowledgeDataLoss'}<=set(operation['parameters']['required'])
+   assert info['token'] not in json.dumps([tools,resources,guide,capabilities])
+  finally:
+   mcp_process.stdin.close()
+   try:mcp_process.wait(timeout=10)
+   except subprocess.TimeoutExpired:mcp_process.kill();mcp_process.wait(timeout=5)
+  mcp_error=mcp_process.stderr.read();assert mcp_process.returncode==0 and not mcp_error
+  ok('MCP stdio: instrucciones, herramientas, recursos, guía y esquemas embebidos sin credenciales')
   c=json.loads(run('list','--json',binary=installed).stdout);assert len(c['stacks'])==1 and c['groups'][0]['name']=='Máximo Puntaje';ok('CLI y HTTP conservan catálogo migrado sin Docker')
   run('group-create','--name','Temporal','--id','temporal','--json',binary=installed);run('group-delete','temporal','--yes','--json',binary=installed);assert all(g['id']!='temporal' for g in json.loads(run('groups','--json',binary=installed).stdout)['groups']);ok('CLI elimina únicamente grupo vacío con preview firmado')
   run('init',str(h),'--json',binary=installed);run('root-remove',str(h),'--yes','--json',binary=installed);assert str(h) not in json.loads(run('list','--json',binary=installed).stdout)['roots'];assert h.is_dir();ok('CLI retira raíz sin dependencias y conserva filesystem')
