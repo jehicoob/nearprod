@@ -1,3 +1,4 @@
+import { healthDescription } from './stack-state.js';
 import { api, message } from './api.js';
 const { useState, useEffect, useRef } = React;
 export function Icon({ name, size = 18 }) {
@@ -42,11 +43,20 @@ export function Icon({ name, size = 18 }) {
     };
     return React.createElement("svg", { "aria-hidden": "true", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round", strokeLinejoin: "round" }, paths[name] || paths.cube);
 }
-export function Badge({ value }) {
+export function DisclosureButton({ expanded, controls, label, onToggle, className = '' }) {
+    const action = expanded ? 'Compactar' : 'Expandir';
+    return React.createElement("button", { type: "button", className: `disclosure-toggle ${className}`, "aria-expanded": expanded, "aria-controls": controls, "aria-label": `${action} ${label}`, onClick: onToggle },
+        React.createElement("span", null, action),
+        React.createElement(Icon, { name: "chevron", size: 16 }));
+}
+export function Badge({ value, label, title }) {
     const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', archived: 'Archivada', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
-    return React.createElement("span", { className: `badge badge-${value}` },
+    return React.createElement("span", { className: `badge badge-${value}`, title: title },
         React.createElement("span", { className: "dot" }),
-        labels[value] || value);
+        label || labels[value] || value);
+}
+export function HealthBadge({ value, containers }) {
+    return React.createElement(Badge, { value: value, ...healthDescription(value, containers) });
 }
 export function Modal({ title, subtitle, children, onClose, wide = false }) {
     const ref = useRef(null);

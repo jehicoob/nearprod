@@ -1,5 +1,8 @@
+import { stackActions } from './stack-state.js';
+import { StackCard } from './StackCard.js';
+import { StackPurgeDialog } from './StackPurgeDialog.js';
 import { api, ApiError, humanBytes, message } from './api.js';
-import { Alert, Badge, Busy, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
+import { Alert, Badge, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
 import { DiscoverDialog, RuntimeView, LogsDrawer, GroupDialog } from './views.js';
 import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
@@ -52,6 +55,8 @@ function App() {
     const [review, setReview] = useState(null), [logs, setLogs] = useState(null), [image, setImage] = useState(null), [mode, setMode] = useState({});
     const [notice, setNotice] = useState(null), [working, setWorking] = useState(false), [adoption, setAdoption] = useState(null);
     const [batch, setBatch] = useState(null), [groupEditor, setGroupEditor] = useState(null), [lifecycleReview, setLifecycleReview] = useState(null);
+    const [purgeReview, setPurgeReview] = useState(null);
+    const [collapsedGroups, setCollapsedGroups] = useState({});
     const notify = (text, error = false) => setNotice({ text, error });
     async function load() {
         setLoadError('');
@@ -95,7 +100,7 @@ function App() {
                 if (op.state === 'failed')
                     notify(`${op.action}: ${(Array.isArray(op.results) ? op.results : []).find(r => r.error)?.error?.message || op.error?.message || 'Operación fallida. Consulta Actividad.'}`, true);
                 if (op.state === 'succeeded') {
-                    notify(`${op.action}: operación completada. La salud de la aplicación se muestra por separado.`);
+                    notify(op.action === 'purge-stack' ? 'Aplicación y recursos eliminados; limpieza verificada. Código conservado.' : `${op.action}: operación completada. La salud de la aplicación se muestra por separado.`);
                     void api('/catalog').then(setCatalog).catch(() => { });
                 }
             }
@@ -122,6 +127,7 @@ function App() {
         setWorking(false);
     } }
     async function openLifecycle(previewEndpoint, endpoint, body) { await work(async () => setLifecycleReview({ value: await api(previewEndpoint, body), endpoint, body })); }
+    async function openPurge(target) { await work(async () => setPurgeReview(await api('/stacks/purge-preview', { target }))); }
     async function action(stack, action) {
         const selectedMode = mode[stack.id] || stack.activeMode || 'dev';
         if (['up', 'rebuild'].includes(action) && stack.routes?.length && !catalog?.proxy?.enabled) {
@@ -129,16 +135,22 @@ function App() {
             notify('Activa Traefik una vez para este catálogo; después revisa e inicia la aplicación.');
             return;
         }
-        if (['up', 'rebuild'].includes(action) && !stack.trust[selectedMode]) {
-            setReview({ stack, mode: selectedMode });
-            return;
-        }
-        const confirmMode = !stack.activeMode || stack.activeMode === selectedMode || window.confirm('Cambiar de modo recrea los servicios y conserva los mismos datos/volúmenes. ¿Continuar con el stack completo?');
-        if (!confirmMode)
-            return;
-        if (action === 'rebuild' && !window.confirm('¿Construir y recrear este stack? Puede consumir CPU/RAM y tardar varios minutos. Los volúmenes se conservan.'))
-            return;
-        await work(async () => { await api('/actions', { target: stack.id, action, mode: selectedMode, confirmMode: true }); notify(`${action}: solicitud enviada. Consulta Actividad.`); });
+        await work(async () => {
+            if (['up', 'rebuild'].includes(action)) {
+                const preview = await api('/preview', { target: stack.id, mode: selectedMode });
+                if (!preview.approved) {
+                    setReview({ stack, mode: selectedMode });
+                    return;
+                }
+                const confirmMode = !stack.activeMode || stack.activeMode === selectedMode || window.confirm('Cambiar de modo recrea los servicios y conserva los mismos datos/volúmenes. ¿Continuar con el stack completo?');
+                if (!confirmMode)
+                    return;
+            }
+            if (action === 'rebuild' && !window.confirm('¿Construir y recrear este stack? Puede consumir CPU/RAM y tardar varios minutos. Los volúmenes se conservan.'))
+                return;
+            await api('/actions', { target: stack.id, action, mode: selectedMode, confirmMode: true });
+            notify(`${action}: solicitud enviada. Consulta Actividad.`);
+        });
     }
     async function groupAction(product, action) {
         if (action === 'up' && !catalog?.proxy?.enabled && catalog?.stacks.some(s => s.product === product && s.routes?.length)) {
@@ -374,7 +386,7 @@ function App() {
                             "No hay aplicaciones que coincidan con \u00AB",
                             search,
                             "\u00BB."))),
-                    groups.map((product) => (React.createElement("section", { className: "product", key: product },
+                    groups.map((product) => (React.createElement("section", { className: `product${collapsedGroups[product] === true ? ' product-collapsed' : ''}`, key: product },
                         React.createElement("div", { className: "product-heading" },
                             React.createElement("span", { className: "product-icon" },
                                 React.createElement(Icon, { name: "folder" })),
@@ -393,153 +405,138 @@ function App() {
                                 React.createElement("button", { disabled: working ||
                                         !status.connected ||
                                         active.length > 0 ||
-                                        !catalog.stacks.some((s) => s.product === product), onClick: () => void groupAction(product, "up") }, "Iniciar grupo"),
+                                        !catalog.stacks.some(s => s.product === product && !s.purgePending && stackActions(s, status.stacks.find(v => v.id === s.id), s.activeMode || 'dev').start), title: "Iniciar las aplicaciones del grupo; disponible cuando alguna necesita iniciarse.", onClick: () => void groupAction(product, "up") }, "Iniciar grupo"),
                                 React.createElement("button", { disabled: working ||
                                         !status.connected ||
                                         active.length > 0 ||
-                                        !catalog.stacks.some((s) => s.product === product), onClick: () => void groupAction(product, "stop") }, "Detener grupo"),
-                                React.createElement("button", { className: "danger", disabled: working || active.length > 0 || catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product), title: catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product) ? 'Archiva o mueve todas las aplicaciones antes de eliminar el grupo.' : 'Elimina únicamente el grupo vacío.', onClick: () => void openLifecycle('/groups/delete-preview', '/groups/delete', { id: product }) }, "Eliminar grupo"))),
-                        (catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)) && React.createElement("p", { className: "hint lifecycle-hint" }, "Eliminar grupo estar\u00E1 disponible cuando no contenga aplicaciones activas ni archivadas."),
-                        React.createElement("div", { className: "stacks" },
-                            !catalog.stacks.some((s) => s.product === product) && !archivedStacks.some((s) => s.product === product) && (React.createElement("div", { className: "empty small" },
-                                React.createElement("p", null, "Grupo vac\u00EDo. Selecciona aplicaciones desde Descubrir y elige este grupo, o mueve una existente desde Configurar."),
-                                React.createElement("button", { onClick: () => setDiscover(true) }, "A\u00F1adir aplicaciones"))),
-                            filtered
-                                .filter((s) => s.product === product)
-                                .map((s) => {
-                                const observed = status.stacks.find((v) => v.id === s.id);
-                                const selectedMode = mode[s.id] || s.activeMode || "dev";
-                                const isBusy = working ||
-                                    active.some((o) => !o.targets.length || o.targets.includes(s.id));
-                                return (React.createElement("article", { className: "stack", key: s.id },
-                                    React.createElement("div", { className: "stack-main" },
-                                        React.createElement("div", { className: "stack-symbol" },
-                                            React.createElement(Icon, { name: "cube" })),
-                                        React.createElement("div", { className: "stack-description" },
-                                            React.createElement("h3", null,
-                                                s.name,
-                                                React.createElement("span", { className: "mono" }, s.slug)),
-                                            React.createElement("p", { className: "mono path", title: s.path }, s.path),
-                                            React.createElement("div", { className: "stack-meta" },
-                                                React.createElement("span", { className: "mono" }, s.projectName),
-                                                React.createElement(Badge, { value: observed?.execution || "unknown" }),
-                                                observed?.execution === "running" && (React.createElement(Badge, { value: observed.health })))),
-                                        React.createElement("div", { className: "stack-mode" },
-                                            React.createElement("label", null,
-                                                "Modo",
-                                                React.createElement("select", { "aria-label": `Modo ${s.id}`, value: selectedMode, onChange: (e) => setMode({
-                                                        ...mode,
-                                                        [s.id]: e.target.value,
-                                                    }) },
-                                                    React.createElement("option", { value: "dev" }, "Desarrollo"),
-                                                    s.modes.verify && (React.createElement("option", { value: "verify" }, "Prueba de imagen")))),
-                                            React.createElement("span", { className: "hint" }, s.activeMode
-                                                ? `Último solicitado: ${s.activeMode}`
-                                                : "Aún no iniciado aquí"))),
-                                    React.createElement("div", { className: "stack-bottom" },
-                                        React.createElement("div", { className: "stack-secondary" },
-                                            React.createElement("button", { onClick: () => setReview({ stack: s, mode: selectedMode }) },
-                                                React.createElement(Icon, { name: s.trust[selectedMode] ? "check" : "search", size: 14 }),
-                                                s.trust[selectedMode]
-                                                    ? "Revisar"
-                                                    : "Revisar y aprobar"),
-                                            React.createElement("button", { title: "Editar archivos, grupo y enlaces locales; no ejecuta Docker", onClick: () => setEditor({ stack: s }) }, "Configurar"),
-                                            React.createElement("button", { disabled: !status.connected || isBusy, onClick: () => void work(async () => setAdoption(await api("/adoption", {
-                                                    target: s.id,
-                                                }))), title: "Vincula contenedores existentes de esta aplicaci\u00F3n tras comprobar su identidad" }, "Vincular existentes"),
-                                            React.createElement("button", { className: "danger", title: ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || '') ? 'Detén la aplicación antes de archivarla.' : 'Conserva checkout, runtime y datos; retira solo del catálogo activo.', disabled: isBusy || !status.connected || ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || ''), onClick: () => void openLifecycle('/stacks/archive-preview', '/stacks/archive', { target: s.id }) }, "Archivar del cat\u00E1logo")),
-                                        React.createElement("div", { className: "stack-actions" },
-                                            React.createElement("button", { disabled: !status.connected, onClick: () => setLogs(s) },
-                                                React.createElement(Icon, { name: "terminal", size: 14 }),
-                                                "Logs"),
-                                            React.createElement("button", { disabled: !status.connected || isBusy, onClick: () => void action(s, "restart"), title: "No aplica cambios del Compose ni variables" },
-                                                React.createElement(Icon, { name: "refresh", size: 14 }),
-                                                "Reiniciar"),
-                                            React.createElement("button", { disabled: !status.connected || isBusy, onClick: () => void action(s, "rebuild") }, "Construir"),
-                                            React.createElement("button", { className: "start", disabled: !status.connected || isBusy, onClick: () => void action(s, "up") },
-                                                React.createElement(Icon, { name: "play", size: 13 }),
-                                                "Iniciar"),
-                                            React.createElement("button", { className: "stop", disabled: !status.connected || isBusy, onClick: () => void action(s, "stop") },
-                                                React.createElement(Icon, { name: "stop", size: 13 }),
-                                                "Detener"))),
-                                    React.createElement(RouteLinks, { stack: s, observed: observed, proxyPort: catalog.proxy?.port }),
-                                    !!s.links?.length && (React.createElement("div", { className: "app-links" },
-                                        React.createElement("span", null, "Accesos definidos por ti \u00B7 sin comprobar conectividad"),
-                                        s.links.map((l) => (React.createElement("a", { key: l.url, href: l.url, target: "_blank", rel: "noopener noreferrer" },
-                                            l.label,
-                                            React.createElement(Icon, { name: "link", size: 13 }),
-                                            React.createElement("small", null, l.url)))))),
-                                    (observed?.containers.length || 0) > 0 && (React.createElement("details", { className: "container-details" },
-                                        React.createElement("summary", null,
-                                            observed?.containers.length,
-                                            " contenedores \u00B7 servicios, puertos y artefactos"),
-                                        React.createElement("div", { className: "container-list" }, observed?.containers.map((c) => (React.createElement("div", { className: "container", key: c.id },
-                                            React.createElement("span", { className: "mono" }, c.service),
-                                            React.createElement(Badge, { value: c.state }),
-                                            React.createElement(Badge, { value: c.health }),
-                                            !c.owned && (React.createElement("span", { className: "warning-text" }, "Sin adoptar")),
-                                            c.oom && (React.createElement("span", { className: "warning-text" }, "OOM")),
-                                            React.createElement("span", { className: "mono muted" }, c.image),
-                                            React.createElement("div", { className: "container-links" },
-                                                c.ports
-                                                    .filter((p, i, a) => a.findIndex((v) => v.port === p.port &&
-                                                    v.container === p.container &&
-                                                    v.host === p.host) === i)
-                                                    .map((p) => p.url ? (React.createElement("a", { title: `Puerto publicado ${p.container}; protocolo web sugerido, sin comprobar conectividad`, key: `${p.container}-${p.host}-${p.port}`, href: p.url, target: "_blank", rel: "noreferrer noopener" },
-                                                    ":",
-                                                    p.port,
-                                                    React.createElement(Icon, { name: "link", size: 12 }))) : (React.createElement("span", { className: "hint mono", title: "Puerto publicado; no se asume que sea una p\u00E1gina web", key: `${p.container}-${p.host}-${p.port}` },
-                                                    p.host || "0.0.0.0",
-                                                    ":",
-                                                    p.port,
-                                                    " \u2192",
-                                                    " ",
-                                                    p.container))),
-                                                React.createElement("button", { onClick: () => setImage(c) }, "Imagen / plataforma")))))))),
-                                    React.createElement("div", { className: "watch-bar" },
-                                        React.createElement("span", null, "Recarga: usa los montajes y el servidor dev del proyecto. Watch solo es necesario si el Compose declara develop.watch."),
-                                        React.createElement("button", { disabled: !status.connected ||
-                                                isBusy ||
-                                                s.activeMode !== "dev", onClick: () => void work(async () => {
-                                                await api("/watch", {
-                                                    target: s.id,
-                                                    action: "start",
-                                                });
-                                                notify("Watch solicitado; requiere develop.watch y un Compose compatible.");
-                                            }) }, "Activar Watch"),
-                                        observed?.watch.state !== "off" &&
-                                            observed?.watch.state && (React.createElement(React.Fragment, null,
-                                            React.createElement("span", null, observed.watch.state),
-                                            React.createElement("button", { onClick: () => void work(async () => {
+                                        !catalog.stacks.some(s => s.product === product && !s.purgePending && stackActions(s, status.stacks.find(v => v.id === s.id), s.activeMode || 'dev').stop), title: "Detener las aplicaciones del grupo; disponible cuando hay servicios en ejecuci\u00F3n.", onClick: () => void groupAction(product, "stop") }, "Detener grupo"),
+                                React.createElement("button", { className: "danger", disabled: working || active.length > 0 || catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product), title: catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product) ? 'Archiva o mueve todas las aplicaciones antes de eliminar el grupo.' : 'Elimina únicamente el grupo vacío.', onClick: () => void openLifecycle('/groups/delete-preview', '/groups/delete', { id: product }) }, "Eliminar grupo"),
+                                React.createElement(DisclosureButton, { expanded: collapsedGroups[product] !== true, controls: `group-details-${product}`, label: `grupo ${groupName(product)}`, className: "group-toggle", onToggle: () => setCollapsedGroups(current => ({ ...current, [product]: current[product] !== true })) }))),
+                        React.createElement("div", { className: "product-details", id: `group-details-${product}`, role: "region", "aria-label": `Aplicaciones de ${groupName(product)}`, hidden: collapsedGroups[product] === true },
+                            (catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)) && React.createElement("p", { className: "hint lifecycle-hint" }, "Eliminar grupo estar\u00E1 disponible cuando no contenga aplicaciones activas ni archivadas."),
+                            React.createElement("div", { className: "stacks" },
+                                !catalog.stacks.some((s) => s.product === product) && !archivedStacks.some((s) => s.product === product) && (React.createElement("div", { className: "empty small" },
+                                    React.createElement("p", null, "Grupo vac\u00EDo. Selecciona aplicaciones desde Descubrir y elige este grupo, o mueve una existente desde Configurar."),
+                                    React.createElement("button", { onClick: () => setDiscover(true) }, "A\u00F1adir aplicaciones"))),
+                                filtered
+                                    .filter((s) => s.product === product)
+                                    .map((s) => {
+                                    const observed = status.stacks.find((v) => v.id === s.id);
+                                    const selectedMode = mode[s.id] || s.activeMode || "dev";
+                                    const isBusy = s.purgePending ||
+                                        working ||
+                                        active.some((o) => !o.targets.length || o.targets.includes(s.id));
+                                    const controls = stackActions(s, observed, selectedMode, !status.connected || isBusy);
+                                    return (React.createElement(StackCard, { key: s.uid, stack: s, observed: observed },
+                                        React.createElement("div", { className: "stack-options" },
+                                            React.createElement("div", { className: "stack-mode" },
+                                                React.createElement("label", null,
+                                                    "Modo",
+                                                    React.createElement("select", { "aria-label": `Modo ${s.id}`, value: selectedMode, onChange: (e) => setMode({
+                                                            ...mode,
+                                                            [s.id]: e.target.value,
+                                                        }) },
+                                                        React.createElement("option", { value: "dev" }, "Desarrollo"),
+                                                        s.modes.verify && (React.createElement("option", { value: "verify" }, "Prueba de imagen")))),
+                                                React.createElement("span", { className: "hint" }, s.activeMode
+                                                    ? `Último solicitado: ${s.activeMode}`
+                                                    : "Aún no iniciado aquí"))),
+                                        React.createElement("div", { className: "stack-bottom" },
+                                            React.createElement("div", { className: "stack-secondary" },
+                                                React.createElement("button", { onClick: () => setReview({ stack: s, mode: selectedMode }) },
+                                                    React.createElement(Icon, { name: s.trust[selectedMode] ? "check" : "search", size: 14 }),
+                                                    s.trust[selectedMode]
+                                                        ? "Revisar"
+                                                        : "Revisar y aprobar"),
+                                                React.createElement("button", { title: "Editar archivos, grupo y enlaces locales; no ejecuta Docker", onClick: () => setEditor({ stack: s }) }, "Configurar"),
+                                                React.createElement("button", { disabled: !status.connected || isBusy, onClick: () => void work(async () => setAdoption(await api("/adoption", {
+                                                        target: s.id,
+                                                    }))), title: "Vincula contenedores existentes de esta aplicaci\u00F3n tras comprobar su identidad" }, "Vincular existentes"),
+                                                React.createElement("button", { className: "danger", title: ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || '') ? 'Detén la aplicación antes de archivarla.' : 'Conserva checkout, runtime y datos; retira solo del catálogo activo.', disabled: isBusy || !status.connected || ['running', 'restarting', 'paused', 'starting'].includes(observed?.execution || ''), onClick: () => void openLifecycle('/stacks/archive-preview', '/stacks/archive', { target: s.id }) }, "Archivar del cat\u00E1logo"),
+                                                React.createElement("button", { className: "danger", disabled: working || active.length > 0 || !status.connected, onClick: () => void openPurge(s.id) }, s.purgePending ? 'Reintentar eliminación' : 'Eliminar aplicación y recursos')),
+                                            React.createElement("div", { className: "stack-actions" },
+                                                React.createElement("button", { disabled: !status.connected, onClick: () => setLogs(s) },
+                                                    React.createElement(Icon, { name: "terminal", size: 14 }),
+                                                    "Logs"),
+                                                React.createElement("button", { disabled: !controls.restart, onClick: () => void action(s, "restart"), title: "No aplica cambios del Compose ni variables" },
+                                                    React.createElement(Icon, { name: "refresh", size: 14 }),
+                                                    "Reiniciar"),
+                                                React.createElement("button", { disabled: !controls.build, title: "Reconstruir las im\u00E1genes y recrear los servicios; puede consumir CPU y memoria.", onClick: () => void action(s, "rebuild") }, "Construir"),
+                                                React.createElement("button", { disabled: !controls.apply, title: "Aplicar la configuraci\u00F3n y las variables del modo seleccionado. Puede recrear servicios; conserva los datos. Para reconstruir im\u00E1genes usa Construir.", onClick: () => void action(s, "up") }, "Aplicar cambios"),
+                                                React.createElement("button", { className: "start", disabled: !controls.start, title: controls.startTitle, onClick: () => void action(s, "up") },
+                                                    React.createElement(Icon, { name: "play", size: 13 }),
+                                                    "Iniciar"),
+                                                React.createElement("button", { className: "stop", disabled: !controls.stop, title: controls.stopTitle, onClick: () => void action(s, "stop") },
+                                                    React.createElement(Icon, { name: "stop", size: 13 }),
+                                                    "Detener"))),
+                                        React.createElement(RouteLinks, { stack: s, observed: observed, proxyPort: catalog.proxy?.port }),
+                                        !!s.links?.length && (React.createElement("div", { className: "app-links" },
+                                            React.createElement("span", null, "Accesos definidos por ti \u00B7 sin comprobar conectividad"),
+                                            s.links.map((l) => (React.createElement("a", { key: l.url, href: l.url, target: "_blank", rel: "noopener noreferrer" },
+                                                l.label,
+                                                React.createElement(Icon, { name: "link", size: 13 }),
+                                                React.createElement("small", null, l.url)))))),
+                                        (observed?.containers.length || 0) > 0 && (React.createElement("details", { className: "container-details" },
+                                            React.createElement("summary", null,
+                                                observed?.containers.length,
+                                                " contenedores \u00B7 servicios, puertos y artefactos"),
+                                            React.createElement("div", { className: "container-list" }, observed?.containers.map((c) => (React.createElement("div", { className: "container", key: c.id },
+                                                React.createElement("span", { className: "mono" }, c.service),
+                                                React.createElement(Badge, { value: c.state }),
+                                                React.createElement(HealthBadge, { value: c.health, containers: [c] }),
+                                                !c.owned && (React.createElement("span", { className: "warning-text" }, "Sin adoptar")),
+                                                c.oom && (React.createElement("span", { className: "warning-text" }, "OOM")),
+                                                React.createElement("span", { className: "mono muted" }, c.image),
+                                                React.createElement("div", { className: "container-links" },
+                                                    c.ports
+                                                        .filter((p, i, a) => a.findIndex((v) => v.port === p.port &&
+                                                        v.container === p.container &&
+                                                        v.host === p.host) === i)
+                                                        .map((p) => p.url ? (React.createElement("a", { title: `Puerto publicado ${p.container}; protocolo web sugerido, sin comprobar conectividad`, key: `${p.container}-${p.host}-${p.port}`, href: p.url, target: "_blank", rel: "noreferrer noopener" },
+                                                        ":",
+                                                        p.port,
+                                                        React.createElement(Icon, { name: "link", size: 12 }))) : (React.createElement("span", { className: "hint mono", title: "Puerto publicado; no se asume que sea una p\u00E1gina web", key: `${p.container}-${p.host}-${p.port}` },
+                                                        p.host || "0.0.0.0",
+                                                        ":",
+                                                        p.port,
+                                                        " \u2192",
+                                                        " ",
+                                                        p.container))),
+                                                    React.createElement("button", { onClick: () => setImage(c) }, "Imagen / plataforma")))))))),
+                                        React.createElement("div", { className: "watch-bar" },
+                                            React.createElement("span", null, "Recarga: usa los montajes y el servidor dev del proyecto. Watch solo es necesario si el Compose declara develop.watch."),
+                                            React.createElement("button", { disabled: !status.connected ||
+                                                    isBusy ||
+                                                    s.activeMode !== "dev", onClick: () => void work(async () => {
                                                     await api("/watch", {
                                                         target: s.id,
-                                                        action: "stop",
+                                                        action: "start",
                                                     });
-                                                }) }, "Detener Watch"))),
-                                        observed?.watch.error && (React.createElement("span", { className: "warning-text" }, observed.watch.error.message)))));
-                            }),
-                            filteredArchived.filter(s => s.product === product).map((s) => React.createElement("article", { className: "stack archived-stack", key: s.uid },
-                                React.createElement("div", { className: "stack-main" },
-                                    React.createElement("div", { className: "stack-symbol" },
-                                        React.createElement(Icon, { name: "cube" })),
-                                    React.createElement("div", { className: "stack-description" },
-                                        React.createElement("h3", null,
-                                            s.name,
-                                            React.createElement("span", { className: "mono" }, s.slug)),
-                                        React.createElement("p", { className: "mono path", title: s.path }, s.path),
-                                        React.createElement("div", { className: "stack-meta" },
-                                            React.createElement("span", { className: "mono" }, s.projectName),
-                                            React.createElement(Badge, { value: "archived" })))),
-                                React.createElement("div", { className: "stack-bottom" },
-                                    React.createElement("div", { className: "stack-secondary" },
-                                        React.createElement("span", { className: "hint" },
-                                            "Archivada ",
-                                            new Date(s.archivedAt).toLocaleString(),
-                                            " \u00B7 ",
-                                            s.bindingCount,
-                                            " vinculaciones conservadas")),
-                                    React.createElement("div", { className: "stack-actions" },
-                                        React.createElement("button", { className: "primary", disabled: working || active.length > 0, onClick: () => void openLifecycle('/stacks/restore-preview', '/stacks/restore', { target: s.id }) }, "Restaurar en el cat\u00E1logo"))))))))),
+                                                    notify("Watch solicitado; requiere develop.watch y un Compose compatible.");
+                                                }) }, "Activar Watch"),
+                                            observed?.watch.state !== "off" &&
+                                                observed?.watch.state && (React.createElement(React.Fragment, null,
+                                                React.createElement("span", null, observed.watch.state),
+                                                React.createElement("button", { onClick: () => void work(async () => {
+                                                        await api("/watch", {
+                                                            target: s.id,
+                                                            action: "stop",
+                                                        });
+                                                    }) }, "Detener Watch"))),
+                                            observed?.watch.error && (React.createElement("span", { className: "warning-text" }, observed.watch.error.message)))));
+                                }),
+                                filteredArchived.filter(s => s.product === product).map((s) => React.createElement(StackCard, { key: s.uid, stack: s, archived: true },
+                                    React.createElement("div", { className: "stack-bottom" },
+                                        React.createElement("div", { className: "stack-secondary" },
+                                            React.createElement("span", { className: "hint" },
+                                                "Archivada ",
+                                                new Date(s.archivedAt).toLocaleString(),
+                                                " \u00B7 ",
+                                                s.bindingCount,
+                                                " vinculaciones conservadas")),
+                                        React.createElement("div", { className: "stack-actions" },
+                                            React.createElement("button", { className: "primary", disabled: working || active.length > 0 || s.purgePending, onClick: () => void openLifecycle('/stacks/restore-preview', '/stacks/restore', { target: s.id }) }, "Restaurar en el cat\u00E1logo"),
+                                            React.createElement("button", { className: "danger", disabled: working || active.length > 0 || !status.connected, onClick: () => void openPurge(s.id) }, s.purgePending ? 'Reintentar eliminación' : 'Eliminar aplicación y recursos')))))))))),
                     React.createElement("section", { className: "panel recent" },
                         React.createElement("div", { className: "panel-heading" },
                             React.createElement(Icon, { name: "activity" }),
@@ -595,6 +592,7 @@ function App() {
                 void load();
                 notify("Grupo guardado. No se modificó Docker.");
             } })),
+        purgeReview && React.createElement(StackPurgeDialog, { preview: purgeReview, onClose: () => { setPurgeReview(null); void load(); }, onApplied: () => { setPurgeReview(null); void load(); } }),
         lifecycleReview && React.createElement(CatalogLifecycleDialog, { review: lifecycleReview, onClose: () => setLifecycleReview(null), onApplied: () => { setLifecycleReview(null); void load(); notify('Ciclo de vida actualizado sin borrar recursos implícitamente.'); } }),
         review && (React.createElement(ReviewDialog, { ...review, onClose: () => setReview(null), onApproved: () => {
                 setReview(null);

@@ -1,4 +1,5 @@
 import type { ReactNode, ReactElement } from 'react';
+import {healthDescription} from './stack-state.js';
 import { api, message } from './api.js';
 import type { Operation, Stack, Preview, Container } from './types.js';
 const { useState, useEffect, useRef } = React;
@@ -21,9 +22,18 @@ export function Icon({ name, size = 18 }: {name: string; size?: number}) {
   };
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{paths[name] || paths.cube}</svg>;
 }
-export function Badge({ value }: {value: string}) {
+export function DisclosureButton({expanded, controls, label, onToggle, className = ''}: {expanded: boolean; controls: string; label: string; onToggle: () => void; className?: string}) {
+  const action = expanded ? 'Compactar' : 'Expandir';
+  return <button type="button" className={`disclosure-toggle ${className}`} aria-expanded={expanded} aria-controls={controls} aria-label={`${action} ${label}`} onClick={onToggle}>
+    <span>{action}</span><Icon name="chevron" size={16}/>
+  </button>;
+}
+export function Badge({ value, label, title }: {value: string; label?: string; title?: string}) {
   const labels: Record<string,string> = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', archived: 'Archivada', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
-  return <span className={`badge badge-${value}`}><span className="dot"/>{labels[value] || value}</span>;
+  return <span className={`badge badge-${value}`} title={title}><span className="dot"/>{label || labels[value] || value}</span>;
+}
+export function HealthBadge({value, containers}: {value: string; containers: Container[]}) {
+  return <Badge value={value} {...healthDescription(value, containers)}/>;
 }
 export function Modal({ title, subtitle, children, onClose, wide = false }: {title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean}) {
   const ref = useRef<HTMLDialogElement>(null);

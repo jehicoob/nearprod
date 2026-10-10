@@ -36,6 +36,9 @@ func (s *Service) archivedStack(id string) (J, error) {
 		snapshot := obj(raw)
 		stack := obj(snapshot["stack"])
 		if str(stack["id"]) == id || str(stack["uid"]) == id {
+			if stackPurgePending(s.Store.Get(), str(stack["uid"])) {
+				return nil, fail("STACK_PURGING", "La aplicación tiene una eliminación pendiente. Reintenta su limpieza.", 409)
+			}
 			return snapshot, nil
 		}
 	}

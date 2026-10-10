@@ -97,6 +97,8 @@ func publishedURL(port string, b J) any {
 func summarizeContainer(v J) J {
 	labels := obj(at(v, "Config", "Labels"))
 	state := obj(v["State"])
+	test := ss(at(v, "Config", "Healthcheck", "Test"))
+	hasHealthcheck := (len(test) > 0 && test[0] != "NONE") || str(at(state, "Health", "Status")) != ""
 	ports := A{}
 	for port, bindings := range obj(at(v, "NetworkSettings", "Ports")) {
 		for _, raw := range arr(bindings) {
@@ -108,13 +110,18 @@ func summarizeContainer(v J) J {
 	for k, v := range obj(at(v, "NetworkSettings", "Networks")) {
 		nets[k] = J{"aliases": list(obj(v)["Aliases"])}
 	}
+	mounts := A{}
+	for _, raw := range arr(v["Mounts"]) {
+		m := obj(raw)
+		mounts = append(mounts, J{"type": m["Type"], "name": m["Name"], "source": m["Source"], "target": m["Destination"], "writable": m["RW"]})
+	}
 	safeLabels := J{}
 	for _, k := range []string{LProject, LService, LWorking, LOwner, LStack, LResource, LHelper, "com.docker.compose.project.config_files"} {
 		if labels[k] != nil {
 			safeLabels[k] = labels[k]
 		}
 	}
-	return J{"id": v["Id"], "name": strings.TrimPrefix(str(v["Name"]), "/"), "project": text(labels[LProject], ""), "service": text(labels[LService], ""), "state": text(state["Status"], "unknown"), "running": truth(state["Running"]), "health": text(at(state, "Health", "Status"), "unchecked"), "exitCode": state["ExitCode"], "oom": truth(state["OOMKilled"]), "image": at(v, "Config", "Image"), "imageId": v["Image"], "platform": v["Platform"], "networks": nets, "restartCount": v["RestartCount"], "ports": ports, "labels": safeLabels}
+	return J{"id": v["Id"], "name": strings.TrimPrefix(str(v["Name"]), "/"), "project": text(labels[LProject], ""), "service": text(labels[LService], ""), "state": text(state["Status"], "unknown"), "running": truth(state["Running"]), "health": text(at(state, "Health", "Status"), "unchecked"), "hasHealthcheck": hasHealthcheck, "exitCode": state["ExitCode"], "oom": truth(state["OOMKilled"]), "image": at(v, "Config", "Image"), "imageId": v["Image"], "platform": v["Platform"], "networks": nets, "mounts": mounts, "restartCount": v["RestartCount"], "ports": ports, "labels": safeLabels}
 }
 func (d *Docker) Containers(ctx context.Context, all bool) (A, error) {
 	args := []string{"ps", "-a", "-q"}

@@ -286,6 +286,13 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 			}
 		}
 		return fakeOK(strings.Join(out, "\n"))
+	case "container":
+		if len(rest) == 3 && rest[1] == "inspect" {
+			if c := f.Containers[rest[2]]; c != nil {
+				return fakeOK(A{copyJ(c)})
+			}
+			return fakeFail("No such container")
+		}
 	case "inspect":
 		out := A{}
 		for _, c := range f.Containers {
@@ -306,8 +313,31 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 			coll = f.Volumes
 		}
 		switch rest[1] {
+		case "ls":
+			ids := []string{}
+			for _, name := range keysJMap(coll) {
+				include := true
+				for _, filter := range flags(rest, "--filter") {
+					key, value, _ := strings.Cut(strings.TrimPrefix(filter, "label="), "=")
+					if str(at(coll[name], "Labels", key)) != value {
+						include = false
+					}
+				}
+				if include {
+					ids = append(ids, name)
+				}
+			}
+			return fakeOK(strings.Join(ids, "\n"))
 		case "inspect":
 			v := coll[rest[2]]
+			if v == nil {
+				for _, candidate := range coll {
+					if str(candidate["Id"]) == rest[2] {
+						v = candidate
+						break
+					}
+				}
+			}
 			if v == nil {
 				return fakeFail("No such " + rest[0])
 			}
@@ -322,13 +352,40 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args []string, o RunO
 			coll[n] = J{"Id": "resource-" + n, "Name": n, "Labels": ls, "Driver": "bridge"}
 			return fakeOK(n)
 		case "rm":
-			delete(coll, rest[len(rest)-1])
+			for name, value := range coll {
+				if name == rest[len(rest)-1] || str(value["Id"]) == rest[len(rest)-1] {
+					delete(coll, name)
+				}
+			}
 			return fakeOK(nil)
 		}
 	case "image":
+		if rest[1] == "ls" {
+			ids := []string{}
+			for _, id := range keysJMap(f.Images) {
+				include := true
+				for _, filter := range flags(rest, "--filter") {
+					key, value, _ := strings.Cut(strings.TrimPrefix(filter, "label="), "=")
+					if str(at(f.Images[id], "Config", "Labels", key)) != value {
+						include = false
+					}
+				}
+				if include {
+					ids = append(ids, id)
+				}
+			}
+			return fakeOK(strings.Join(ids, "\n"))
+		}
+		if rest[1] == "rm" {
+			delete(f.Images, rest[len(rest)-1])
+			return fakeOK(nil)
+		}
 		id := rest[len(rest)-1]
 		if f.Images[id] != nil {
 			return fakeOK(A{f.Images[id]})
+		}
+		if strings.HasPrefix(id, "sha256:") && id != "sha256:"+strings.Repeat("a", 64) {
+			return fakeFail("No such image")
 		}
 		return fakeOK(A{J{"Id": "sha256:" + strings.Repeat("a", 64), "Os": "linux", "Architecture": f.Arch, "RepoDigests": A{strings.Split(id, ":")[0] + "@sha256:" + strings.Repeat("b", 64)}}})
 	case "pull":

@@ -434,7 +434,7 @@ main {
   padding:17px 16px 13px;
   display:flex;
   gap:13px;
-  align-items:flex-start}
+  align-items:center}
 .stack-symbol {
   border:1px solid #2c405a;
   background:#101b2c;
@@ -448,7 +448,8 @@ main {
 .stack-description h3 {
   display:flex;
   align-items:center;
-  gap:10px;
+  flex-wrap:wrap;
+  gap:4px 10px;
   font-size:13px;
   line-height:1.7}
 .stack-description h3>span {
@@ -489,7 +490,7 @@ main {
 .stack-mode>.hint {
   font-size:9px;
   display:block;
-  text-align:right;
+  text-align:left;
   margin-top:8px}
 .badge {
   font:9px ui-monospace,monospace;
@@ -524,6 +525,9 @@ main {
   border-color:#4e4432}
 .lifecycle-hint {
   margin:0 18px 12px}
+.product-details>.lifecycle-hint {
+  margin:0;
+  padding:12px 20px 0}
 .lifecycle-options {
   display:grid;gap:10px;border:0;padding:0;margin:0 0 18px}
 .lifecycle-options legend {
@@ -1242,6 +1246,8 @@ main {
   width:100%}
 .product-heading {
   padding:15px}
+.product-details>.lifecycle-hint {
+  padding:12px 15px 0}
 .product-actions button {
   font-size:9px;
   min-height:25px}
@@ -1419,3 +1425,29 @@ input[type=radio] {width:16px;height:16px;accent-color:var(--cyan);flex-shrink:0
 .mcp-steps {display:grid;gap:.8rem;padding-left:1.2rem;color:var(--muted)}
 @media(max-width:900px){.mcp-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.mobile-navigation{display:block}.mobile-table-hint{display:block;margin-bottom:.6rem;font-size:11px}.mcp-facts div{grid-template-columns:1fr;gap:.2rem}}
+
+/* Per-application disclosure keeps status visible while hiding all controls/resources. */
+.stack-main {flex-wrap:nowrap}
+.disclosure-toggle {flex-shrink:0;min-height:34px;padding:6px 9px;font-size:10px;line-height:1.2}
+.disclosure-toggle[aria-expanded="true"] svg {transform:rotate(90deg)}
+.disclosure-toggle:focus-visible {outline:2px solid var(--cyan);outline-offset:3px}
+.stack-details[hidden],.product-details[hidden] {display:none}
+.product-collapsed>.product-heading {border-bottom:0}
+.product-icon {flex-shrink:0}
+.product-heading>div:not(.product-actions) {min-width:0;overflow-wrap:anywhere}
+.product-actions .group-toggle {min-height:28px}
+.stack-options {padding:11px 14px;border-top:1px solid #26344a;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.stack-options .stack-mode {margin:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+.stack-options .stack-mode label {display:inline-flex}
+.stack-options .stack-mode select {width:auto;max-width:100%;min-width:150px}
+.stack-options .stack-mode>.hint {margin:0;line-height:1.4}
+.stack .badge {justify-content:center;text-align:center}
+.stack-bottom {align-items:center}
+@media(max-width:600px) {
+  .disclosure-toggle {min-height:36px;padding:6px;font-size:10px;gap:4px}
+  .stack-description h3 {gap:3px 7px;line-height:1.4;overflow-wrap:anywhere}
+  .stack-options {padding:10px}
+  .stack-options .stack-mode {gap:7px 12px}
+}
+
+@media(max-width:600px) {.product-actions .group-toggle {min-height:36px}}

@@ -49,6 +49,75 @@ func TestBrowserAgent(t *testing.T) {
 		os.WriteFile(filepath.Join(p, ".env.local"), []byte("PASSWORD=private123\n"), 0600)
 		os.WriteFile(filepath.Join(p, ".env.example"), []byte("PASSWORD=example\n"), 0600)
 	}
+	if os.Getenv("NEARPROD_BROWSER_PURGE") == "1" {
+		f.F.Set(func() { f.F.Connected = true; f.F.ColimaRunning = true })
+		for _, name := range []string{"active", "archived", "retry"} {
+			app := f.app(t, "delete-demo", name, nil)
+			f.trust(t, str(app["id"]), "dev")
+			assertPass(t, f.act(t, str(app["id"]), "up", J{"mode": "dev"}))
+			f.F.Set(func() {
+				volume := str(app["projectName"]) + "_data"
+				f.F.Volumes[volume] = J{"Name": volume, "Driver": "local", "CreatedAt": "fixture", "Labels": J{LProject: app["projectName"], LOwner: f.S.Store.Get()["owner"], LStack: app["uid"]}}
+				for _, c := range f.F.Containers {
+					if str(at(c, "Config", "Labels", LStack)) == str(app["uid"]) {
+						c["Mounts"] = A{J{"Type": "volume", "Name": volume}}
+					}
+				}
+			})
+			if name == "archived" {
+				assertPass(t, f.act(t, str(app["id"]), "stop", J{}))
+				f.S.Refresh(context.Background())
+				p, e := f.S.ArchiveStackPreview(str(app["id"]))
+				must(t, e)
+				_, e = f.S.ArchiveStack(context.Background(), J{"target": app["id"], "confirm": true, "fingerprint": p["fingerprint"]})
+				must(t, e)
+			}
+			if name == "retry" {
+				f.F.Set(func() { f.F.FailCmd = "volume rm" })
+				_, req := reviewedPurge(t, f, app)
+				op := executePurge(t, f, req)
+				if str(op["state"]) != "failed" {
+					t.Fatal("purge failure fixture did not fail")
+				}
+				f.F.Set(func() { f.F.FailCmd = "" })
+			}
+		}
+		f.S.Refresh(context.Background())
+	}
+	if os.Getenv("NEARPROD_BROWSER_ACTIONS") == "1" {
+		f.F.Set(func() { f.F.Connected = true; f.F.ColimaRunning = true })
+		for _, name := range []string{"running", "stopped", "no-check", "new", "starting", "mixed"} {
+			var model J
+			if name == "no-check" {
+				model = J{"services": J{"api": J{"image": "fixture:test"}}}
+			}
+			if name == "mixed" {
+				model = J{"services": J{"api": J{"image": "fixture:test", "healthcheck": J{"test": A{"CMD", "true"}}}, "worker": J{"image": "fixture:worker"}}}
+			}
+			app := f.app(t, "actions-demo", name, model)
+			f.trust(t, str(app["id"]), "dev")
+			f.trust(t, str(app["id"]), "verify")
+			if name != "new" {
+				assertPass(t, f.act(t, str(app["id"]), "up", J{"mode": "dev"}))
+			}
+			if name == "stopped" {
+				assertPass(t, f.act(t, str(app["id"]), "stop", J{}))
+			}
+			if name == "starting" {
+				f.F.Set(func() {
+					for _, c := range f.F.Containers {
+						if str(at(c, "Config", "Labels", LStack)) == str(app["uid"]) {
+							obj(c["State"])["Health"] = J{"Status": "starting"}
+						}
+					}
+				})
+			}
+		}
+		app := f.app(t, "all-running", "ready", nil)
+		f.trust(t, str(app["id"]), "dev")
+		assertPass(t, f.act(t, str(app["id"]), "up", J{"mode": "dev"}))
+		f.S.Refresh(context.Background())
+	}
 	ln, e := net.Listen("tcp4", "127.0.0.1:0")
 	must(t, e)
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

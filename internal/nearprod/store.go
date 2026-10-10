@@ -129,6 +129,14 @@ func validateState(v J) error {
 		}
 		archivedBindings = append(archivedBindings, arr(snapshot["bindings"])...)
 	}
+	for uid, raw := range obj(v["stackPurges"]) {
+		plan := copyJ(obj(raw))
+		digest := str(plan["fingerprint"])
+		delete(plan, "fingerprint")
+		if !uids[uid] || str(at(plan, "stack", "uid")) != uid || digest != hash(plan) {
+			return fail("STACK_PURGE_STATE", "El plan de eliminación no coincide con su identidad o digest.", 409)
+		}
+	}
 	for _, raw := range allInfraInstances(obj(v["infra"])) {
 		project := str(obj(raw)["projectName"])
 		if projects[project] {
@@ -489,16 +497,24 @@ func (s *Store) Update(fn func(J) error) error {
 	return nil
 }
 func (s *Store) Stack(id string) (J, error) {
-	for _, raw := range arr(s.Get()["stacks"]) {
+	state := s.Get()
+	for _, raw := range arr(state["stacks"]) {
 		if str(obj(raw)["id"]) == id {
+			if stackPurgePending(state, str(obj(raw)["uid"])) {
+				return nil, fail("STACK_PURGING", "La aplicación tiene una eliminación pendiente. Reintenta su limpieza.", 409)
+			}
 			return obj(raw), nil
 		}
 	}
 	return nil, fail("STACK_NOT_FOUND", "Aplicación desconocida: "+id, 404)
 }
 func (s *Store) StackUID(uid string) (J, error) {
-	for _, raw := range arr(s.Get()["stacks"]) {
+	state := s.Get()
+	for _, raw := range arr(state["stacks"]) {
 		if str(obj(raw)["uid"]) == uid {
+			if stackPurgePending(state, str(obj(raw)["uid"])) {
+				return nil, fail("STACK_PURGING", "La aplicación tiene una eliminación pendiente. Reintenta su limpieza.", 409)
+			}
 			return obj(raw), nil
 		}
 	}
@@ -507,6 +523,9 @@ func (s *Store) StackUID(uid string) (J, error) {
 func editStack(d J, id string, fn func(J) error) error {
 	for _, raw := range arr(d["stacks"]) {
 		if str(obj(raw)["id"]) == id {
+			if stackPurgePending(d, str(obj(raw)["uid"])) {
+				return fail("STACK_PURGING", "La aplicación tiene una eliminación pendiente.", 409)
+			}
 			return fn(obj(raw))
 		}
 	}
