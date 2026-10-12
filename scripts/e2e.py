@@ -5,6 +5,7 @@ NOT native networking/cookie/CSP validation; never changes browser policy.
 from pathlib import Path
 import json, os, shutil, subprocess, sys, traceback
 from playwright.sync_api import sync_playwright, expect
+from theme_checks import check_preference, check_mcp_themes
 ROOT=Path(__file__).resolve().parents[1];E=ROOT/'evidence';E.mkdir(exist_ok=True)
 (ROOT/'.build').mkdir(exist_ok=True)
 if os.environ.get('NEARPROD_E2E_SKIP_BUILD') != '1':
@@ -34,6 +35,7 @@ try:
         page.add_script_tag(content=subprocess.check_output(['node','scripts/browser-bundle.mjs'],cwd=ROOT,text=True))
     else:page.goto(info['url'])
     expect(page.get_by_role('heading',name='Conecta tu consola local')).to_be_visible();passed('UI compilada abre contra agente Go sin Engine')
+    if not bridged: check_preference(page, context, info['url'], E, passed)
     page.get_by_label('Código de acceso').fill('invalid');page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('alert')).to_contain_text('Código inválido');passed('Acceso inválido rechazado')
     page.get_by_label('Código de acceso').fill(info['code']);page.get_by_role('button',name='Abrir NearProd').click();expect(page.get_by_role('heading',name='Tu entorno, en un solo lugar',exact=False)).to_be_visible();passed('Código de un uso y catálogo offline')
     group_trigger=page.get_by_role('button',name='Crear grupo',exact=True)
@@ -48,6 +50,7 @@ try:
     page.get_by_role('button',name='Guardar backup de configuración').click();expect(page.get_by_role('status').filter(has_text='config')).to_be_visible();passed('Backup privado desde UI')
     page.screenshot(path=str(E/'go-configuracion-persistente.png'),full_page=True)
     nav.get_by_role('button',name='Acceso MCP',exact=True).click();expect(page.get_by_role('heading',name='Acceso MCP.',exact=True)).to_be_visible();mcp_config=page.locator('.mcp-config');expect(mcp_config).to_contain_text('mcp');expect(mcp_config).to_contain_text('serve');assert info['token'] not in mcp_config.inner_text();passed('Acceso MCP stdio visible sin exponer credenciales')
+    if not bridged: check_mcp_themes(page, E, passed)
     nav.get_by_role('button',name='Aplicaciones',exact=False).click();page.get_by_role('button',name='Descubrir aplicaciones',exact=True).click();d=page.get_by_role('dialog',name='Descubrir aplicaciones');d.get_by_label('Carpeta raíz',exact=True).fill(info['root']);d.get_by_role('button',name='Buscar aplicaciones').click();expect(d.get_by_label('Seleccionar Tienda/backend',exact=True)).to_be_visible();passed('Descubrimiento recursivo con Docker detenido')
     d.get_by_label('Seleccionar Tienda/backend',exact=True).check();d.get_by_label('Seleccionar Tienda/frontend',exact=True).check();d.get_by_role('button',name='Configurar selección').click();ed=page.get_by_role('dialog',name='Registrar selección en un grupo');ed.get_by_label('Nombre del nuevo grupo',exact=True).fill('Máximo Puntaje');ed.get_by_role('button',name='Revisar aplicaciones').click();passed('Registro múltiple en un grupo sin ejecución')
     ed.get_by_label('Nombre de la aplicación',exact=True).fill('API Laravel');expect(ed.locator('.file-option').filter(has_text='compose.dev.yaml')).to_be_visible();ed.locator('.file-option').filter(has_text='Elegir archivos de entorno').get_by_role('radio').check();ed.locator('.file-option').filter(has_text='.env.local').get_by_role('checkbox').check();expect(ed.locator('.file-option').filter(has_text='.env.example')).to_contain_text('Plantilla');assert 'private123' not in ed.inner_text();passed('Selectores Compose/env sin revelar secretos')
@@ -66,8 +69,40 @@ try:
     page.screenshot(path=str(E/'go-aplicaciones-urls.png'),full_page=True)
     nav.get_by_role('button',name='Infraestructura',exact=True).click();page.get_by_role('button',name='Crear instancia',exact=True).click();cr=page.get_by_role('dialog',name='Crear instancia de datos');cr.get_by_label('Nombre visible',exact=True).fill('PostgreSQL compartido');cr.get_by_role('button',name='Revisar creación').click();rv=page.get_by_role('dialog',name='Revisar cambio de infraestructura');rv.get_by_role('button',name='Confirmar y aplicar').click();expect(page.get_by_role('heading',name='PostgreSQL compartido',exact=True)).to_be_visible();passed('Creación de instancia persistente (motor simulado)')
     instance=page.locator('.infra-instance').filter(has=page.get_by_role('heading',name='PostgreSQL compartido'))
-    page.evaluate("""() => {const originalFetch=window.fetch;window.fetch=async (...args)=>{if(String(args[0]).includes('/api/infra'))await new Promise(resolve=>setTimeout(resolve,300));return originalFetch(...args);};}""")
-    refresh=page.get_by_role('button',name='Actualizar',exact=True);before=instance.evaluate('(node)=>node.getBoundingClientRect().top');refresh.click();expect(refresh).to_be_disabled();expect(page.get_by_role('status').filter(has_text='Actualizando infraestructura')).to_be_attached();during=instance.evaluate('(node)=>node.getBoundingClientRect().top');expect(refresh).to_be_enabled();after=instance.evaluate('(node)=>node.getBoundingClientRect().top');assert max(before,during,after)-min(before,during,after)<0.5;passed('Refresco de infraestructura conserva layout y estado accesible')
+    # Gate the actual fetch until the pending-state assertions finish; a fixed
+    # delay can elapse before the browser driver observes the loading state.
+    page.evaluate("""() => {
+        const originalFetch=window.fetch;
+        let release;
+        const pending=new Promise(resolve=>{release=resolve;});
+        window.fetch=async (...args)=>{
+            if(String(args[0]).includes('/api/infra')) {
+                document.documentElement.dataset.refreshHeld='true';
+                await pending;
+            }
+            return originalFetch(...args);
+        };
+        window.releaseTestRefresh=()=>{
+            window.fetch=originalFetch;
+            release();
+            delete document.documentElement.dataset.refreshHeld;
+            delete window.releaseTestRefresh;
+        };
+    }""")
+    refresh=page.get_by_role('button',name='Actualizar',exact=True)
+    before=instance.evaluate('(node)=>node.getBoundingClientRect().top')
+    refresh.click()
+    try:
+        expect(page.locator('html')).to_have_attribute('data-refresh-held','true')
+        expect(refresh).to_be_disabled()
+        expect(page.get_by_role('status').filter(has_text='Actualizando infraestructura')).to_be_attached()
+        during=instance.evaluate('(node)=>node.getBoundingClientRect().top')
+    finally:
+        page.evaluate('window.releaseTestRefresh()')
+    expect(refresh).to_be_enabled()
+    after=instance.evaluate('(node)=>node.getBoundingClientRect().top')
+    assert max(before,during,after)-min(before,during,after)<0.5
+    passed('Refresco de infraestructura conserva layout y estado accesible')
     instance.get_by_role('button',name='Crear base + usuario').click();db=page.get_by_role('dialog',name='Crear base y usuario');db.get_by_label('Nombre de la base / aplicación').fill('maximo_dev');db.get_by_role('button',name='Crear y comprobar').click();row=instance.get_by_role('row').filter(has_text='maximo_dev');expect(row).to_contain_text('Lista');passed('Base y credencial propias del proyecto')
     row.get_by_role('button',name='Gestionar ciclo de vida').click();life=page.get_by_role('dialog',name='Gestionar ciclo de vida de base');expect(life.get_by_text('Archivar base (reversible)',exact=True)).to_be_visible();expect(life.get_by_text('Crear backup y purgar',exact=True)).to_be_visible();expect(life.get_by_text('Purgar sin backup',exact=True)).to_be_visible();life.get_by_role('button').last.click();review=page.get_by_role('dialog',name='Revisar cambio de infraestructura');expect(review).to_contain_text('Archivo reversible');review.get_by_role('button',name='Archivar base').click();archived_db=instance.locator('.archived-databases').get_by_role('row').filter(has_text='maximo_dev');expect(archived_db).to_be_visible();archived_db.get_by_role('button',name='Restaurar base').click();page.get_by_role('dialog',name='Revisar cambio de infraestructura').get_by_role('button',name='Restaurar base').click();row=instance.get_by_role('row').filter(has_text='maximo_dev');expect(row).to_contain_text('Lista');passed('Archivo y restauración de base conservan datos y credencial')
     instance.get_by_role('button',name='Crear base + usuario').click();db=page.get_by_role('dialog',name='Crear base y usuario');db.get_by_label('Nombre de la base / aplicación').fill('backup_purge_verify');db.get_by_role('button',name='Crear y comprobar').click();purge_row=instance.get_by_role('row').filter(has_text='backup_purge_verify');expect(purge_row).to_contain_text('Lista');purge_row.get_by_role('button',name='Gestionar ciclo de vida').click();life=page.get_by_role('dialog',name='Gestionar ciclo de vida de base');life.get_by_label('Crear backup y purgar',exact=False).check();life.get_by_role('button').last.click();review=page.get_by_role('dialog',name='Revisar cambio de infraestructura');expect(review).to_contain_text('Crear backup verificado y después purgar');review.get_by_role('button',name='Crear backup y purgar').click();expect(purge_row).not_to_be_visible();passed('Purga con backup elimina solo la base después de exportar')
@@ -87,6 +122,9 @@ try:
     assert applied.value.ok
     expect(api.locator('.badge-running').first).to_be_visible();expect(api.get_by_role('button',name='Aplicar cambios',exact=True)).to_be_enabled();passed('Aplicación en ejecución conserva Iniciar desactivado y permite aplicar la configuración revisada')
     control('break-compose');api.get_by_role('button',name='Detener',exact=True).click();expect(api.locator('.badge-stopped').first).to_be_visible();status_refresh=page.get_by_role('button',name='Actualizar estado');status_refresh.click();expect(status_refresh).to_be_enabled();passed('Recuperación/detención con YAML inválido')
+    # A stopped runtime status can arrive before the stop operation finishes
+    # updating the catalog. Preview only after its committed terminal state.
+    page.wait_for_function("async () => {\n        const response=await fetch('/api/catalog');\n        if(!response.ok) return false;\n        const value=await response.json();\n        return value.operations.every(operation=>['succeeded','failed','cancelled'].includes(operation.state));\n    }")
     api.get_by_role('button',name='Archivar del catálogo').click();review=page.get_by_role('dialog',name='Revisar archivo de aplicación');expect(review).to_contain_text('No se detendrán ni eliminarán');review.get_by_role('button',name='Archivar del catálogo').click();page.wait_for_timeout(500)
     if review.is_visible():raise AssertionError('Archivo de aplicación rechazado: '+review.inner_text())
     archived_app=page.locator('.archived-stack').filter(has=page.get_by_role('heading',name='API Laravel',exact=False));expect(archived_app.locator('.badge-archived')).to_be_visible();archived_app.get_by_role('button',name='Restaurar en el catálogo').click();page.get_by_role('dialog',name='Restaurar aplicación').get_by_role('button',name='Restaurar en el catálogo').click();api=page.locator('.stack').filter(has=page.get_by_role('heading',name='API Laravel',exact=False));expect(api.locator('.badge-stopped').first).to_be_visible();passed('Aplicación archivada y restaurada sin tocar runtime ni checkout')

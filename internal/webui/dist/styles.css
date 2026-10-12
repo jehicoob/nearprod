@@ -6,11 +6,12 @@
   color:var(--text);
   background:var(--bg);
   font-synthesis:none;
-  color-scheme:light;
 }
 * {
   box-sizing:border-box}
 body {
+  font-size:var(--type-body);
+  line-height:1.5;
   margin:0;
   min-width:320px}
 button,input,textarea,select {
@@ -26,7 +27,7 @@ button {
   color:var(--text);
   border-radius:var(--brand-radius);
   padding:7px 12px;
-  font-size:12px;
+  font-size:var(--type-body);
   font-weight:550;
   cursor:pointer;
   white-space:nowrap;
@@ -82,7 +83,7 @@ input,textarea,select {
   background:var(--raised);
   color:var(--text);
   padding:10px 11px;
-  font-size:13px;
+  font-size:var(--type-body);
   min-width:0}
 input::placeholder,textarea::placeholder {
   color:var(--muted)}
@@ -99,7 +100,7 @@ label {
   display:flex;
   flex-direction:column;
   gap:7px;
-  font-size:12px;
+  font-size:var(--type-body);
   color:var(--text-secondary);
   margin:12px 0}
 textarea {
@@ -114,26 +115,27 @@ h1 {
   line-height:1.3;
   font-weight:600}
 h2 {
-  font-size:16px;
+  font-size:var(--type-section);
+  line-height:1.4;
   font-weight:600}
 h3 {
-  font-size:13px;
+  font-size:var(--type-body);
   font-weight:600}
 p {
-  font-size:13px;
+  font-size:var(--type-body);
   line-height:1.65;
   color:var(--muted)}
 code,.mono {
   font-family:var(--brand-mono);
-  font-size:11px}
+  font-size:var(--type-detail)}
 .muted,.hint {
   color:var(--muted)}
 .hint {
-  font-size:11px;
+  font-size:var(--type-detail);
   line-height:1.6;
   margin-top:10px}
 .eyebrow {
-  font-size:10px;
+  font-size:var(--type-caption);
   letter-spacing:1.5px;
   font-weight:600;
   color:var(--muted);
@@ -183,14 +185,14 @@ code,.mono {
   border-radius:0;
   flex:none}
 .version-label {
-  font:8px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   color:var(--shell-muted);
   letter-spacing:.7px;
   margin-top:13px;
-  font-size:9px}
+  font-size:var(--type-caption)}
 .nav-caption {
   color:var(--shell-muted);
-  font-size:9px;
+  font-size:var(--type-caption);
   font-weight:600;
   letter-spacing:1.6px;
   margin:44px 12px 12px}
@@ -205,7 +207,7 @@ nav button {
   justify-content:flex-start;
   gap:11px;
   padding:12px;
-  font-size:12px;
+  font-size:var(--type-body);
   min-height:45px}
 nav button.active {
   background:var(--shell-raised);
@@ -214,7 +216,7 @@ nav button.active {
   box-shadow:inset 3px 0 0 var(--brand-accent-on-dark)}
 nav button span {
   margin-left:auto;
-  font:10px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   border:1px solid var(--line);
   padding:2px 6px;
   border-radius:5px;
@@ -231,16 +233,16 @@ nav button span {
   border-bottom:1px solid var(--line);
   border-color:var(--shell-line)}
 .host-card strong {
-  font-size:8px;
+  font-size:var(--type-caption);
   letter-spacing:1px}
 .host-card p {
-  font-size:11px}
+  font-size:var(--type-detail)}
 .sidebar-bottom>p {
-  font-size:10px;
+  font-size:var(--type-caption);
   line-height:1.8;
   margin:16px 6px}
 .sidebar-bottom>button {
-  font-size:10px}
+  font-size:var(--type-caption)}
 .main {
   margin-left:224px;
   width:calc(100% - 224px);
@@ -261,7 +263,7 @@ nav button span {
   display:flex;
   gap:13px;
   align-items:center;
-  font-size:11px;
+  font-size:var(--type-detail);
   color:var(--shell-muted)}
 .breadcrumb strong {
   color:var(--shell-text);
@@ -270,10 +272,10 @@ nav button span {
   display:flex;
   gap:9px;
   align-items:center;
-  font-size:10px;
+  font-size:var(--type-caption);
   color:var(--shell-muted)}
 .context-tag {
-  font:9px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   padding:5px 7px;
   border:1px solid var(--line);
   border-radius:4px;
@@ -308,7 +310,7 @@ main {
 .hero {
   margin:3px 0 28px}
 .hero h1 {
-  font-size:32px;
+  font-size:var(--type-page);
   letter-spacing:-1.1px}
 .hero>button {
   min-height:40px;
@@ -327,12 +329,12 @@ main {
 .overview>div:first-child {
   border-left:0}
 .overview>div>span {
-  font:9px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   color:var(--muted);
   letter-spacing:.6px}
 .overview strong {
   display:block;
-  font-size:32px;
+  font-size:var(--type-page);
   font-weight:500;
   letter-spacing:-.6px;
   line-height:1.3;
@@ -344,7 +346,7 @@ main {
 .overview small {
   display:block;
   color:var(--muted);
-  font-size:10px;
+  font-size:var(--type-caption);
   font-weight:400;
   letter-spacing:0;
   margin-top:5px}
@@ -360,9 +362,9 @@ main {
   color:var(--warning-text);
   border-color:var(--warning-line)}
 .runtime-banner strong {
-  font-size:12px}
+  font-size:var(--type-body)}
 .runtime-banner p {
-  font-size:11px;
+  font-size:var(--type-detail);
   margin-top:5px;
   color:var(--warning-text)}
 .runtime-banner>div {
@@ -388,7 +390,7 @@ main {
 .count {
   display:inline-flex;
   border:1px solid var(--line);
-  font:10px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   padding:3px 7px;
   border-radius:5px;
   color:var(--text-secondary)}
@@ -404,7 +406,7 @@ main {
   padding:9px 12px 9px 35px;
   width:245px;
   background:var(--panel);
-  font-size:11px}
+  font-size:var(--type-detail)}
 .product {
   border:1px solid var(--line);
   border-radius:var(--brand-radius);
@@ -428,16 +430,16 @@ main {
   width:34px;
   color:var(--link)}
 .product-heading h2 {
-  font-size:14px}
+  font-size:var(--type-body)}
 .product-heading p {
-  font-size:10px;
+  font-size:var(--type-caption);
   margin-top:4px}
 .product-actions {
   margin-left:auto;
   display:flex;
   gap:8px}
 .product-actions button {
-  font-size:10px;
+  font-size:var(--type-caption);
   min-height:28px}
 .stacks {
   padding:14px}
@@ -467,11 +469,11 @@ main {
   display:flex;
   align-items:center;
   gap:5px 10px;
-  font-size:14px;
+  font-size:var(--type-body);
   line-height:1.7;
   flex-wrap:wrap}
 .stack-description h3>span {
-  font-size:9px;
+  font-size:var(--type-caption);
   font-weight:400;
   color:var(--text-secondary);
   background:var(--surface-subtle);
@@ -479,7 +481,7 @@ main {
   border-radius:4px;
   padding:0 5px}
 .path {
-  font-size:11px;
+  font-size:var(--type-detail);
   color:var(--muted);
   overflow:hidden;
   text-overflow:ellipsis;
@@ -491,27 +493,27 @@ main {
   align-items:center;
   flex-wrap:wrap}
 .stack-meta>.mono {
-  font-size:9px;
+  font-size:var(--type-caption);
   color:var(--text-secondary);
   margin-right:7px}
 .stack-mode {
   min-width:155px}
 .stack-mode label {
   margin:0;
-  font-size:9px;
+  font-size:var(--type-caption);
   flex-direction:row;
   align-items:center;
   gap:8px}
 .stack-mode select {
   padding:6px 9px;
-  font-size:10px}
+  font-size:var(--type-caption)}
 .stack-mode>.hint {
-  font-size:9px;
+  font-size:var(--type-caption);
   display:block;
   text-align:left;
   margin-top:8px}
 .badge {
-  font:9px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   border:1px solid var(--line);
   display:inline-flex;
   align-items:center;
@@ -522,7 +524,7 @@ main {
   white-space:nowrap;
   line-height:1;
   background:var(--surface-subtle);
-  font-size:10px}
+  font-size:var(--type-caption)}
 .badge-running,.badge-healthy,.badge-succeeded {
   border-color:var(--success-line);
   background:var(--success-bg);
@@ -595,14 +597,14 @@ main {
   align-items:center;
   flex-wrap:wrap}
 .stack-actions button {
-  font-size:10px;
+  font-size:var(--type-caption);
   min-height:28px;
   padding:5px 9px}
 .stack-secondary button {
   border:0;
   background:none;
   color:var(--text-secondary);
-  font-size:9px;
+  font-size:var(--type-caption);
   padding:4px;
   min-height:26px}
 .stack-secondary button:first-child {
@@ -612,7 +614,7 @@ main {
 .container-details>summary {
   padding:12px 0;
   color:var(--text-secondary);
-  font-size:10px}
+  font-size:var(--type-caption)}
 .container-list {
   padding-bottom:12px;
   display:flex;
@@ -628,19 +630,19 @@ main {
   border-radius:5px;
   flex-wrap:wrap}
 .container>.mono {
-  font-size:10px}
+  font-size:var(--type-caption)}
 .container-links {
   margin-left:auto;
   display:flex;
   gap:9px;
   align-items:center}
 .container-links a {
-  font:10px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   display:inline-flex;
   gap:5px}
 .container-links button {
   padding:3px 6px;
-  font-size:9px;
+  font-size:var(--type-caption);
   min-height:24px}
 .watch-bar {
   padding:9px 14px;
@@ -649,13 +651,13 @@ main {
   gap:9px;
   border-top:1px solid var(--line);
   color:var(--text-secondary);
-  font-size:9px;
+  font-size:var(--type-caption);
   flex-wrap:wrap}
 .watch-bar>span:first-child {
   margin-right:auto}
 .watch-bar button {
   padding:2px 6px;
-  font-size:9px;
+  font-size:var(--type-caption);
   min-height:23px;
   background:transparent}
 .empty {
@@ -679,11 +681,11 @@ main {
   font-size:19px;
   letter-spacing:-.3px}
 .empty p {
-  font-size:12px;
+  font-size:var(--type-body);
   max-width:500px}
 .empty>code {
   color:var(--text-secondary);
-  font-size:11px}
+  font-size:var(--type-detail)}
 .empty.small {
   border:0;
   padding:30px;
@@ -702,11 +704,11 @@ main {
   color:var(--text-secondary);
   margin-bottom:17px}
 .panel-heading h2 {
-  font-size:13px;
+  font-size:var(--type-section);
   color:var(--text)}
 .panel-heading>button {
   margin-left:auto;
-  font-size:10px}
+  font-size:var(--type-caption)}
 .recent {
   margin-top:30px}
 .operation-list {
@@ -728,18 +730,18 @@ main {
   display:flex;
   align-items:center;
   gap:10px;
-  font-size:11px}
+  font-size:var(--type-detail)}
 .operation-title svg {
   color:var(--text-secondary)}
 .operation-title .mono {
-  font-size:10px}
+  font-size:var(--type-caption)}
 .operation-meta time {
-  font:9px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   color:var(--text-secondary)}
 .operation-details {
   padding:0 14px 14px}
 .operation-details>p {
-  font-size:9px}
+  font-size:var(--type-caption)}
 .console {
   background:var(--shell-bg);
   border:1px solid var(--line);
@@ -748,7 +750,7 @@ main {
   white-space:pre-wrap;
   overflow-wrap:anywhere;
   color:var(--shell-text);
-  font:11px/1.8 var(--brand-mono);
+  font:var(--type-detail)/1.8 var(--brand-mono);
   max-height:310px;
   overflow:auto;
   border-color:var(--shell-line);
@@ -758,7 +760,7 @@ main {
   border-top:1px solid var(--line);
   display:flex;
   justify-content:space-between;
-  font:9px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   color:var(--muted);
   background:var(--bg)}
 .alert {
@@ -769,7 +771,7 @@ main {
   border-radius:7px;
   background:var(--info-bg);
   color:var(--info-text);
-  font-size:12px;
+  font-size:var(--type-body);
   line-height:1.6;
   margin:14px 0;
   border-color:var(--info-line)}
@@ -794,7 +796,7 @@ main {
   color:var(--success-text);
   padding:10px 14px;
   margin-bottom:20px;
-  font-size:12px;
+  font-size:var(--type-body);
   line-height:1.5;
   border-color:var(--success-line)}
 .toast.error {
@@ -812,7 +814,7 @@ main {
   gap:13px;
   padding:45px;
   color:var(--text-secondary);
-  font-size:12px}
+  font-size:var(--type-body)}
 .spinner {
   width:16px;
   height:16px;
@@ -853,7 +855,7 @@ dialog::backdrop {
   letter-spacing:-.5px}
 .modal-heading p {
   margin-top:7px;
-  font-size:12px}
+  font-size:var(--type-body)}
 .modal-heading>button {
   align-self:flex-start}
 .modal-actions {
@@ -873,7 +875,7 @@ fieldset {
   margin:19px 0;
   padding:14px}
 legend {
-  font-size:12px;
+  font-size:var(--type-body);
   color:var(--text-secondary);
   padding:0 7px}
 .check-label {
@@ -881,7 +883,7 @@ legend {
   align-items:center;
   gap:10px;
   margin:17px 0;
-  font-size:12px}
+  font-size:var(--type-body)}
 .scan-fields {
   display:flex;
   gap:12px;
@@ -896,7 +898,7 @@ legend {
   height:37px}
 .scan-result {
   padding:13px 0;
-  font:10px var(--brand-mono);
+  font:var(--type-caption) var(--brand-mono);
   color:var(--text-secondary);
   border-bottom:1px solid var(--line);
   margin-top:15px}
@@ -917,23 +919,23 @@ legend {
   flex:1;
   min-width:0}
 .candidate h3 {
-  font-size:13px;
+  font-size:var(--type-body);
   margin-bottom:6px}
 .candidate .mono {
-  font-size:10px;
+  font-size:var(--type-caption);
   overflow-wrap:anywhere}
 .warning-text {
   color:var(--warning-text);
-  font-size:10px}
+  font-size:var(--type-caption)}
 .review-summary {
   display:flex;
   gap:15px;
   align-items:center;
   margin-bottom:23px;
   color:var(--text-secondary);
-  font-size:12px}
+  font-size:var(--type-body)}
 .file-list {
-  font-size:11px;
+  font-size:var(--type-detail);
   line-height:1.9;
   color:var(--text-secondary);
   padding-left:20px;
@@ -945,9 +947,9 @@ table {
   width:100%;
   border-collapse:collapse;
   text-align:left;
-  font-size:11px}
+  font-size:var(--type-detail)}
 th {
-  font-size:10px;
+  font-size:var(--type-caption);
   font-weight:600;
   color:var(--text-secondary);
   background:var(--surface-subtle);
@@ -959,10 +961,10 @@ td {
   color:var(--text);
   max-width:310px}
 td.mono {
-  font-size:10px}
+  font-size:var(--type-caption)}
 summary {
   cursor:pointer;
-  font-size:12px;
+  font-size:var(--type-body);
   line-height:1.7}
 .risk-box {
   border:1px solid var(--line);
@@ -974,7 +976,7 @@ summary {
 .risk-box h3 {
   color:var(--warning-text)}
 .risk-box ul,.hints {
-  font-size:11px;
+  font-size:var(--type-body);
   line-height:1.8;
   color:var(--muted);
   padding-left:18px}
@@ -989,7 +991,7 @@ summary {
   justify-content:space-around;
   margin:20px 0 26px}
 .metric-pair>div>span,.metrics>div>span {
-  font-size:10px;
+  font-size:var(--type-caption);
   color:var(--text-secondary)}
 .metric-pair strong {
   font-size:29px;
@@ -1017,7 +1019,7 @@ summary {
   padding:12px 0;
   border-top:1px solid var(--line);
   flex-wrap:wrap;
-  font-size:11px}
+  font-size:var(--type-detail)}
 .tool svg {
   color:var(--text-secondary)}
 .tool strong {
@@ -1062,7 +1064,7 @@ summary {
   margin:9px 0 13px;
   font-weight:500}
 .login-card>p {
-  font-size:12px}
+  font-size:var(--type-body)}
 .login-card form {
   margin-top:22px}
 .login-card label {
@@ -1077,7 +1079,7 @@ summary {
   padding-top:20px;
   margin-top:25px;
   color:var(--text-secondary);
-  font-size:10px}
+  font-size:var(--type-caption)}
 .login-page>.hint {
   max-width:430px;
   text-align:center;
@@ -1121,7 +1123,7 @@ summary {
   align-items:center;
   gap:8px;
   color:var(--text-secondary);
-  font-size:10px;
+  font-size:var(--type-caption);
   padding:6px 0 10px}
 .log-status>span:last-child {
   margin-left:auto}
@@ -1132,7 +1134,7 @@ summary {
   margin:0;
   line-height:1.8;
   padding:13px;
-  font-size:10px}
+  font-size:var(--type-caption)}
 .logs-output>div {
   padding:3px 0;
   border-bottom:1px solid var(--line);
@@ -1143,7 +1145,7 @@ summary {
 .logs-output .stderr {
   color:var(--shell-warning)}
 .logs-drawer>.hint {
-  font-size:10px}
+  font-size:var(--type-caption)}
 
 @media(min-width:1550px) {
   main {
@@ -1166,13 +1168,13 @@ main {
 .hero h1 {
   font-size:24px}
 .hero p {
-  font-size:12px}
+  font-size:var(--type-body)}
 .hero>button {
-  font-size:11px}
+  font-size:var(--type-detail)}
 .overview>div {
   padding:0 14px}
 .overview>div>span {
-  font-size:8px}
+  font-size:var(--type-caption)}
 .stack-bottom {
   align-items:flex-start}
 .stack-mode {
@@ -1234,11 +1236,11 @@ nav button span {
 .form-grid {
   grid-template-columns:1fr}
 .breadcrumb {
-  font-size:10px}
+  font-size:var(--type-caption)}
 .context-tag {
   display:none}
 .footer {
-  font-size:8px;
+  font-size:var(--type-caption);
   gap:15px}
 .operation-meta time {
   display:none}
@@ -1257,7 +1259,7 @@ main {
 .hero h1 {
   font-size:24px}
 .topbar-status {
-  font-size:9px}
+  font-size:var(--type-caption)}
 .project-toolbar>div {
   flex-wrap:wrap;
   width:100%}
@@ -1270,7 +1272,7 @@ main {
 .product-details>.lifecycle-hint {
   padding:12px 15px 0}
 .product-actions button {
-  font-size:9px;
+  font-size:var(--type-caption);
   min-height:25px}
 .stacks {
   padding:9px}
@@ -1285,11 +1287,11 @@ main {
 .stack-bottom {
   padding:10px}
 .stack-actions button {
-  font-size:9px}
+  font-size:var(--type-caption)}
 .stack-secondary {
   width:100%}
 .watch-bar {
-  font-size:9px}
+  font-size:var(--type-caption)}
 .watch-bar>span:first-child {
   width:100%}
 .operation-title {
@@ -1307,9 +1309,9 @@ main {
 .modal {
   padding:19px}
 .overview>div>span {
-  font-size:8px}
+  font-size:var(--type-caption)}
 .overview small {
-  font-size:9px}
+  font-size:var(--type-caption)}
 .overview strong {
   font-size:24px}
 .footer {
@@ -1343,42 +1345,42 @@ main {
 .skeleton-block.compact {min-height:28px;display:inline-flex;width:85px;padding:6px 0;vertical-align:middle}
 @keyframes skeleton-shimmer {0% {background-position:100% 0}100% {background-position:0 0}}
 .field {margin:16px 0;min-width:0}
-.field>label {margin:0 0 8px;font-size:13px;font-weight:550;color:var(--text-secondary)}
-.field-help {font-size:12px;line-height:1.6;margin-top:7px;color:var(--text-secondary)}
-.field-help code {font-size:11px;color:var(--text-secondary)}
+.field>label {margin:0 0 8px;font-size:var(--type-body);font-weight:550;color:var(--text-secondary)}
+.field-help {font-size:var(--type-body);line-height:1.6;margin-top:7px;color:var(--text-secondary)}
+.field-help code {font-size:var(--type-detail);color:var(--text-secondary)}
 .inline-actions {display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:16px}
 .inline-input {display:flex;gap:8px;align-items:center;margin-top:12px}
 .inline-input input {flex:1}
 .advanced {border:1px solid var(--line);border-radius:9px;padding:15px 16px;margin:17px 0}
-.advanced>summary {font-size:13px;color:var(--text-secondary);font-weight:550}
+.advanced>summary {font-size:var(--type-body);color:var(--text-secondary);font-weight:550}
 .advanced[open]>summary {margin-bottom:14px}
-.advanced p {font-size:12px;margin-bottom:10px}
+.advanced p {font-size:var(--type-body);margin-bottom:10px}
 .compact-details {padding:11px 13px}
 .group-picker {
   padding:8px 17px;border:1px solid var(--line);background:var(--surface-selected);border-radius:9px;margin-bottom:20px}
 .checkout-summary {display:flex;gap:12px;align-items:center;padding:14px;background:var(--surface-subtle);border-radius:8px;min-width:0}
 .checkout-summary>span {flex:1;min-width:0}
-.checkout-summary strong {display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px}
+.checkout-summary strong {display:block;font-size:var(--type-body);color:var(--text-secondary);margin-bottom:5px}
 .checkout-summary code {display:block;overflow-wrap:anywhere;color:var(--text-secondary)}
 .mode-editor {margin:22px 0;padding:16px 18px}
-.mode-editor legend {font-size:13px;font-weight:600}
-.mode-editor h4 {font-size:13px;font-weight:600;margin:8px 0;color:var(--text-secondary)}
+.mode-editor legend {font-size:var(--type-body);font-weight:600}
+.mode-editor h4 {font-size:var(--type-body);font-weight:600;margin:8px 0;color:var(--text-secondary)}
 .file-picker {margin:9px 0}
 .file-option {
   display:flex;flex-direction:row;gap:12px;align-items:flex-start;padding:11px 12px;border:1px solid var(--line);background:var(--panel);border-radius:7px;margin:9px 0;cursor:pointer;min-width:0}
 .file-option input {flex-shrink:0;margin-top:2px}
 input[type=radio] {width:16px;height:16px;accent-color:var(--link);flex-shrink:0}
 .file-option>span {
-  min-width:0;flex:1;font-size:13px;color:var(--text)}
+  min-width:0;flex:1;font-size:var(--type-body);color:var(--text)}
 .file-option code {
   overflow-wrap:anywhere;color:var(--link)}
-.file-option small {display:block;font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.5}
+.file-option small {display:block;font-size:var(--type-detail);color:var(--text-secondary);margin-top:4px;line-height:1.5}
 .ordered-selection {padding:13px;background:var(--surface-subtle);border-radius:8px;margin-top:14px}
-.ordered-selection>strong {font-size:11px;color:var(--text-secondary);display:block;margin-bottom:10px}
+.ordered-selection>strong {font-size:var(--type-detail);color:var(--text-secondary);display:block;margin-bottom:10px}
 .ordered-selection>div {display:flex;align-items:center;gap:8px;margin:7px 0}
 .ordered-selection code {flex:1;overflow-wrap:anywhere;min-width:0}
 .ordered-selection button {min-height:27px;padding:4px 8px}
-.file-number {font-size:11px;background:var(--surface-subtle);border-radius:4px;padding:4px 7px;color:var(--text-secondary)}
+.file-number {font-size:var(--type-detail);background:var(--surface-subtle);border-radius:4px;padding:4px 7px;color:var(--text-secondary)}
 .env-selector,.profiles-selector {border-top:1px solid var(--line);padding-top:14px;margin-top:23px}
 .candidate.selectable {flex-direction:row;margin:10px 0;cursor:pointer;align-items:flex-start}
 .candidate.selectable input {flex-shrink:0;margin-top:4px}
@@ -1386,45 +1388,45 @@ input[type=radio] {width:16px;height:16px;accent-color:var(--link);flex-shrink:0
 .candidate.selectable.selected {
   border-color:var(--focus);background:var(--surface-selected)}
 .candidate-description {display:block;flex:1;min-width:0}
-.candidate-description strong {display:block;font-size:13px;color:var(--text-secondary)}
+.candidate-description strong {display:block;font-size:var(--type-body);color:var(--text-secondary)}
 .candidate-description code {display:block;margin:7px 0;overflow-wrap:anywhere}
-.candidate-description small {display:block;font-size:11px;line-height:1.5;color:var(--text-secondary)}
-.selection-count {font-size:12px;margin-right:auto;align-self:center;color:var(--text-secondary)}
+.candidate-description small {display:block;font-size:var(--type-detail);line-height:1.5;color:var(--text-secondary)}
+.selection-count {font-size:var(--type-body);margin-right:auto;align-self:center;color:var(--text-secondary)}
 .wizard-steps {display:flex;gap:9px;margin-bottom:22px}
-.wizard-steps span {flex:1;font-size:12px;padding:12px 10px;background:var(--surface-subtle);border:1px solid var(--line);border-radius:6px;color:var(--text-secondary)}
+.wizard-steps span {flex:1;font-size:var(--type-body);padding:12px 10px;background:var(--surface-subtle);border:1px solid var(--line);border-radius:6px;color:var(--text-secondary)}
 .wizard-steps span.current {
   color:var(--text);border-color:var(--focus);background:var(--surface-selected)}
-.wizard-context {display:flex;justify-content:space-between;gap:10px;padding:12px;background:var(--surface-subtle);border-radius:6px;font-size:12px;margin-bottom:18px}
+.wizard-context {display:flex;justify-content:space-between;gap:10px;padding:12px;background:var(--surface-subtle);border-radius:6px;font-size:var(--type-body);margin-bottom:18px}
 .registration-summary {padding:15px;border:1px solid var(--line);border-radius:8px;margin:13px 0}
 .registration-summary>div {display:flex;align-items:center;justify-content:space-between;gap:10px}
-.registration-summary strong {font-size:14px}
-.registration-summary p {font-size:12px;margin-top:7px;overflow-wrap:anywhere}
+.registration-summary strong {font-size:var(--type-body)}
+.registration-summary p {font-size:var(--type-body);margin-top:7px;overflow-wrap:anywhere}
 .registration-summary code {display:block;margin-top:10px;color:var(--text-secondary)}
 .link-editor {padding:0 13px 14px;border:1px solid var(--line);border-radius:7px;margin:12px 0}
-.runtime-state {display:flex;align-items:center;gap:9px;margin:12px 0;font-size:13px}
+.runtime-state {display:flex;align-items:center;gap:9px;margin:12px 0;font-size:var(--type-body)}
 .runtime-state .hint {margin:0 0 0 auto}
 .runtime-ok {
-  display:inline-flex;gap:7px;align-items:center;color:var(--success-text);font-size:12px}
-.tool-status {font-size:11px;color:var(--text-secondary)}
+  display:inline-flex;gap:7px;align-items:center;color:var(--success-text);font-size:var(--type-body)}
+.tool-status {font-size:var(--type-detail);color:var(--text-secondary)}
 .tool>.field-help {flex-basis:100%;margin:0 0 0 30px}
-.tool .field-help strong {font-size:11px;min-width:0;font-weight:500}
+.tool .field-help strong {font-size:var(--type-detail);min-width:0;font-weight:500}
 .update-results {margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .app-links {display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:13px 18px;border-top:1px solid var(--line)}
-.app-links>span {font-size:11px;color:var(--text-secondary);flex-basis:100%}
-.app-links>a {font-size:12px;padding:7px 10px;border:1px solid var(--line);border-radius:5px;display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap}
-.app-links small {font-size:10px;color:var(--text-secondary);display:block;flex-basis:100%;overflow-wrap:anywhere}
+.app-links>span {font-size:var(--type-detail);color:var(--text-secondary);flex-basis:100%}
+.app-links>a {font-size:var(--type-body);padding:7px 10px;border:1px solid var(--line);border-radius:5px;display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap}
+.app-links small {font-size:var(--type-caption);color:var(--text-secondary);display:block;flex-basis:100%;overflow-wrap:anywhere}
 .product-actions {flex-wrap:wrap;justify-content:flex-end}
-@media(max-width:600px) {.wizard-steps{gap:5px}.wizard-steps span{font-size:10px;padding:10px 6px}.group-picker{padding:4px 12px}.mode-editor{padding:12px}.modal-actions{position:static}.candidate.selectable{padding:11px}.checkout-summary{flex-wrap:wrap}.inline-input{flex-wrap:wrap}}
+@media(max-width:600px) {.wizard-steps{gap:5px}.wizard-steps span{font-size:var(--type-caption);padding:10px 6px}.group-picker{padding:4px 12px}.mode-editor{padding:12px}.modal-actions{position:static}.candidate.selectable{padding:11px}.checkout-summary{flex-wrap:wrap}.inline-input{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce) {.skeleton-line {animation:none;background:var(--surface-subtle)}}
 /* Managed ingress: status, destination and diagnostics remain separate. */
 .route-editor{margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--surface-subtle)}
 .route-form{padding:18px;margin:16px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface-subtle)}
 .route-preview{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px}.route-preview code{overflow-wrap:anywhere}.route-preview button{margin-left:auto}
 .managed-routes{padding:16px 20px;border-top:1px solid var(--line);min-width:0}.managed-routes>strong {
-  display:flex;gap:8px;align-items:center;color:var(--link);font-size:13px}
+  display:flex;gap:8px;align-items:center;color:var(--link);font-size:var(--type-body)}
 .managed-route{padding:12px 0;min-width:0}.route-title{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.route-title a {
-  display:flex;gap:8px;align-items:center;overflow-wrap:anywhere;word-break:break-word;font-size:13px;color:var(--link)} .route-check{display:grid;gap:7px;padding:12px;border-radius:8px;background:var(--surface-subtle);font-size:12px}.route-check span{color:var(--text-secondary)}.route-check code{overflow-wrap:anywhere}
-.proxy-explainer{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:14px;border-radius:8px;background:var(--surface-subtle);font-size:12px}.proxy-explainer code{overflow-wrap:anywhere}.proxy-explainer span{color:var(--text-secondary)}
+  display:flex;gap:8px;align-items:center;overflow-wrap:anywhere;word-break:break-word;font-size:var(--type-body);color:var(--link)} .route-check{display:grid;gap:7px;padding:12px;border-radius:8px;background:var(--surface-subtle);font-size:var(--type-body)}.route-check span{color:var(--text-secondary)}.route-check code{overflow-wrap:anywhere}
+.proxy-explainer{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:14px;border-radius:8px;background:var(--surface-subtle);font-size:var(--type-body)}.proxy-explainer code{overflow-wrap:anywhere}.proxy-explainer span{color:var(--text-secondary)}
 .proxy-stack{border:1px solid var(--line);margin:18px 0;border-radius:10px;padding:16px}.proxy-stack .panel-heading{flex-wrap:wrap}.proxy-stack .panel-heading button{margin-left:auto}.proxy-pending{display:flex;gap:12px;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:12px 0}.proxy-pending small{display:block;color:var(--text-secondary)}.review-routes{padding:16px;background:var(--surface-subtle);border-radius:10px;margin:16px 0}
 @media(max-width:620px){.route-editor,.route-form{padding:12px}.managed-routes{padding:12px}.route-title a{max-width:100%}.proxy-pending{align-items:flex-start;flex-direction:column}}
 
@@ -1449,16 +1451,16 @@ input[type=radio] {width:16px;height:16px;accent-color:var(--link);flex-shrink:0
 .mcp-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin:1.25rem 0}
 .mcp-facts {display:grid;gap:.75rem;margin:1.25rem 0 0}
 .mcp-facts div {display:grid;grid-template-columns:90px minmax(0,1fr);gap:.75rem;align-items:start}
-.mcp-facts dt {color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.mcp-facts dt {color:var(--muted);font-size:var(--type-detail);text-transform:uppercase;letter-spacing:.08em}
 .mcp-facts dd {margin:0;min-width:0;overflow-wrap:anywhere}
 .mcp-config {max-height:310px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-.mcp-steps {display:grid;gap:.8rem;padding-left:1.2rem;color:var(--muted)}
+.mcp-steps {display:grid;gap:.8rem;padding-left:1.2rem;color:var(--text-secondary);font-size:var(--type-body);line-height:1.6}
 @media(max-width:900px){.mcp-grid{grid-template-columns:1fr}}
-@media(max-width:600px){.mobile-table-hint{display:block;margin-bottom:.6rem;font-size:11px}.mcp-facts div{grid-template-columns:1fr;gap:.2rem}}
+@media(max-width:600px){.mobile-table-hint{display:block;margin-bottom:.6rem;font-size:var(--type-detail)}.mcp-facts div{grid-template-columns:1fr;gap:.2rem}}
 
 /* Per-application disclosure keeps status visible while hiding all controls/resources. */
 .stack-main {flex-wrap:nowrap}
-.disclosure-toggle {flex-shrink:0;min-height:34px;padding:6px 9px;font-size:10px;line-height:1.2}
+.disclosure-toggle {flex-shrink:0;min-height:34px;padding:6px 9px;font-size:var(--type-caption);line-height:1.2}
 .disclosure-toggle[aria-expanded="true"] svg {transform:rotate(90deg)}
 .disclosure-toggle:focus-visible {outline:2px solid var(--focus);outline-offset:3px}
 .stack-details[hidden],.product-details[hidden] {display:none}
@@ -1474,7 +1476,7 @@ input[type=radio] {width:16px;height:16px;accent-color:var(--link);flex-shrink:0
 .stack .badge {justify-content:center;text-align:center}
 .stack-bottom {align-items:center}
 @media(max-width:600px) {
-  .disclosure-toggle {min-height:36px;padding:6px;font-size:10px;gap:4px}
+  .disclosure-toggle {min-height:36px;padding:6px;font-size:var(--type-caption);gap:4px}
   .stack-description h3 {gap:3px 7px;line-height:1.4;overflow-wrap:anywhere}
   .stack-options {padding:10px}
   .stack-options .stack-mode {gap:7px 12px}
@@ -1498,9 +1500,9 @@ button.start:hover:not(:disabled) {background:var(--success-bg);border-color:var
 button.stop:hover:not(:disabled) {background:var(--warning-bg);border-color:var(--warning-text)}
 button.danger {background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger-text)}
 .stack-secondary button:hover:not(:disabled),button.text-button:hover:not(:disabled) {color:var(--link)}
-.stack-secondary button,.path,.stack-meta>.mono,.stack-mode label,.stack-mode>.hint,.container-details>summary,.watch-bar {font-size:11px}
+.stack-secondary button,.path,.stack-meta>.mono,.stack-mode label,.stack-mode>.hint,.container-details>summary,.watch-bar {font-size:var(--type-detail)}
 .stack-secondary button {min-height:28px}
-.product-actions button,.stack-actions button {font-size:11px;min-height:32px}
+.product-actions button,.stack-actions button {font-size:var(--type-detail);min-height:32px}
 .overview>div,.metrics>div {min-width:0}
 .review-summary {flex-wrap:wrap;gap:10px 15px}
 .panel-heading,.registration-summary>div {flex-wrap:wrap}
@@ -1508,7 +1510,7 @@ button.danger {background:var(--danger-bg);border-color:var(--danger-line);color
 .logs-header h2 {overflow-wrap:anywhere}
 .table-wrap {max-width:100%}
 .console a {color:var(--brand-accent-on-dark)}
-.login-page .brand-dot {color:var(--brand-accent)}
+.login-page .brand-dot {color:var(--primary)}
 
 @media(prefers-reduced-motion:no-preference) {
   .modal[open],.logs-drawer {animation:surface-arrive var(--brand-duration-feedback) var(--brand-ease)}
@@ -1529,28 +1531,28 @@ button.danger {background:var(--danger-bg);border-color:var(--danger-line);color
   .sidebar .brand-dot {display:inline}
   .sidebar .logo {width:30px;height:30px}
   .sidebar nav {grid-column:1/-1;grid-row:2;flex-direction:row;margin:0 -17px;padding:0 17px 5px;overflow-x:auto;gap:6px;scroll-padding-inline:17px}
-  .sidebar nav button {flex:none;font-size:12px;gap:8px;min-height:42px;padding:10px 12px;justify-content:flex-start}
+  .sidebar nav button {flex:none;font-size:var(--type-body);gap:8px;min-height:42px;padding:10px 12px;justify-content:flex-start}
   .sidebar nav button.active {box-shadow:inset 0 -2px 0 var(--brand-accent-on-dark)}
   .sidebar-bottom {display:block;grid-column:2;grid-row:1;margin:0;padding:0;align-self:center}
   .sidebar-bottom .host-card,.sidebar-bottom>p {display:none}
-  .sidebar-bottom>button {font-size:10px;min-height:32px;white-space:normal;max-width:95px;text-align:right}
+  .sidebar-bottom>button {font-size:var(--type-caption);min-height:32px;white-space:normal;max-width:95px;text-align:right}
   .topbar {height:auto;min-height:48px;gap:10px;flex-wrap:wrap;padding-block:10px}
   .hero h1 {font-size:28px;line-height:1.2}
   .hero>button {width:100%;min-height:44px}
   .overview {padding:18px 0;gap:22px 0}
   .overview>div {padding:0 12px}
-  .overview>div>span {font-size:9px;line-height:1.5;display:block}
-  .overview small {font-size:10px;line-height:1.5}
+  .overview>div>span {font-size:var(--type-caption);line-height:1.5;display:block}
+  .overview small {font-size:var(--type-caption);line-height:1.5}
   .project-toolbar>div {min-width:0}
   .project-toolbar .search {flex-basis:calc(100% - 50px)}
   .product-heading {flex-wrap:wrap}
   .product-actions {width:100%;flex-direction:row;justify-content:flex-start;margin-left:0}
-  .product-actions button {flex:1;white-space:normal;font-size:11px;min-height:36px}
+  .product-actions button {flex:1;white-space:normal;font-size:var(--type-detail);min-height:36px}
   .stack-mode {width:100%}
-  .stack-mode select {font-size:12px;min-height:36px}
+  .stack-mode select {font-size:var(--type-body);min-height:36px}
   .stack-mode>.hint {text-align:left}
   .stack-actions {width:100%;gap:6px}
-  .stack-actions button {flex:1;font-size:11px;min-height:36px}
+  .stack-actions button {flex:1;font-size:var(--type-detail);min-height:36px}
   .stack-secondary {flex-wrap:wrap;gap:8px}
   .stack-secondary button {min-height:32px}
   .logs-drawer {top:0;width:100%;padding:17px;z-index:25}
@@ -1558,3 +1560,29 @@ button.danger {background:var(--danger-bg);border-color:var(--danger-line);color
   .modal.wide {max-width:calc(100vw - 24px)}
   .modal-actions button {flex:1;white-space:normal;min-height:40px}
 }
+
+/* Theme controls reuse native form semantics and the existing shell. */
+.theme-control {display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;flex-shrink:0;font-size:var(--type-caption);color:var(--muted)}
+.theme-control select {width:auto;min-height:36px;padding:6px 9px;font-size:var(--type-body)}
+.topbar-controls {display:flex;align-items:center;justify-content:flex-end;gap:20px;flex-wrap:wrap;min-width:0}
+.topbar .theme-control {color:var(--shell-muted)}
+.topbar .theme-control select {background:var(--shell-raised);color:var(--shell-text);border-color:var(--brand-accent-on-dark);color-scheme:dark}
+.login-theme {position:absolute;top:20px;right:24px}
+.login-page {position:relative;padding-top:90px}
+.mcp-grid .panel>h2 {margin-bottom:14px}
+.mcp-facts dt {font-size:var(--type-caption)}
+.mcp-grid .hints {line-height:1.6}
+.mcp-config {line-height:1.6}
+/* Controls and data share stable roles; responsive layouts wrap, not shrink text. */
+.product-actions button,.stack-actions button,.stack-secondary button,.panel-heading>button,
+.disclosure-toggle,.stack-mode select,.stack-options .stack-mode select {font-size:var(--type-body)}
+@media(max-width:600px) {
+  .topbar-controls {width:100%;justify-content:space-between;gap:10px}
+  .topbar-status {flex-wrap:wrap}
+  .theme-control {gap:6px}
+  .login-theme {right:17px;top:17px}
+  .context-tag {margin-left:0}
+}
+
+.mcp-capabilities table {min-width:40rem}
+@media(max-width:900px) {.mobile-table-hint {display:block;margin-bottom:.6rem;font-size:var(--type-caption)}}

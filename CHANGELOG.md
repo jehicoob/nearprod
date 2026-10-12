@@ -1,3 +1,7 @@
+# 0.9.5
+
+El panel incorpora temas Sistema, Claro y Oscuro con preferencia persistente en el navegador. Comparte la paleta grafito/acero con la landing y aplica el tema antes del primer render. La tipografía usa roles comunes para lectura, controles, títulos y datos técnicos; la vista MCP alinea sus títulos y listas y conserva una tabla desplazable en móvil.
+
 # 0.9.4
 
 `nearprod update` activa automáticamente el nuevo agente en el mismo puerto cuando está libre. Las interfaces compatibles conservan la sesión y recargan sus recursos al reconectar. Las operaciones y seguimientos Watch activos bloquean la actualización sin interrumpirse; no se detienen contenedores ni se modifican sus datos.

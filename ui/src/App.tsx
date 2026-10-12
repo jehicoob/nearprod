@@ -10,6 +10,7 @@ import { ProxyView, RouteLinks } from './proxy.js';
 import {InfrastructureView} from './infrastructure.js';
 import {ToolsView} from './tools.js';
 import {McpAccessView} from './McpAccessView.js';
+import {ThemeControl} from './ThemeControl.js';
 import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container, Preview } from './types.js';
 const { useState, useEffect, useRef } = React;
 type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools' | 'mcp';
@@ -125,9 +126,9 @@ function App() {
     await work(async () => {await api('/actions', {target:product, action}); notify('Operación de grupo enviada. Cada aplicación informa su resultado.');});
   }
   const cancel = (id: string) => {if(window.confirm('Cancelar el cliente no garantiza que el Engine detenga el trabajo ya recibido. ¿Solicitar cancelación?')) void work(async () => {await api('/cancel',{id}); notify('Cancelación solicitada; revisa el estado real.');});};
-  if(auth === null && loadError) return <div className="login-page"><section className="login-card"><h1>No se pudo abrir NearProd</h1><Alert error>{loadError}</Alert><button className="primary full" onClick={() => void load()}>Reintentar conexión local</button></section></div>;
-  if(auth === null) return <div className="login-page"><div className="login-card"><h2>NearProd</h2><Skeleton label="Abriendo tu entorno local" rows={5}/></div></div>;
-  if(!auth) return <div className="login-page"><div className="login-brand"><Brand/></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
+  if(auth === null && loadError) return <div className="login-page"><div className="login-theme"><ThemeControl/></div><section className="login-card"><h1>No se pudo abrir NearProd</h1><Alert error>{loadError}</Alert><button className="primary full" onClick={() => void load()}>Reintentar conexión local</button></section></div>;
+  if(auth === null) return <div className="login-page"><div className="login-theme"><ThemeControl/></div><div className="login-card"><h2>NearProd</h2><Skeleton label="Abriendo tu entorno local" rows={5}/></div></div>;
+  if(!auth) return <div className="login-page"><div className="login-theme"><ThemeControl/></div><div className="login-brand"><Brand/></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
   if(!catalog) return <Busy/>;
   const running = status.stacks.filter(s => s.execution === 'running').length, totalContainers = status.stacks.reduce((n,s) => n+s.containers.length,0), active = catalog.operations.filter(o => o.state === 'running');
   const archivedStacks = catalog.archivedStacks || [];
@@ -256,7 +257,9 @@ function App() {
                           : "Actividad"}
             </strong>
           </div>
-          <div className="topbar-status">
+          <div className="topbar-controls">
+            <ThemeControl/>
+            <div className="topbar-status">
             <span className={status.connected ? "live-dot" : "offline-dot"} />
             {!checked
               ? "Comprobando Engine…"
@@ -264,6 +267,7 @@ function App() {
                 ? "Engine conectado"
                 : "Engine no disponible"}
             <span className="context-tag">{catalog.runtime.context}</span>
+          </div>
           </div>
         </header>
         <main>

@@ -9,6 +9,7 @@ import { ProxyView, RouteLinks } from './proxy.js';
 import { InfrastructureView } from './infrastructure.js';
 import { ToolsView } from './tools.js';
 import { McpAccessView } from './McpAccessView.js';
+import { ThemeControl } from './ThemeControl.js';
 const { useState, useEffect, useRef } = React;
 const EMPTY = { connected: false, checkedAt: null, stacks: [] };
 function CatalogLifecycleDialog({ review, onClose, onApplied }) {
@@ -194,17 +195,23 @@ function App() {
         void work(async () => { await api('/cancel', { id }); notify('Cancelación solicitada; revisa el estado real.'); }); };
     if (auth === null && loadError)
         return React.createElement("div", { className: "login-page" },
+            React.createElement("div", { className: "login-theme" },
+                React.createElement(ThemeControl, null)),
             React.createElement("section", { className: "login-card" },
                 React.createElement("h1", null, "No se pudo abrir NearProd"),
                 React.createElement(Alert, { error: true }, loadError),
                 React.createElement("button", { className: "primary full", onClick: () => void load() }, "Reintentar conexi\u00F3n local")));
     if (auth === null)
         return React.createElement("div", { className: "login-page" },
+            React.createElement("div", { className: "login-theme" },
+                React.createElement(ThemeControl, null)),
             React.createElement("div", { className: "login-card" },
                 React.createElement("h2", null, "NearProd"),
                 React.createElement(Skeleton, { label: "Abriendo tu entorno local", rows: 5 })));
     if (!auth)
         return React.createElement("div", { className: "login-page" },
+            React.createElement("div", { className: "login-theme" },
+                React.createElement(ThemeControl, null)),
             React.createElement("div", { className: "login-brand" },
                 React.createElement(Brand, null)),
             React.createElement("section", { className: "login-card" },
@@ -298,14 +305,16 @@ function App() {
                                         : page === "mcp"
                                             ? "Acceso MCP"
                                             : "Actividad")),
-                React.createElement("div", { className: "topbar-status" },
-                    React.createElement("span", { className: status.connected ? "live-dot" : "offline-dot" }),
-                    !checked
-                        ? "Comprobando Engine…"
-                        : status.connected
-                            ? "Engine conectado"
-                            : "Engine no disponible",
-                    React.createElement("span", { className: "context-tag" }, catalog.runtime.context))),
+                React.createElement("div", { className: "topbar-controls" },
+                    React.createElement(ThemeControl, null),
+                    React.createElement("div", { className: "topbar-status" },
+                        React.createElement("span", { className: status.connected ? "live-dot" : "offline-dot" }),
+                        !checked
+                            ? "Comprobando Engine…"
+                            : status.connected
+                                ? "Engine conectado"
+                                : "Engine no disponible",
+                        React.createElement("span", { className: "context-tag" }, catalog.runtime.context)))),
             React.createElement("main", null,
                 notice && (React.createElement("div", { className: `toast ${notice.error ? "error" : ""}`, role: notice.error ? "alert" : "status" },
                     React.createElement(Icon, { name: notice.error ? "warning" : "check" }),
