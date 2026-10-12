@@ -100,6 +100,8 @@ func readLive(ctx context.Context, home string, allowMismatch bool) (J, error) {
 	if !allowMismatch && str(res["version"]) != Version {
 		return nil, fail("AGENT_VERSION_MISMATCH", fmt.Sprintf("Agente %s, CLI %s. Ejecuta nearprod agent stop y luego nearprod ui; los datos permanecen.", str(res["version"]), Version), 409)
 	}
+	info["version"] = res["version"]
+	info["agentUpdateProtocol"] = res["agentUpdateProtocol"]
 	return info, nil
 }
 func EnsureAgent(ctx context.Context, home string, start, allowMismatch bool) (J, error) {
@@ -110,11 +112,23 @@ func EnsureAgent(ctx context.Context, home string, start, allowMismatch bool) (J
 	if !start {
 		return nil, fail("AGENT_OFFLINE", "NearProd está detenido.", 503)
 	}
-	if e = privateDir(home); e != nil {
+	return startAgentBinary(ctx, home, binaryPath(), Version, 0)
+}
+
+// An updater continues running the old image after replacing its file. Always
+// launch the verified installed path and check the new process's live version.
+func startAgentBinary(ctx context.Context, home, executable, version string, port int) (J, error) {
+	if info, err := readLive(ctx, home, true); err != nil || info != nil {
+		if err == nil && str(info["version"]) != version {
+			return nil, fail("AGENT_VERSION_MISMATCH", "El agente activo todavía no utiliza la versión instalada.", 409)
+		}
+		return info, err
+	}
+	if e := privateDir(home); e != nil {
 		return nil, e
 	}
 	logpath := filepath.Join(home, "agent.log")
-	if _, e = regularOrMissing(logpath); e != nil {
+	if _, e := regularOrMissing(logpath); e != nil {
 		return nil, e
 	}
 	f, e := os.OpenFile(logpath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
@@ -122,7 +136,7 @@ func EnsureAgent(ctx context.Context, home string, start, allowMismatch bool) (J
 		return nil, e
 	}
 	defer f.Close()
-	cmd := exec.Command(binaryPath(), "serve", "--foreground")
+	cmd := exec.Command(executable, "serve", "--foreground", "--port", strconv.Itoa(port))
 	cmd.Env = append(os.Environ(), "NEARPROD_HOME="+home)
 	cmd.Dir = home
 	cmd.Stdout = f
@@ -138,8 +152,11 @@ func EnsureAgent(ctx context.Context, home string, start, allowMismatch bool) (J
 			return nil, ctx.Err()
 		case <-time.After(100 * time.Millisecond):
 		}
-		info, e = readLive(ctx, home, allowMismatch)
+		info, e := readLive(ctx, home, true)
 		if e != nil || info != nil {
+			if e == nil && str(info["version"]) != version {
+				return nil, fail("AGENT_VERSION_MISMATCH", "El agente reiniciado no coincide con la versión instalada.", 409)
+			}
 			return info, e
 		}
 	}

@@ -25,7 +25,7 @@ def output(*cmd: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="Directorio NUEVO de salida; nunca se sobrescribe")
-    parser.add_argument("--tag", help="Tag a validar, por ejemplo v0.7.0")
+    parser.add_argument("--tag", help="Tag vX.Y.Z a validar; debe coincidir con VERSION")
     parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY", ""), help="OWNER/REPO real; solo se usa para generar la fórmula")
     parser.add_argument("--snapshot", action="store_true", help="Validación local NO publicable; permite otro toolchain")
     parser.add_argument("--prebuilt-ui", action="store_true", help="Solo con --snapshot; usa los assets entregados")

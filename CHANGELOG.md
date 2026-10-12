@@ -1,3 +1,9 @@
+# 0.9.4
+
+`nearprod update` activa automáticamente el nuevo agente en el mismo puerto cuando está libre. Las interfaces compatibles conservan la sesión y recargan sus recursos al reconectar. Las operaciones y seguimientos Watch activos bloquean la actualización sin interrumpirse; no se detienen contenedores ni se modifican sus datos.
+
+Si falla la instalación, intenta recuperar el ejecutable anterior verificado. Si el binario se instaló pero no arrancó el agente, el mismo comando permite reintentar la activación. `--check` sigue siendo de solo lectura. La primera transición desde un actualizador 0.9.3 o anterior todavía necesita cerrar y abrir el agente una vez; las siguientes actualizaciones compatibles incorporan este flujo automático.
+
 # 0.9.1
 
 Restaura la actualización automática desde 0.8.0 al mantener estable la identidad binaria entre migraciones de catálogo. El schema 5 se reporta ahora por separado, 0.9.1 conserva compatibilidad durante el reemplazo de instalaciones 0.9.0 y los errores CLI ya no imprimen `null` antes del diagnóstico.

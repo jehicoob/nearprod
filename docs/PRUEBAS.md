@@ -1,6 +1,23 @@
-# Pruebas ejecutadas — candidato 0.9.1 Go
+# Pruebas y evidencia de NearProd
 
-## Resultado final
+## Actualización automática — 0.9.4
+
+El [PR #22](https://github.com/jehicoob/nearprod/pull/22) incorpora la activación del agente y la reconexión de la UI. La validación del fix incluye:
+
+- `make check`: TypeScript, UI, Go vet, tests, detector de carreras y pruebas del empaquetador; CI lo ejecuta en Ubuntu y macOS.
+- Smoke CLI/HTTP y pruebas de instalación, reinstalación, migración y MCP con HOME temporales.
+- Regresiones del cierre en reposo, bloqueo con operaciones o Watch activos, traspaso privado de sesión, rollback del ejecutable verificado y reintento de activación.
+- Chromium real en macOS ARM64, con dos binarios nativos de prueba: misma URL, sesión conservada, una sola recarga automática, controles utilizables y catálogo sin cambios.
+- Transición desde el agente publicado `0.9.3`; la ausencia de transferencia de sesiones en ese agente antiguo se informa explícitamente.
+- Compilación para macOS/Linux ARM64 y AMD64. La ejecución local fue macOS ARM64; el CI valida también Ubuntu.
+
+Las aceptaciones de este fix usan catálogos temporales y Docker deshabilitado o simulado. No equivalen a repetir las pruebas históricas con bases, Colima o contenedores reales. Tampoco se ha repetido una revisión independiente de seguridad para este cambio. Consulta los resultados del [CI](https://github.com/jehicoob/nearprod/actions/workflows/ci.yml) y de la [publicación](https://github.com/jehicoob/nearprod/actions/workflows/release.yml) para el commit o tag que vayas a instalar.
+
+## Evidencia histórica — candidato 0.9.1
+
+Los resultados, conteos y archivos de este apartado corresponden a aquella entrega; no describen la versión actual ni se cuentan como nuevas ejecuciones.
+
+### Resultado histórico
 
 | Comprobación | Resultado | Alcance |
 |---|---|---|
@@ -19,9 +36,9 @@
 
 Cobertura instrumentada Go: **62.6% de sentencias**. No equivale a cobertura de React ni de los binarios externos de instalación, ni a cobertura de funcionalidad del usuario. No se suman los números como un porcentaje de garantía. Las 216 pruebas Node anteriores no se presentan como ejecutadas contra Go.
 
-## Evidencia
+### Evidencia histórica
 
-- `RESULTADOS.json`: resumen de la validación del candidato 0.9.1; `coverage.out` y `coverage.txt`: cobertura instrumentada actual.
+- `RESULTADOS.json`: resumen de la validación del candidato 0.9.1; `coverage.out` y `coverage.txt`: cobertura instrumentada de ese candidato.
 - `history/race-before-fix.txt`: conserva la carrera detectada y corregida en la entrega anterior; la ejecución final de `make check` volvió a pasar el detector.
 - `native-package.json/txt`: checksum del binario realmente probado y cada paso.
 - `browser-bridge.json/txt`: evidencia histórica del puente; las capturas tienen datos de runtime SIMULADOS.

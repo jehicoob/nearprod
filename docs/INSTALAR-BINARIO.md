@@ -54,12 +54,11 @@ Esta capacidad requiere un ejecutable que incluya la corrección del actualizado
 
 NearProd exige el asset exacto para macOS/Linux y ARM64/AMD64, compara el digest publicado por GitHub con `SHA256SUMS.txt`, rechaza rutas, enlaces y archivos especiales dentro del archive, ejecuta `--identity` antes y después de instalar, conserva la versión anterior bajo `~/.local/share/nearprod/releases` y elimina todos los temporales de la operación. En Linux/WSL2, la consulta HTTPS requiere el paquete de certificados CA del sistema. SHA-256 y TLS comprueban integridad respecto a GitHub, pero esta distribución sigue sin firma de código del editor.
 
-La actualización no reinicia un agente activo y no toca Docker, contenedores, catálogo o datos. Cuando no existan tareas de NearProd en curso:
+A partir de `0.9.4`, confirmar `nearprod update` basta: si el agente estaba activo y libre, instala y arranca la nueva versión en el mismo puerto. La interfaz compatible conserva su sesión y recarga sus recursos al reconectar. No detiene Docker ni los contenedores, ni modifica los datos de tus aplicaciones. Si el agente estaba detenido, permanece detenido y la próxima apertura utiliza el nuevo ejecutable.
 
-```bash
-nearprod agent stop
-nearprod ui
-```
+Si hay operaciones o seguimientos Watch activos, la actualización se rechaza antes de reemplazar el binario; no los cancela. Cuando terminen, puedes repetir el mismo comando. El resultado indica `agentRestarted` y `agentStatus`. Si la instalación terminó pero falló el arranque (`UPDATE_AGENT_RESTART`, `activation-pending`), consulta `agent.log` y repite `nearprod update`: también reintenta la activación cuando ya tienes la última versión instalada. `--check` sigue siendo una consulta sin reinicios.
+
+**Transición desde versiones anteriores:** el reinicio automático necesita estar incluido en el actualizador que estás ejecutando. `0.9.3` y anteriores no lo incorporan; para esa primera transición todavía debes cerrar y abrir el agente una vez con `nearprod agent stop` y `nearprod ui`, sin tareas activas. Un agente o una pestaña antiguos tampoco pueden transferir la sesión o recargar recursos con un protocolo que aún no conocen. Tras abrir la interfaz nueva, las siguientes actualizaciones compatibles no requieren esos pasos.
 
 ## Docker, Compose y Colima siguen siendo externos
 

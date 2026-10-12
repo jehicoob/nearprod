@@ -26,6 +26,8 @@ type HTTP struct {
 	URL                string
 	Port               int
 	OnShutdown         func()
+	lifecycle          sync.RWMutex
+	stopping           bool
 	mu                 sync.Mutex
 	pairings, sessions map[string]time.Time
 	attempts           int
@@ -133,6 +135,14 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	headers.Set("X-Frame-Options", "DENY")
 	headers.Set("Content-Security-Policy", csp)
 	headers.Set("Cache-Control", "no-store")
+	if r.Method == "POST" && r.URL.Path != "/api/agent/stop" {
+		h.lifecycle.RLock()
+		defer h.lifecycle.RUnlock()
+		if h.stopping {
+			jsonResponse(w, 409, J{"error": publicError(fail("AGENT_STOPPING", "El agente se está reiniciando; la interfaz se reconectará.", 409))})
+			return
+		}
+	}
 	err := h.handle(w, r)
 	if err != nil {
 		jsonResponse(w, statusCode(err), J{"error": publicError(err)})
@@ -153,7 +163,7 @@ func (h *HTTP) handle(w http.ResponseWriter, r *http.Request) error {
 	}
 	pathname := r.URL.Path
 	if r.Method == "GET" && pathname == "/api/health" {
-		jsonResponse(w, 200, J{"service": "nearprod", "version": Version, "runtimeLanguage": "Go"})
+		jsonResponse(w, 200, J{"service": "nearprod", "version": Version, "runtimeLanguage": "Go", "agentUpdateProtocol": 1})
 		return nil
 	}
 	if r.Method == "POST" && pathname == "/api/session" {
@@ -214,10 +224,10 @@ func (h *HTTP) handle(w http.ResponseWriter, r *http.Request) error {
 			if !bearer {
 				return fail("CLI_ONLY", "Detén el agente desde la terminal.", 403)
 			}
-			if e = h.Service.Idle(); e != nil {
+			if e = h.prepareStop(req); e != nil {
 				return e
 			}
-			jsonResponse(w, 200, J{"stopped": true, "note": "No se detienen contenedores. Se cierran seguimientos Watch del agente."})
+			jsonResponse(w, 200, J{"stopped": true, "sessionTransfer": truth(req["forUpdate"]), "note": "No se detienen contenedores. Se cierra únicamente el agente."})
 			if h.OnShutdown != nil {
 				time.AfterFunc(100*time.Millisecond, h.OnShutdown)
 			}

@@ -215,7 +215,7 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 		_ = os.Setenv("NEARPROD_HOME", expandHome(a.S("home")))
 	}
 	if a.B("identity") {
-		outputJSON(out, J{"service": "nearprod", "version": Version, "marker": binaryIdentityMarker(), "schemaVersion": SchemaVersion, "language": "Go", "toolchain": runtime.Version(), "platform": runtime.GOOS + "/" + runtime.GOARCH})
+		outputJSON(out, J{"service": "nearprod", "version": Version, "marker": binaryIdentityMarker(), "schemaVersion": SchemaVersion, "language": "Go", "toolchain": runtime.Version(), "platform": runtime.GOOS + "/" + runtime.GOARCH, "agentUpdateProtocol": 1})
 		return 0
 	}
 	if a.B("version") || a.P(0) == "version" {
@@ -265,8 +265,11 @@ func RunCLI(ctx context.Context, args []string, assets fs.FS, out, errout io.Wri
 			if e != nil {
 				return nil, e
 			}
-			if a.B("check") || !plan.Available {
+			if a.B("check") {
 				return plan.Summary, nil
+			}
+			if !plan.Available {
+				return updater.Apply(ctx, plan)
 			}
 			if plan.Provider != "manual" {
 				return updater.Apply(ctx, plan)

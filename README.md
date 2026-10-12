@@ -1,8 +1,8 @@
-# NearProd 0.9.1 — Go + React/TypeScript
+# NearProd — Go + React/TypeScript
 
 Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por Traefik e infraestructura PostgreSQL/MySQL/Redis. El CLI y el agente están implementados en Go; el panel React/TypeScript compilado se incluye dentro del binario. **No inicia Node ni necesita npm para funcionar.**
 
-**Estado de entrega: candidata a release.** Las pruebas ejecutadas y sus límites están en [PRUEBAS](docs/PRUEBAS.md). No se reutilizan los 216 tests Node como si fueran pruebas de esta reescritura.
+La versión de este checkout está en [VERSION](VERSION). Los binarios publicados están en [GitHub Releases](https://github.com/jehicoob/nearprod/releases/latest); las pruebas ejecutadas y sus límites están en [PRUEBAS](docs/PRUEBAS.md).
 
 > **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
@@ -40,7 +40,7 @@ nearprod agent stop
 Abre otra terminal. Si el comando sigue apuntando a una instalación vieja, usa directamente `~/.local/bin/nearprod` en las siguientes instrucciones.
 
 ```bash
-nearprod --version                  # 0.9.1
+nearprod --version                  # muestra la versión instalada
 nearprod config migrate --yes       # backup + migración; exige agente anterior cerrado
 nearprod ui
 ```
@@ -51,15 +51,15 @@ La primera apertura también puede realizar la migración. La secuencia explíci
 
 ## Instalación nueva
 
-Con el binario recompilado según el apartado anterior:
+Descarga el archive de tu plataforma desde [la última release estable](https://github.com/jehicoob/nearprod/releases/latest), verifica su SHA-256 y descomprímelo siguiendo la [guía de instalación](docs/INSTALAR-BINARIO.md). Desde la carpeta extraída:
 
 ```bash
-./bin/nearprod-darwin-arm64 install --configure-shell
+./nearprod install --configure-shell
 # Terminal nueva:
 nearprod ui
 ```
 
-Mac Intel: utiliza `bin/nearprod-darwin-amd64`. Linux x86_64: `bin/nearprod-linux-amd64`; el autoarranque administrado es exclusivo de macOS. Los binarios Mac están compilados, pero no fueron ejecutados en un Mac en esta revisión. Si Gatekeeper impide abrir el binario, verifica origen y checksum y utiliza la autorización individual de macOS o compila localmente; no desactives Gatekeeper globalmente.
+Hay binarios para macOS y Linux, ARM64 y AMD64; el autoarranque administrado es exclusivo de macOS. El CLI, HTTP y la instalación se validan en Ubuntu y macOS mediante CI; la reconexión del navegador se probó localmente en macOS ARM64. Si Gatekeeper impide abrir el binario, verifica origen y checksum y utiliza la autorización individual de macOS o compila localmente; no desactives Gatekeeper globalmente.
 
 El instalador guarda `~/.local/bin/nearprod` y copias de versiones bajo `~/.local/share/nearprod/releases`. Hace backup de `.zshrc` al añadir su función/ruta; no sustituye aliases ajenos, Node ni gestores de paquetes. No utiliza `sudo`.
 
@@ -70,9 +70,9 @@ nearprod update --check
 nearprod update
 ```
 
-El segundo comando muestra la versión y solicita confirmación. Descarga desde la release pública oficial, verifica el digest de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del nuevo ejecutable antes y después de instalarlo. Conserva una copia anterior y limpia los temporales; no reinicia el agente que ya estaba en ejecución ni toca contenedores o datos. Las instalaciones Homebrew deben usar `brew upgrade nearprod`.
+El segundo comando muestra la versión y solicita confirmación. Descarga desde la release pública oficial, verifica el digest de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del nuevo ejecutable antes y después de instalarlo. Conserva una copia anterior y limpia los temporales. Si el agente está activo y libre, lo reinicia con la nueva versión en el mismo puerto; las interfaces compatibles conservan su sesión y se recargan automáticamente. Si hay operaciones o Watch activos, rechaza la actualización sin reemplazar el ejecutable ni interrumpirlos. No detiene contenedores ni cambia sus datos. Las instalaciones Homebrew deben usar `brew upgrade nearprod`. Consulta los límites de versiones anteriores y recuperación en la [guía de actualización](docs/INSTALAR-BINARIO.md#actualizar-una-instalación-manual).
 
-`0.9.1` repara la compatibilidad de `nearprod update` desde `0.8.0` y desde instalaciones normales de `0.9.0`. Conserva `~/.local/share/nearprod/installation.json` durante el cambio; una copia manual `0.9.0` sin ese registro requiere descargar y verificar el archive `0.9.1` antes de ejecutar `./nearprod install --configure-shell`. Consulta [MIGRACION](docs/MIGRACION.md) para el límite exacto.
+Las releases desde `0.9.1` conservan la reparación de compatibilidad con los actualizadores `0.8.0` y las instalaciones normales de `0.9.0`. No borres `~/.local/share/nearprod/installation.json` durante el cambio. Si tienes una copia manual `0.9.0` sin ese registro, descarga y verifica la última release estable antes de ejecutar `./nearprod install --configure-shell`. El reinicio automático se incorpora en `0.9.4`; la primera transición desde un actualizador anterior necesita cerrar y abrir el agente una vez. Consulta [MIGRACION](docs/MIGRACION.md) para el procedimiento y sus límites.
 
 ## Dónde permanece todo
 
@@ -155,4 +155,4 @@ No incluye TLS/DNS administrado, despliegue remoto, adopción automática de pro
 
 ## Distribución desde GitHub y Homebrew
 
-La preparación de releases, versionado, CI y tap personal se documenta en [docs/DISTRIBUCION.md](docs/DISTRIBUCION.md). Para descargar y ejecutar sin compilar, consulta [docs/INSTALAR-BINARIO.md](docs/INSTALAR-BINARIO.md). NearProd se distribuye bajo licencia MIT. La publicación está deshabilitada por defecto; confirma la visibilidad antes de habilitarla.
+La preparación de releases, versionado, CI y tap personal se documenta en [docs/DISTRIBUCION.md](docs/DISTRIBUCION.md). Para descargar y ejecutar sin compilar, consulta [docs/INSTALAR-BINARIO.md](docs/INSTALAR-BINARIO.md). NearProd se distribuye bajo licencia MIT. El repositorio y sus releases son públicos; el tap de Homebrew todavía no está configurado.

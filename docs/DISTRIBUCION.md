@@ -10,7 +10,7 @@ Se eligió **GitHub Actions + el build existente + Python estándar** en lugar d
 
 ## Versión y herramientas
 
-- `VERSION`: única versión de la aplicación, inicialmente `0.7.0`.
+- [VERSION](../VERSION): única fuente de la versión de la aplicación para compilar y publicar.
 - `.go-version`: toolchain exacto usado para releases.
 - `.node-version`: Node exacto usado para construir TypeScript.
 - `package-lock.json`: dependencias del frontend. El manifiesto privado de herramientas no necesita una versión de publicación npm.
@@ -33,7 +33,7 @@ make smoke test-package
 make release-local
 ```
 
-La salida se guarda en `dist/0.9.1/`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
+La salida se guarda en `dist/<VERSION>/`, usando el valor del archivo raíz `VERSION`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
 
 ```bash
 python3 scripts/release.py --output dist/revision-2
@@ -53,7 +53,7 @@ Para diagnósticos sin toolchain actualizado o sin poder descargar npm:
 make release-snapshot
 ```
 
-Ese modo utiliza los assets ya entregados y produce versión `0.9.1-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
+Ese modo utiliza los assets ya entregados y produce la versión `<VERSION>-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
 
 ## Primer paso remoto: CI sin publicación
 
@@ -80,8 +80,9 @@ En el repositorio correcto, tras confirmar la visibilidad y pasar CI:
 3. Desde el commit aprobado, ejecuta explícitamente:
 
 ```bash
-git tag -a v0.9.1 -m "NearProd 0.9.1"
-git push origin v0.9.1
+release_version=$(cat VERSION)
+git tag -a "v${release_version}" -m "NearProd ${release_version}"
+git push origin "refs/tags/v${release_version}"
 ```
 
 `v*` es un filtro glob. El script verifica además formato estable X.Y.Z, coincidencia con `VERSION` y commit del tag. No se simula una expresión regular dentro del filtro YAML.
@@ -120,7 +121,7 @@ La fórmula NO instala Docker/Colima, no modifica el shell, no arranca servicios
 
 La función `nearprod()` que podía crear el instalador antiguo, un alias o el orden del PATH pueden seguir apuntando a `~/.local/bin/nearprod`. Revisa `type -a nearprod` y `.zshrc` antes de dar por completada la migración. El kit no los borra. Tampoco migra ni limpia el catálogo como parte del empaquetado.
 
-`nearprod update --check` consulta la última release pública estable. `nearprod update` solo administra la instalación manual `~/.local/bin/nearprod`; Homebrew sigue siendo dueño de su ejecutable y debe usar `brew upgrade nearprod`. El actualizador valida digest de GitHub, `SHA256SUMS.txt`, archive e identidad de plataforma/versión, conserva una copia anterior y limpia temporales. Actualizar el archivo no reinicia un proceso ya activo. Consulta la guía del binario para detener/reabrir únicamente el agente cuando no tenga tareas activas. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
+`nearprod update --check` consulta la última release pública estable y nunca reinicia el agente. `nearprod update` solo administra la instalación manual `~/.local/bin/nearprod`; Homebrew sigue siendo dueño de su ejecutable y debe usar `brew upgrade nearprod`. El actualizador valida digest de GitHub, `SHA256SUMS.txt`, archive e identidad de plataforma/versión, conserva una copia anterior y limpia temporales. Reinicia un agente activo y libre usando la ruta instalada y el mismo puerto, y verifica la versión del proceso nuevo. El cierre para actualización bloquea nuevas mutaciones y rechaza operaciones o Watch activos. Un traspaso privado de cinco minutos permite conservar sesiones del navegador sin extender su vencimiento; se consume al arrancar y no se utiliza en reinicios ordinarios. La interfaz compatible recarga sus recursos al detectar la nueva versión por la reconexión SSE. Si falla el arranque, `nearprod update` permite reintentar aunque el binario ya esté actualizado. Consulta la guía del binario para las limitaciones de agentes anteriores a este protocolo. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
 
 ## Límites de las validaciones
 

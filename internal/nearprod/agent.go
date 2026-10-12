@@ -102,6 +102,18 @@ func StartAgent(ctx context.Context, home string, assets fs.FS, runner Runner, m
 	if e != nil {
 		return nil, e
 	}
+	restart, e := readAgentRestart(home)
+	if e != nil {
+		release()
+		return nil, e
+	}
+	if restart != nil && str(restart["version"]) != Version {
+		release()
+		return nil, fail("UPDATE_AGENT_VERSION", "Hay una actualización pendiente. Usa el ejecutable recién instalado para activar el agente.", 409)
+	}
+	if restart != nil && port == 0 {
+		port = integer(restart["port"])
+	}
 	store, e := OpenStore(home)
 	if e != nil {
 		release()
@@ -109,6 +121,7 @@ func StartAgent(ctx context.Context, home string, assets fs.FS, runner Runner, m
 	}
 	service := NewService(ctx, store, runner)
 	httpServer := NewHTTP(service, assets)
+	httpServer.restoreUpdateSessions(restart)
 	a := &Agent{Service: service, HTTP: httpServer, done: make(chan struct{}), release: release}
 	httpServer.OnShutdown = a.Close
 	ln, e := httpServer.Listen(port)
@@ -123,6 +136,13 @@ func StartAgent(ctx context.Context, home string, assets fs.FS, runner Runner, m
 		service.Close()
 		release()
 		return nil, e
+	}
+	if restart != nil {
+		if e = os.Remove(filepath.Join(home, agentRestartFile)); e != nil {
+			ln.Close()
+			a.Close()
+			return nil, e
+		}
 	}
 	go func() { _ = httpServer.Server.Serve(ln); a.Close() }()
 	if monitor {
