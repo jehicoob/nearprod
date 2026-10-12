@@ -2,7 +2,7 @@ import { stackActions } from './stack-state.js';
 import { StackCard } from './StackCard.js';
 import { StackPurgeDialog } from './StackPurgeDialog.js';
 import { api, ApiError, humanBytes, message } from './api.js';
-import { Alert, Badge, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
+import { Alert, Badge, Brand, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
 import { DiscoverDialog, RuntimeView, LogsDrawer, GroupDialog } from './views.js';
 import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
@@ -48,6 +48,20 @@ function CatalogLifecycleDialog({ review, onClose, onApplied }) {
         React.createElement("div", { className: "modal-actions" },
             React.createElement("button", { onClick: onClose }, "Cancelar"),
             React.createElement("button", { className: action === 'restore-stack' ? 'primary' : 'danger', disabled: busy, onClick: () => { setBusy(true); setError(''); void api(review.endpoint, { ...review.body, confirm: true, fingerprint: review.value.fingerprint }).then(onApplied).catch(e => setError(message(e))).finally(() => setBusy(false)); } }, busy ? 'Aplicando…' : confirm)));
+}
+// Native focus may leave a partially visible item at the edge of the mobile rail.
+// Scroll only the rail, preserving the page's reading position.
+function revealNavigationFocus(event) {
+    const nav = event.currentTarget;
+    if (nav.scrollWidth <= nav.clientWidth)
+        return;
+    const item = event.target.getBoundingClientRect();
+    const viewport = nav.getBoundingClientRect();
+    const inset = 17;
+    if (item.left < viewport.left + inset)
+        nav.scrollLeft -= viewport.left + inset - item.left;
+    else if (item.right > viewport.right - inset)
+        nav.scrollLeft += item.right - viewport.right + inset;
 }
 function App() {
     const [catalog, setCatalog] = useState(null), [status, setStatus] = useState(EMPTY), [auth, setAuth] = useState(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
@@ -178,11 +192,7 @@ function App() {
     if (!auth)
         return React.createElement("div", { className: "login-page" },
             React.createElement("div", { className: "login-brand" },
-                React.createElement("div", { className: "logo" },
-                    React.createElement(Icon, { name: "cube", size: 30 })),
-                React.createElement("span", null,
-                    "NearProd",
-                    React.createElement("span", { className: "brand-dot" }, "."))),
+                React.createElement(Brand, null)),
             React.createElement("section", { className: "login-card" },
                 React.createElement("span", { className: "eyebrow" }, "TU ENTORNO. BAJO CONTROL."),
                 React.createElement("h1", null, "Conecta tu consola local"),
@@ -214,35 +224,32 @@ function App() {
     return (React.createElement("div", { className: "shell" },
         React.createElement("aside", { className: "sidebar" },
             React.createElement("a", { className: "brand", href: "/", "aria-label": "NearProd inicio" },
-                React.createElement("span", { className: "logo" },
-                    React.createElement(Icon, { name: "cube", size: 24 })),
-                "NearProd",
-                React.createElement("span", { className: "brand-dot" }, ".")),
+                React.createElement(Brand, null)),
             React.createElement("span", { className: "version-label" },
                 "LOCAL CONTROL / v",
                 catalog.version),
             React.createElement("div", { className: "nav-caption" }, "WORKSPACE"),
-            React.createElement("nav", { "aria-label": "Navegaci\u00F3n principal" },
-                React.createElement("button", { className: page === "projects" ? "active" : "", onClick: () => setPage("projects") },
+            React.createElement("nav", { "aria-label": "Navegaci\u00F3n principal", onFocusCapture: revealNavigationFocus },
+                React.createElement("button", { className: page === "projects" ? "active" : "", "aria-current": page === "projects" ? "page" : undefined, title: "Aplicaciones", onClick: () => setPage("projects") },
                     React.createElement(Icon, { name: "grid" }),
                     "Aplicaciones",
                     React.createElement("span", null, catalog.stacks.length)),
-                React.createElement("button", { className: page === "proxy" ? "active" : "", onClick: () => setPage("proxy") },
+                React.createElement("button", { className: page === "proxy" ? "active" : "", "aria-current": page === "proxy" ? "page" : undefined, title: "Accesos locales", onClick: () => setPage("proxy") },
                     React.createElement(Icon, { name: "link" }),
                     "Accesos locales"),
-                React.createElement("button", { className: page === "infra" ? "active" : "", onClick: () => setPage("infra") },
+                React.createElement("button", { className: page === "infra" ? "active" : "", "aria-current": page === "infra" ? "page" : undefined, title: "Infraestructura", onClick: () => setPage("infra") },
                     React.createElement(Icon, { name: "cube" }),
                     "Infraestructura"),
-                React.createElement("button", { className: page === "tools" ? "active" : "", title: "Herramientas", onClick: () => setPage("tools") },
+                React.createElement("button", { className: page === "tools" ? "active" : "", "aria-current": page === "tools" ? "page" : undefined, title: "Herramientas", onClick: () => setPage("tools") },
                     React.createElement(Icon, { name: "terminal" }),
                     "Herramientas"),
-                React.createElement("button", { className: page === "mcp" ? "active" : "", title: "Acceso MCP", onClick: () => setPage("mcp") },
+                React.createElement("button", { className: page === "mcp" ? "active" : "", "aria-current": page === "mcp" ? "page" : undefined, title: "Acceso MCP", onClick: () => setPage("mcp") },
                     React.createElement(Icon, { name: "network" }),
                     "Acceso MCP"),
-                React.createElement("button", { className: page === "runtime" ? "active" : "", onClick: () => setPage("runtime") },
+                React.createElement("button", { className: page === "runtime" ? "active" : "", "aria-current": page === "runtime" ? "page" : undefined, title: "Runtime y recursos", onClick: () => setPage("runtime") },
                     React.createElement(Icon, { name: "settings" }),
                     "Runtime y recursos"),
-                React.createElement("button", { className: page === "activity" ? "active" : "", onClick: () => setPage("activity") },
+                React.createElement("button", { className: page === "activity" ? "active" : "", "aria-current": page === "activity" ? "page" : undefined, title: "Actividad", onClick: () => setPage("activity") },
                     React.createElement(Icon, { name: "activity" }),
                     "Actividad",
                     active.length > 0 && React.createElement("span", null, active.length))),
@@ -261,16 +268,6 @@ function App() {
                 React.createElement("button", { className: "text-button", onClick: () => void api("/logout", {}).then(() => setAuth(false)) }, "Cerrar sesi\u00F3n del panel"))),
         React.createElement("div", { className: "main" },
             React.createElement("header", { className: "topbar" },
-                React.createElement("label", { className: "mobile-navigation" },
-                    React.createElement("span", { className: "sr-only" }, "Secci\u00F3n"),
-                    React.createElement("select", { value: page, onChange: event => setPage(event.target.value), "aria-label": "Secci\u00F3n de NearProd" },
-                        React.createElement("option", { value: "projects" }, "Aplicaciones"),
-                        React.createElement("option", { value: "proxy" }, "Accesos locales"),
-                        React.createElement("option", { value: "infra" }, "Infraestructura"),
-                        React.createElement("option", { value: "tools" }, "Herramientas"),
-                        React.createElement("option", { value: "mcp" }, "Acceso MCP"),
-                        React.createElement("option", { value: "runtime" }, "Runtime y recursos"),
-                        React.createElement("option", { value: "activity" }, "Actividad"))),
                 React.createElement("div", { className: "breadcrumb" },
                     "Workspace ",
                     React.createElement(Icon, { name: "chevron", size: 13 }),

@@ -2,7 +2,11 @@ import type { ReactNode, ReactElement } from 'react';
 import {healthDescription} from './stack-state.js';
 import { api, message } from './api.js';
 import type { Operation, Stack, Preview, Container } from './types.js';
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useRef } = React;
+/** Shared product identity; operational cube icons retain their own meaning. */
+export function Brand() {
+  return <span className="brand-lockup"><img className="logo" src="/icon.svg" width="36" height="36" alt=""/><span className="brand-name">nearprod<span className="brand-dot">.</span></span></span>;
+}
 export function Icon({ name, size = 18 }: {name: string; size?: number}) {
   const paths: Record<string, ReactNode> = {
     cube: <><path d="m12 3 9 5v8l-9 5-9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8M7.5 5.5l9 5"/></>,
@@ -37,7 +41,18 @@ export function HealthBadge({value, containers}: {value: string; containers: Con
 }
 export function Modal({ title, subtitle, children, onClose, wide = false }: {title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean}) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { ref.current?.showModal(); }, []);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog?.showModal();
+    return () => {
+      // Close before React removes the node so native focus restoration can run.
+      dialog?.close();
+      if (opener?.isConnected && !document.querySelector('dialog[open]')) {
+        opener.focus({preventScroll:true});
+      }
+    };
+  }, []);
   return <dialog ref={ref} className={wide ? 'modal wide' : 'modal'} onCancel={e => {e.preventDefault(); onClose();}} onClick={e => { if (e.target === ref.current) { const r = ref.current.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }} aria-label={title}><div className="modal-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="Cerrar diálogo" onClick={onClose}><Icon name="close"/></button></div>{children}</dialog>;
 }
 export function Alert({ children, error = false, warning = false }: {children: ReactNode; error?: boolean; warning?: boolean}) { return <div className={`alert ${error ? 'error' : warning ? 'warning' : ''}`} role={error || warning ? 'alert' : 'note'}><Icon name={error || warning ? 'warning' : 'terminal'}/><div>{children}</div></div>; }

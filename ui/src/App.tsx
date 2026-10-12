@@ -1,8 +1,9 @@
+import type { FocusEvent } from 'react';
 import {stackActions} from './stack-state.js';
 import {StackCard} from './StackCard.js';
 import {StackPurgeDialog, type StackPurgePreview} from './StackPurgeDialog.js';
 import { api, ApiError, humanBytes, message } from './api.js';
-import { Alert, Badge, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
+import { Alert, Badge, Brand, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
 import { DiscoverDialog, RuntimeView, LogsDrawer, GroupDialog } from './views.js';
 import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
@@ -28,6 +29,17 @@ function CatalogLifecycleDialog({review,onClose,onApplied}: {review: LifecycleRe
     {error && <Alert error>{error}</Alert>}
     <div className="modal-actions"><button onClick={onClose}>Cancelar</button><button className={action === 'restore-stack' ? 'primary' : 'danger'} disabled={busy} onClick={() => {setBusy(true);setError('');void api(review.endpoint,{...review.body,confirm:true,fingerprint:review.value.fingerprint}).then(onApplied).catch(e => setError(message(e))).finally(() => setBusy(false));}}>{busy ? 'Aplicando…' : confirm}</button></div>
   </Modal>;
+}
+// Native focus may leave a partially visible item at the edge of the mobile rail.
+// Scroll only the rail, preserving the page's reading position.
+function revealNavigationFocus(event: FocusEvent<HTMLElement>) {
+  const nav = event.currentTarget;
+  if (nav.scrollWidth <= nav.clientWidth) return;
+  const item = event.target.getBoundingClientRect();
+  const viewport = nav.getBoundingClientRect();
+  const inset = 17;
+  if (item.left < viewport.left + inset) nav.scrollLeft -= viewport.left + inset - item.left;
+  else if (item.right > viewport.right - inset) nav.scrollLeft += item.right - viewport.right + inset;
 }
 function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [status, setStatus] = useState<Status>(EMPTY), [auth, setAuth] = useState<boolean | null>(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
@@ -102,7 +114,7 @@ function App() {
   const cancel = (id: string) => {if(window.confirm('Cancelar el cliente no garantiza que el Engine detenga el trabajo ya recibido. ¿Solicitar cancelación?')) void work(async () => {await api('/cancel',{id}); notify('Cancelación solicitada; revisa el estado real.');});};
   if(auth === null && loadError) return <div className="login-page"><section className="login-card"><h1>No se pudo abrir NearProd</h1><Alert error>{loadError}</Alert><button className="primary full" onClick={() => void load()}>Reintentar conexión local</button></section></div>;
   if(auth === null) return <div className="login-page"><div className="login-card"><h2>NearProd</h2><Skeleton label="Abriendo tu entorno local" rows={5}/></div></div>;
-  if(!auth) return <div className="login-page"><div className="login-brand"><div className="logo"><Icon name="cube" size={30}/></div><span>NearProd<span className="brand-dot">.</span></span></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
+  if(!auth) return <div className="login-page"><div className="login-brand"><Brand/></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
   if(!catalog) return <Busy/>;
   const running = status.stacks.filter(s => s.execution === 'running').length, totalContainers = status.stacks.reduce((n,s) => n+s.containers.length,0), active = catalog.operations.filter(o => o.state === 'running');
   const archivedStacks = catalog.archivedStacks || [];
@@ -115,18 +127,17 @@ function App() {
     <div className="shell">
       <aside className="sidebar">
         <a className="brand" href="/" aria-label="NearProd inicio">
-          <span className="logo">
-            <Icon name="cube" size={24} />
-          </span>
-          NearProd<span className="brand-dot">.</span>
+          <Brand/>
         </a>
         <span className="version-label">
           LOCAL CONTROL / v{catalog.version}
         </span>
         <div className="nav-caption">WORKSPACE</div>
-        <nav aria-label="Navegación principal">
+        <nav aria-label="Navegación principal" onFocusCapture={revealNavigationFocus}>
           <button
             className={page === "projects" ? "active" : ""}
+            aria-current={page === "projects" ? "page" : undefined}
+            title="Aplicaciones"
             onClick={() => setPage("projects")}
           >
             <Icon name="grid" />
@@ -134,6 +145,8 @@ function App() {
           </button>
           <button
             className={page === "proxy" ? "active" : ""}
+            aria-current={page === "proxy" ? "page" : undefined}
+            title="Accesos locales"
             onClick={() => setPage("proxy")}
           >
             <Icon name="link" />
@@ -141,6 +154,8 @@ function App() {
           </button>
           <button
             className={page === "infra" ? "active" : ""}
+            aria-current={page === "infra" ? "page" : undefined}
+            title="Infraestructura"
             onClick={() => setPage("infra")}
           >
             <Icon name="cube" />
@@ -148,6 +163,7 @@ function App() {
           </button>
           <button
             className={page === "tools" ? "active" : ""}
+            aria-current={page === "tools" ? "page" : undefined}
             title="Herramientas"
             onClick={() => setPage("tools")}
           >
@@ -156,6 +172,7 @@ function App() {
           </button>
           <button
             className={page === "mcp" ? "active" : ""}
+            aria-current={page === "mcp" ? "page" : undefined}
             title="Acceso MCP"
             onClick={() => setPage("mcp")}
           >
@@ -164,6 +181,8 @@ function App() {
           </button>
           <button
             className={page === "runtime" ? "active" : ""}
+            aria-current={page === "runtime" ? "page" : undefined}
+            title="Runtime y recursos"
             onClick={() => setPage("runtime")}
           >
             <Icon name="settings" />
@@ -171,6 +190,8 @@ function App() {
           </button>
           <button
             className={page === "activity" ? "active" : ""}
+            aria-current={page === "activity" ? "page" : undefined}
+            title="Actividad"
             onClick={() => setPage("activity")}
           >
             <Icon name="activity" />
@@ -204,12 +225,6 @@ function App() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <label className="mobile-navigation">
-            <span className="sr-only">Sección</span>
-            <select value={page} onChange={event => setPage(event.target.value as Page)} aria-label="Sección de NearProd">
-              <option value="projects">Aplicaciones</option><option value="proxy">Accesos locales</option><option value="infra">Infraestructura</option><option value="tools">Herramientas</option><option value="mcp">Acceso MCP</option><option value="runtime">Runtime y recursos</option><option value="activity">Actividad</option>
-            </select>
-          </label>
           <div className="breadcrumb">
             Workspace <Icon name="chevron" size={13} />
             <strong>
