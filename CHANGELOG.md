@@ -1,3 +1,7 @@
+# 0.9.6
+
+Corrige una carrera durante el cierre del agente: antes de continuar una actualización o migración, NearProd comprueba que tanto el socket como el bloqueo nativo del catálogo se hayan liberado. Conserva el timeout y rechaza bloqueos inseguros. Incluye los temas y la tipografía de 0.9.5.
+
 # 0.9.5
 
 El panel incorpora temas Sistema, Claro y Oscuro con preferencia persistente en el navegador. Comparte la paleta grafito/acero con la landing y aplica el tema antes del primer render. La tipografía usa roles comunes para lectura, controles, títulos y datos técnicos; la vista MCP alinea sus títulos y listas y conserva una tabla desplazable en móvil.

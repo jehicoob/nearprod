@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -197,6 +198,9 @@ func TestUpdaterRetriesFailedActivationWithoutDownloading(t *testing.T) {
 		return nil, fail("AGENT_START_FAILED", "test startup failure", 503)
 	}
 	result, err := u.Apply(context.Background(), plan)
+	if err != nil && str(publicError(err)["code"]) != "UPDATE_AGENT_RESTART" {
+		t.Logf("unexpected activation failure details: %#v", publicError(err))
+	}
 	expectCode(t, err, "UPDATE_AGENT_RESTART")
 	if str(at(publicError(err), "details", "update", "status")) != "activation-pending" {
 		t.Fatal("CLI error details lost the installed-but-not-activated state")
@@ -327,6 +331,27 @@ func TestAgentUpdateRejectsWrongVersionBeforeOpeningCatalog(t *testing.T) {
 	_, err := StartAgent(context.Background(), f.Home, f.A.HTTP.Assets, f.F, false, 0)
 	expectCode(t, err, "UPDATE_AGENT_VERSION")
 	release, err := AcquireAgentLock(f.Home)
+	must(t, err)
+	release()
+}
+
+// Closing the legacy socket and releasing the flock are separate system calls.
+// A waiter can observe this state during the normal Agent lock release.
+func TestStopWaitsForGuardAfterSocketCloses(t *testing.T) {
+	home := tempHome(t)
+	guard, err := os.OpenFile(filepath.Join(home, "agent.guard"), os.O_CREATE|os.O_RDWR, 0600)
+	must(t, err)
+	defer guard.Close()
+	must(t, syscall.Flock(int(guard.Fd()), syscall.LOCK_EX|syscall.LOCK_NB))
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err = waitAgentStopped(ctx, home)
+	if err == nil || str(publicError(err)["code"]) != "AGENT_STOP_PENDING" {
+		t.Fatalf("shutdown must remain pending while the catalog guard is held, got %#v", publicError(err))
+	}
+	must(t, guard.Close())
+	must(t, waitAgentStopped(context.Background(), home))
+	release, err := AcquireAgentLock(home)
 	must(t, err)
 	release()
 }
