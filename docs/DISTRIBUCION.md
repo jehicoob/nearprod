@@ -120,7 +120,7 @@ La fórmula NO instala Docker/Colima, no modifica el shell, no arranca servicios
 
 La función `nearprod()` que podía crear el instalador antiguo, un alias o el orden del PATH pueden seguir apuntando a `~/.local/bin/nearprod`. Revisa `type -a nearprod` y `.zshrc` antes de dar por completada la migración. El kit no los borra. Tampoco migra ni limpia el catálogo como parte del empaquetado.
 
-`nearprod update --check` consulta la última release pública estable. `nearprod update` solo administra la instalación manual estable `~/.local/bin/nearprod`; Homebrew sigue siendo dueño de su ejecutable y debe usar `brew upgrade nearprod`. El actualizador valida digest de GitHub, `SHA256SUMS.txt`, archive e identidad de plataforma/versión, conserva una copia anterior y limpia temporales. Actualizar el archivo no reinicia un proceso ya activo. Consulta la guía del binario para detener/reabrir únicamente el agente cuando no tenga tareas activas. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
+`nearprod update --check` consulta la última release pública estable. `nearprod update` solo administra la instalación manual `~/.local/bin/nearprod`; Homebrew sigue siendo dueño de su ejecutable y debe usar `brew upgrade nearprod`. El actualizador valida digest de GitHub, `SHA256SUMS.txt`, archive e identidad de plataforma/versión, conserva una copia anterior y limpia temporales. Actualizar el archivo no reinicia un proceso ya activo. Consulta la guía del binario para detener/reabrir únicamente el agente cuando no tenga tareas activas. No se ejecuta `nearprod self-test` (Docker real) de forma automática.
 
 ## Límites de las validaciones
 

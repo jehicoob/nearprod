@@ -33,6 +33,7 @@ const (
 )
 
 var stableVersionRE = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+var versionIdentifiersRE = regexp.MustCompile(`^[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*$`)
 var sha256RE = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 
 type releaseAsset struct {
@@ -133,6 +134,35 @@ func compareStableVersions(a, b string) (int, error) {
 		}
 	}
 	return 0, nil
+}
+
+// compareInstalledVersionToStable accepts SemVer prereleases and build metadata
+// for the installed binary; the published target must remain a stable X.Y.Z.
+func compareInstalledVersionToStable(current, latest string) (int, error) {
+	version, metadata, hasMetadata := strings.Cut(current, "+")
+	if hasMetadata && !versionIdentifiersRE.MatchString(metadata) {
+		return 0, fail("UPDATE_VERSION", "La versión instalada contiene metadatos inválidos.", 422)
+	}
+	core, prerelease, hasPrerelease := strings.Cut(version, "-")
+	if hasPrerelease {
+		if !versionIdentifiersRE.MatchString(prerelease) {
+			return 0, fail("UPDATE_VERSION", "La versión de desarrollo instalada no es válida.", 422)
+		}
+		for _, identifier := range strings.Split(prerelease, ".") {
+			if len(identifier) > 1 && identifier[0] == '0' && strings.Trim(identifier, "0123456789") == "" {
+				return 0, fail("UPDATE_VERSION", "La versión de desarrollo contiene un identificador numérico con ceros iniciales.", 422)
+			}
+		}
+	}
+	comparison, err := compareStableVersions(core, latest)
+	if err != nil {
+		return 0, err
+	}
+	// A prerelease precedes its stable release. Metadata never affects ordering.
+	if comparison == 0 && hasPrerelease {
+		return -1, nil
+	}
+	return comparison, nil
 }
 
 func updateProvider(executable, home string) string {
@@ -263,13 +293,10 @@ func (u *Updater) Check(ctx context.Context) (updatePlan, error) {
 	provider := updateProvider(u.Executable, u.Home)
 	status := "available"
 	available := false
-	if _, err = parseStableVersion(Version); err != nil {
+	comparison, compareErr := compareInstalledVersionToStable(Version, latest)
+	if compareErr != nil {
 		status = "development-build"
 	} else {
-		comparison, compareErr := compareStableVersions(Version, latest)
-		if compareErr != nil {
-			return updatePlan{}, compareErr
-		}
 		switch comparison {
 		case -1:
 			available = true
@@ -284,6 +311,8 @@ func (u *Updater) Check(ctx context.Context) (updatePlan, error) {
 		instruction = "brew update && brew upgrade nearprod"
 	} else if provider == "unmanaged" {
 		instruction = "Instala primero el binario manual con nearprod install."
+	} else if status == "development-build" {
+		instruction = "No se puede comparar la versión instalada. Instala un binario con versión X.Y.Z o X.Y.Z-dev.N."
 	}
 	summary := J{
 		"status": status, "currentVersion": Version, "latestVersion": latest,
@@ -432,7 +461,7 @@ func (u *Updater) Apply(ctx context.Context, plan updatePlan) (J, error) {
 		return plan.Summary, fail("PACKAGE_MANAGED", "NearProd está gestionado por Homebrew. Usa brew update && brew upgrade nearprod.", 409)
 	}
 	if plan.Provider != "manual" {
-		return plan.Summary, fail("UPDATE_INSTALL_REQUIRED", "El autoactualizador solo reemplaza la instalación manual estable en ~/.local/bin/nearprod.", 409)
+		return plan.Summary, fail("UPDATE_INSTALL_REQUIRED", "El autoactualizador solo reemplaza la instalación manual en ~/.local/bin/nearprod.", 409)
 	}
 	base := filepath.Join(u.Home, ".local", "share", "nearprod")
 	if err := safeOwnedDir(base); err != nil {
