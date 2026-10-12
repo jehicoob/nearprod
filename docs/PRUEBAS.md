@@ -1,5 +1,9 @@
 # Pruebas y evidencia de NearProd
 
+## Temas y tipografía — 0.9.5
+
+El panel incorpora los modos Sistema, Claro y Oscuro y una escala tipográfica compartida. La validación local incluye compilación TypeScript/UI y 39 comprobaciones de navegador contra el agente Go con catálogo temporal y Docker/Traefik simulados: preferencia persistente, cambio del sistema, sincronización entre pestañas, primer render, vista MCP en ambos temas, tamaños móviles y flujos operativos existentes. No equivale a repetir pruebas con contenedores reales. El pipeline de publicación verifica además Linux/macOS y los cuatro paquetes de distribución.
+
 ## Actualización automática — 0.9.4
 
 El [PR #22](https://github.com/jehicoob/nearprod/pull/22) incorpora la activación del agente y la reconexión de la UI. La validación del fix incluye:

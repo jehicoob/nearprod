@@ -36,7 +36,7 @@ component. [public/icon.svg](public/icon.svg) is the shared layered-panel mark.
 Use the lowercase `nearprod.` wordmark for visual brand lockups; product names in
 prose and accessible labels remain `NearProd`.
 
-The landing vendors these two assets through its `scripts/sync-brand.mjs` command,
+The landing vendors the brand, icon and native theme controller through its `scripts/sync-brand.mjs` command,
 with an explicit path to this repository. Its aliases refer to the `--brand-*`
 tokens. Synchronization copies the canonical assets exactly and can check drift;
 neither app depends on a sibling checkout at runtime or on a remote font/service.
@@ -46,7 +46,7 @@ Review both consumers when changing the shared foundation.
 
 [public/theme.css](public/theme.css) maps the shared brand to semantic roles:
 
-- Graphite sidebar, topbar and code/log surfaces; light gray workspace and white cards.
+- Light theme: graphite sidebar, topbar and code/log surfaces; light gray workspace and white cards. The paired dark theme is defined below.
 - Graphite text, readable neutral metadata and muted steel primary actions with white labels.
 - Pale steel belongs to subtle selection and illustration fills; a lighter steel accent
   is used for links, selection indicators and focus against graphite surfaces.
@@ -131,3 +131,43 @@ the intended home. Stop on a newer unsupported catalog; never rewrite its schema
 number or replace it with an empty catalog. Build the UI on the current compatible
 backend branch, preserving MCP, lifecycle, and application-control behavior.
 A clean temporary home is insufficient evidence for an existing installation.
+
+## Approved light/dark themes and typography — 2026-10-12
+
+The user approved the paired graphite/steel palette and the typography correction
+with “procede”. `public/brand.css` now owns shared semantic light/dark roles while
+the original `--brand-*` identity values remain stable. Both products consume the
+same foundation and native `public/theme.js` controller. Landing synchronization
+vendors that controller too; there is no runtime dependency on a sibling checkout.
+
+- Light: canvas #F4F5F7, cards #FFFFFF, text #242930, muted #5B6573,
+  primary #526C8C with white text.
+- Dark: canvas #181C22, cards #222831, text #E7EBF0, muted #ABB5C3,
+  primary #ADC0D8 with #181C22 text. Inverse/code surfaces remain distinct.
+- Status roles retain green/amber/red/teal/violet meaning with theme-specific
+  backgrounds and foregrounds. Decorative lines and control boundaries differ.
+- Native “Sistema / Claro / Oscuro” controls remain available before and after
+  login. System is the default; explicit choices persist per browser origin.
+  The shared head script resolves the preference before styles render, handles
+  system changes and other tabs, and tolerates unavailable storage. CSS follows
+  the system when JavaScript is unavailable. No external theme library is used.
+- Operational type uses rem-based roles: body/lists/controls 14px, code/data 13px,
+  captions 12px, section headings 16px, page headings 28–32px at default browser
+  size. The browser's default root size is preserved for user preferences.
+  Adjacent MCP panels share heading and reading roles. No essential mobile text
+  is reduced to fit; controls wrap. Arial and the existing mono family remain.
+- Marketing retains its own display scale, serif accents, motion and original
+  screenshot pixels. The theme does not recolor historical screenshots.
+
+Acceptance covers both themes on desktop/mobile, keyboard selection, reload and
+cross-tab persistence, system changes, blocked storage, pre-paint resolution,
+MCP computed typography, forms/dialogs, focus, overflow, and existing regressions.
+
+
+Local validation on 2026-10-12: TypeScript compilation and embedded UI build
+passed; the native Go/Chromium browser suite passed 39 checks using a temporary
+catalog and simulated Docker/Traefik. Theme coverage includes pre-login and
+post-login controls, saved preference before first paint, system and cross-tab
+changes, both MCP themes at 320/430/750/1440px, and a larger root font setting.
+The shared palette and native controller match the landing copies byte for byte.
+No new release or installation is implied by this local acceptance.

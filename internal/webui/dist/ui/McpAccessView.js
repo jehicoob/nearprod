@@ -89,7 +89,7 @@ export function McpAccessView() {
                         React.createElement("span", { className: "eyebrow" }, "ALCANCE"),
                         React.createElement("h2", null, "Capacidades disponibles"))),
                 React.createElement("p", { className: "mobile-table-hint" }, "Desliza horizontalmente para consultar todos los detalles."),
-                React.createElement("div", { className: "table-wrap" },
+                React.createElement("div", { className: "table-wrap mcp-capabilities", role: "region", "aria-label": "Capacidades MCP, tabla desplazable", tabIndex: 0 },
                     React.createElement("table", null,
                         React.createElement("caption", { className: "sr-only" }, "Capacidades disponibles mediante MCP"),
                         React.createElement("thead", null,

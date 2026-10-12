@@ -6,6 +6,8 @@ La versión de este checkout está en [VERSION](VERSION). Los binarios publicado
 
 > **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
+El selector **Tema** ofrece **Sistema**, **Claro** y **Oscuro**, también en la pantalla de acceso. La elección se guarda en el navegador para esa dirección del panel; en Sistema sigue los cambios del sistema operativo. No cambia Docker ni el catálogo.
+
 El panel permite **Eliminar aplicación y recursos** tanto en aplicaciones activas como archivadas: muestra qué se borrará, exige confirmar el ID y conserva el código. Si la limpieza falla, mantiene el registro para reintentar. Consulta el [alcance y los límites de la eliminación](docs/APPLICATION_DELETION.md).
 
 Cada aplicación activa o archivada tiene un control **Compactar / Expandir**: oculta sus acciones y recursos mientras mantiene visibles el nombre, la ruta y el estado. Las tarjetas se pueden compactar de forma independiente. El encabezado de cada grupo también permite compactar todas sus aplicaciones; al expandirlo se conserva el estado de cada tarjeta.
