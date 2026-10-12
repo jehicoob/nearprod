@@ -2,11 +2,17 @@
 
 ## El contrato
 
-La versión del ejecutable es `0.9.1`. La versión de esquema es **5**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. La identidad estable del ejecutable tampoco codifica la versión actual del schema: se conserva para que las versiones anteriores puedan verificar una actualización. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
+La versión del checkout se define en [VERSION](../VERSION); `nearprod --version` muestra la del ejecutable instalado. La versión de esquema es **5**. Son cosas diferentes: actualizar un binario compatible no crea otro catálogo ni renombra recursos. La identidad estable del ejecutable tampoco codifica la versión actual del schema: se conserva para que las versiones anteriores puedan verificar una actualización. El catálogo pertenece al usuario/NEARPROD_HOME, no al checkout, al paquete instalado ni al directorio de descarga.
 
 0.6.1 ya persistía `~/.nearprod/catalog.json`. Por ello, reinstalar no debería requerir registrar nuevamente. Cambiar de NEARPROD_HOME, borrar el catálogo, arrancar otra instalación o apuntar a otro Engine sí puede mostrar un entorno distinto. `nearprod config paths` muestra exactamente el catálogo elegido sin arrancar Docker.
 
-## Antes de actualizar
+## Actualizar una instalación manual actual
+
+Usa `nearprod update --check` para consultar y `nearprod update` para instalar la última release estable. Desde el actualizador `0.9.4`, un agente libre se reinicia automáticamente en el mismo puerto y las interfaces compatibles conservan la sesión. Las tareas y Watch activos bloquean el cambio sin cancelarse; `--check` nunca reinicia. Un agente detenido permanece detenido hasta abrirlo con `nearprod ui`.
+
+Si el actualizador que ejecutas todavía es `0.9.3` o anterior, después de instalar la nueva versión cierra el agente anterior con `nearprod agent stop` y abre `nearprod ui`. Esta transición inicial sigue usando el código antiguo; publicar o descargar una versión no cambia ese proceso en memoria. Los contenedores permanecen activos. Consulta [INSTALAR-BINARIO](INSTALAR-BINARIO.md#actualizar-una-instalación-manual) para recuperación y sesiones de versiones anteriores.
+
+## Instalación manual y migración desde versiones antiguas
 
 Cierra el agente anterior, conserva el catálogo y haz backups de datos relevantes con herramientas apropiadas del motor. No copies directorios de DB en uso como si fueran backups consistentes. No ejecutes ambas versiones sobre el mismo HOME. Los contenedores pueden seguir ejecutándose: migrar metadata no llama a Docker ni los detiene.
 
@@ -25,11 +31,11 @@ Para un HOME personalizado, configura el mismo valor antes de todos esos comando
 
 `0.9.0` publicó por error la versión del schema dentro del marcador que los actualizadores anteriores usan para reconocer el ejecutable. `0.9.1` vuelve a tratar ese marcador como un contrato estable y expone el schema por separado en `--identity`.
 
-Tanto `0.8.0` como una instalación normal de `0.9.0` bajo `~/.local/bin/nearprod` pueden usar `nearprod update` para llegar a `0.9.1`. Durante el reemplazo de `0.9.0`, el candidato conserva temporalmente el marcador que espera ese actualizador y vuelve al marcador estable cuando escribe el nuevo registro. No borres ni edites `~/.local/share/nearprod/installation.json` antes de actualizar: si falta o no coincide con la ruta instalada, la comprobación falla cerrada en lugar de adivinar la procedencia del binario.
+La corrección incorporada en `0.9.1` se mantiene en las releases posteriores: tanto `0.8.0` como una instalación normal de `0.9.0` bajo `~/.local/bin/nearprod` pueden usar `nearprod update` para consultar e instalar la última estable compatible. Durante el reemplazo de `0.9.0`, el candidato conserva temporalmente el marcador que espera ese actualizador y vuelve al marcador estable cuando escribe el nuevo registro. No borres ni edites `~/.local/share/nearprod/installation.json` antes de actualizar: si falta o no coincide con la ruta instalada, la comprobación falla cerrada en lugar de adivinar la procedencia del binario.
 
-Si copiaste `0.9.0` manualmente sin ejecutar `nearprod install` y no existe ese registro, descarga el archive oficial `0.9.1`, comprueba su SHA-256 contra `SHA256SUMS.txt` y ejecuta `./nearprod install --configure-shell`. El instalador reconoce el binario transitorio, conserva una copia exacta y sigue negándose a reemplazar comandos ajenos.
+Si copiaste `0.9.0` manualmente sin ejecutar `nearprod install` y no existe ese registro, descarga el archive de [la última release estable](https://github.com/jehicoob/nearprod/releases/latest), comprueba su SHA-256 contra `SHA256SUMS.txt` y ejecuta `./nearprod install --configure-shell`. El instalador reconoce el binario transitorio, conserva una copia exacta y sigue negándose a reemplazar comandos ajenos.
 
-Una terminación abrupta justo después de reemplazar el ejecutable puede dejar el registro anterior aunque `nearprod --version` ya muestre `0.9.1`. En ese caso no edites el JSON: vuelve a ejecutar `install` con el mismo binario `0.9.1` cuyo checksum verificaste. La reinstalación conserva catálogo y datos, guarda otra copia de recuperación y normaliza el registro y la identidad estable.
+Una terminación abrupta justo después de reemplazar el ejecutable puede dejar el registro anterior aunque `nearprod --version` ya muestre la versión nueva. En ese caso no edites el JSON: vuelve a ejecutar `install` con el mismo binario cuyo checksum verificaste. La reinstalación conserva catálogo y datos, guarda otra copia de recuperación y normaliza el registro y la identidad estable.
 
 ## Qué hace schema 3 → 5
 
@@ -79,7 +85,7 @@ Guarda estos backups en un lugar privado externo si necesitas recuperación fren
 
 No hay un botón de downgrade. **Un binario anterior no debe escribir schema 5.** Los binarios que solo admiten schema 4 lo rechazan; 0.6.x además queda bloqueado por el marcador del catálogo raíz. Conservar el ejecutable anterior no basta para volver atrás. Un rollback de metadata solo se considera con ambos agentes cerrados, backup íntegro y sin cambios posteriores de recursos que hagan obsoleta la copia anterior.
 
-Antes de una restauración manual, archiva el HOME actual completo sin copiar en vivo bases como si fueran consistentes, conserva ambos catálogos y verifica hashes. Restaura solo metadata compatible en un procedimiento offline; no borres volúmenes ni datos. El documento no propone `rm -rf ~/.nearprod` ni borrar config para ocultar el marcador. Para recuperar información creada después de migrar se necesita un plan específico; prefiere corregir hacia delante con 0.7.
+Antes de una restauración manual, archiva el HOME actual completo sin copiar en vivo bases como si fueran consistentes, conserva ambos catálogos y verifica hashes. Restaura solo metadata compatible en un procedimiento offline; no borres volúmenes ni datos. El documento no propone `rm -rf ~/.nearprod` ni borrar config para ocultar el marcador. Para recuperar información creada después de migrar se necesita un plan específico; prefiere corregir hacia delante con una versión compatible con el esquema actual.
 
 ## Señales de bloqueo
 

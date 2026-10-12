@@ -10,7 +10,7 @@ Se eligió **GitHub Actions + el build existente + Python estándar** en lugar d
 
 ## Versión y herramientas
 
-- `VERSION`: única versión de la aplicación, inicialmente `0.7.0`.
+- [VERSION](../VERSION): única fuente de la versión de la aplicación para compilar y publicar.
 - `.go-version`: toolchain exacto usado para releases.
 - `.node-version`: Node exacto usado para construir TypeScript.
 - `package-lock.json`: dependencias del frontend. El manifiesto privado de herramientas no necesita una versión de publicación npm.
@@ -33,7 +33,7 @@ make smoke test-package
 make release-local
 ```
 
-La salida se guarda en `dist/0.9.1/`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
+La salida se guarda en `dist/<VERSION>/`, usando el valor del archivo raíz `VERSION`. No crea tags, commits, repositorios, releases ni instalaciones globales. Si el directorio ya existe, el empaquetador se detiene para no mezclar artefactos. Puedes elegir otro directorio:
 
 ```bash
 python3 scripts/release.py --output dist/revision-2
@@ -53,7 +53,7 @@ Para diagnósticos sin toolchain actualizado o sin poder descargar npm:
 make release-snapshot
 ```
 
-Ese modo utiliza los assets ya entregados y produce versión `0.9.1-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
+Ese modo utiliza los assets ya entregados y produce la versión `<VERSION>-dev`. Se marca `snapshot=true`, no genera fórmula Homebrew y **no es publicable** por este workflow. No equivale a validar una release limpia ni a probar TypeScript.
 
 ## Primer paso remoto: CI sin publicación
 
@@ -80,8 +80,9 @@ En el repositorio correcto, tras confirmar la visibilidad y pasar CI:
 3. Desde el commit aprobado, ejecuta explícitamente:
 
 ```bash
-git tag -a v0.9.1 -m "NearProd 0.9.1"
-git push origin v0.9.1
+release_version=$(cat VERSION)
+git tag -a "v${release_version}" -m "NearProd ${release_version}"
+git push origin "refs/tags/v${release_version}"
 ```
 
 `v*` es un filtro glob. El script verifica además formato estable X.Y.Z, coincidencia con `VERSION` y commit del tag. No se simula una expresión regular dentro del filtro YAML.
