@@ -25,7 +25,7 @@ func callMCP(t *testing.T, client *mcpsdk.ClientSession, name string, input J) J
 	result, err := client.CallTool(context.Background(), &mcpsdk.CallToolParams{Name: name, Arguments: input})
 	must(t, err)
 	if result.IsError {
-		t.Fatalf("%s: %v", name, result.Content)
+		t.Fatalf("%s: %s", name, mustJSON(result))
 	}
 	return obj(at(obj(result.StructuredContent), "result"))
 }
