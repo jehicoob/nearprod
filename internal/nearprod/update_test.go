@@ -383,7 +383,7 @@ func TestUpdaterDownloadsVerifiesInstallsAndCleans(t *testing.T) {
 			server, _ := updateTestServer(t, tc.latest, platform, archive, updateTestDigest(archive))
 			defer server.Close()
 
-			home := t.TempDir()
+			home := tempHome(t)
 			installed := filepath.Join(home, ".local", "bin", "nearprod")
 			must(t, os.MkdirAll(filepath.Dir(installed), 0700))
 			previous := updateTestBinary(tc.current, platform)
@@ -397,7 +397,7 @@ func TestUpdaterDownloadsVerifiesInstallsAndCleans(t *testing.T) {
 			}
 			result, err := u.Apply(context.Background(), plan)
 			must(t, err)
-			if str(result["status"]) != "updated" || str(result["currentVersion"]) != tc.latest || truth(result["canInstall"]) || !truth(result["temporaryFilesRemoved"]) {
+			if str(result["status"]) != "updated" || str(result["currentVersion"]) != tc.latest || truth(result["canInstall"]) || !truth(result["temporaryFilesRemoved"]) || str(result["agentStatus"]) != "not-running" {
 				t.Fatal(result)
 			}
 			identity, err := verifyUpdateBinary(context.Background(), installed, tc.latest, platform)
@@ -485,7 +485,7 @@ func TestUpdaterRollsBackWhenInstalledIdentityChanges(t *testing.T) {
 	archive := updateTestArchive(t, map[string][]byte{"nearprod": updatePathDependentBinary("1.1.0", platform)})
 	server, _ := updateTestServer(t, "1.1.0", platform, archive, updateTestDigest(archive))
 	defer server.Close()
-	home := t.TempDir()
+	home := tempHome(t)
 	installed := filepath.Join(home, ".local", "bin", "nearprod")
 	must(t, os.MkdirAll(filepath.Dir(installed), 0700))
 	before := updateTestBinary("1.0.0", platform)

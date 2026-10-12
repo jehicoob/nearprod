@@ -70,7 +70,7 @@ nearprod update --check
 nearprod update
 ```
 
-El segundo comando muestra la versión y solicita confirmación. Descarga desde la release pública oficial, verifica el digest de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del nuevo ejecutable antes y después de instalarlo. Conserva una copia anterior y limpia los temporales; no reinicia el agente que ya estaba en ejecución ni toca contenedores o datos. Las instalaciones Homebrew deben usar `brew upgrade nearprod`.
+El segundo comando muestra la versión y solicita confirmación. Descarga desde la release pública oficial, verifica el digest de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del nuevo ejecutable antes y después de instalarlo. Conserva una copia anterior y limpia los temporales. Si el agente está activo y libre, lo reinicia con la nueva versión en el mismo puerto; las interfaces compatibles conservan su sesión y se recargan automáticamente. Si hay operaciones o Watch activos, rechaza la actualización sin reemplazar el ejecutable ni interrumpirlos. No detiene contenedores ni cambia sus datos. Las instalaciones Homebrew deben usar `brew upgrade nearprod`. Consulta los límites de versiones anteriores y recuperación en la [guía de actualización](docs/INSTALAR-BINARIO.md#actualizar-una-instalación-manual).
 
 `0.9.1` repara la compatibilidad de `nearprod update` desde `0.8.0` y desde instalaciones normales de `0.9.0`. Conserva `~/.local/share/nearprod/installation.json` durante el cambio; una copia manual `0.9.0` sin ese registro requiere descargar y verificar el archive `0.9.1` antes de ejecutar `./nearprod install --configure-shell`. Consulta [MIGRACION](docs/MIGRACION.md) para el límite exacto.
 

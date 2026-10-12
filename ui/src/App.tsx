@@ -11,7 +11,7 @@ import {InfrastructureView} from './infrastructure.js';
 import {ToolsView} from './tools.js';
 import {McpAccessView} from './McpAccessView.js';
 import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container, Preview } from './types.js';
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools' | 'mcp';
 const EMPTY: Status = { connected: false, checkedAt: null, stacks: [] };
 interface LifecycleReview { value: Record<string, unknown>; endpoint: string; body: Record<string, unknown> }
@@ -42,6 +42,7 @@ function revealNavigationFocus(event: FocusEvent<HTMLElement>) {
   else if (item.right > viewport.right - inset) nav.scrollLeft += item.right - viewport.right + inset;
 }
 function App() {
+  const loadedVersion = useRef<string | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null), [status, setStatus] = useState<Status>(EMPTY), [auth, setAuth] = useState<boolean | null>(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
   const [page, setPage] = useState<Page>('projects'), [search, setSearch] = useState(''), [discover, setDiscover] = useState(false), [editor, setEditor] = useState<{candidate?: Candidate; stack?: Stack} | null>(null);
   const [review, setReview] = useState<{stack: Stack; mode: string} | null>(null), [logs, setLogs] = useState<Stack | null>(null), [image, setImage] = useState<Container | null>(null), [mode, setMode] = useState<Record<string,string>>({});
@@ -60,6 +61,7 @@ function App() {
       else setLoadError(message(e));
       return;
     }
+    loadedVersion.current ??= nextCatalog.version;
     setCatalog(nextCatalog);
     setAuth(true);
     try {
@@ -73,6 +75,17 @@ function App() {
   useEffect(() => {
     if(!auth) return;
     const events = new EventSource('/api/events');
+    const reconnect = new AbortController();
+    events.onopen = () => {
+      void api<Catalog>('/catalog', undefined, reconnect.signal).then(next => {
+        if(reconnect.signal.aborted) return;
+        if(loadedVersion.current && next.version !== loadedVersion.current) {
+          window.location.reload();
+          return;
+        }
+        setCatalog(next);
+      }).catch(() => {});
+    };
     events.onmessage = (e) => {
       const event = JSON.parse(e.data) as {type: string; status?: Status; operation?: Operation; id?: string; line?: Operation['lines'][0]; watch?: Observed['watch']};
       if(event.type === 'status' && event.status) setStatus(event.status);
@@ -86,7 +99,7 @@ function App() {
       if(event.type === 'watch' && event.watch) {const watch = event.watch; setStatus(s => ({...s, stacks:s.stacks.map(v => v.id === event.id ? {...v, watch} : v)}));}
     };
     events.onerror = () => {void api<Catalog>('/catalog').catch(e => {if(e instanceof ApiError && e.code === 'AUTH_REQUIRED') setAuth(false);});};
-    return () => events.close();
+    return () => {reconnect.abort(); events.close();};
   }, [auth]);
   async function work(task: () => Promise<void>) {setWorking(true); try {await task();} catch(e) {notify(message(e),true);} finally {setWorking(false);} }
   async function openLifecycle(previewEndpoint: string, endpoint: string, body: Record<string, unknown>) {await work(async () => setLifecycleReview({value:await api<Record<string,unknown>>(previewEndpoint,body),endpoint,body}));}

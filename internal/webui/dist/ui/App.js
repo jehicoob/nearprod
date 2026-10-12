@@ -9,7 +9,7 @@ import { ProxyView, RouteLinks } from './proxy.js';
 import { InfrastructureView } from './infrastructure.js';
 import { ToolsView } from './tools.js';
 import { McpAccessView } from './McpAccessView.js';
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 const EMPTY = { connected: false, checkedAt: null, stacks: [] };
 function CatalogLifecycleDialog({ review, onClose, onApplied }) {
     const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -64,6 +64,7 @@ function revealNavigationFocus(event) {
         nav.scrollLeft += item.right - viewport.right + inset;
 }
 function App() {
+    const loadedVersion = useRef(null);
     const [catalog, setCatalog] = useState(null), [status, setStatus] = useState(EMPTY), [auth, setAuth] = useState(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
     const [page, setPage] = useState('projects'), [search, setSearch] = useState(''), [discover, setDiscover] = useState(false), [editor, setEditor] = useState(null);
     const [review, setReview] = useState(null), [logs, setLogs] = useState(null), [image, setImage] = useState(null), [mode, setMode] = useState({});
@@ -85,6 +86,7 @@ function App() {
                 setLoadError(message(e));
             return;
         }
+        loadedVersion.current ??= nextCatalog.version;
         setCatalog(nextCatalog);
         setAuth(true);
         try {
@@ -102,6 +104,18 @@ function App() {
         if (!auth)
             return;
         const events = new EventSource('/api/events');
+        const reconnect = new AbortController();
+        events.onopen = () => {
+            void api('/catalog', undefined, reconnect.signal).then(next => {
+                if (reconnect.signal.aborted)
+                    return;
+                if (loadedVersion.current && next.version !== loadedVersion.current) {
+                    window.location.reload();
+                    return;
+                }
+                setCatalog(next);
+            }).catch(() => { });
+        };
         events.onmessage = (e) => {
             const event = JSON.parse(e.data);
             if (event.type === 'status' && event.status)
@@ -129,7 +143,7 @@ function App() {
         };
         events.onerror = () => { void api('/catalog').catch(e => { if (e instanceof ApiError && e.code === 'AUTH_REQUIRED')
             setAuth(false); }); };
-        return () => events.close();
+        return () => { reconnect.abort(); events.close(); };
     }, [auth]);
     async function work(task) { setWorking(true); try {
         await task();

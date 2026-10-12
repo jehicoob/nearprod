@@ -63,18 +63,21 @@ type Updater struct {
 	Client                     *http.Client
 	APIURL, AssetBase          string
 	Executable, Home, OS, Arch string
+	CatalogHome                string
+	StartAgent                 func(context.Context, string, string, string, int) (J, error)
 	AllowedOrigins             map[string]bool
 }
 
 func newUpdater() *Updater {
 	return &Updater{
-		Client:     newUpdateHTTPClient(),
-		APIURL:     updateAPIURL,
-		AssetBase:  updateAssetBase,
-		Executable: binaryPath(),
-		Home:       userHome(),
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
+		Client:      newUpdateHTTPClient(),
+		APIURL:      updateAPIURL,
+		AssetBase:   updateAssetBase,
+		Executable:  binaryPath(),
+		Home:        userHome(),
+		CatalogHome: homeDir(),
+		OS:          runtime.GOOS,
+		Arch:        runtime.GOARCH,
 		AllowedOrigins: map[string]bool{
 			"https://api.github.com": true,
 			"https://github.com":     true,
@@ -455,7 +458,7 @@ func verifyUpdateBinary(ctx context.Context, executable, version, platform strin
 
 func (u *Updater) Apply(ctx context.Context, plan updatePlan) (J, error) {
 	if !plan.Available {
-		return plan.Summary, nil
+		return u.activateCurrentAgent(ctx, plan)
 	}
 	if plan.Provider == "homebrew" {
 		return plan.Summary, fail("PACKAGE_MANAGED", "NearProd está gestionado por Homebrew. Usa brew update && brew upgrade nearprod.", 409)
@@ -519,6 +522,18 @@ func (u *Updater) Apply(ctx context.Context, plan updatePlan) (J, error) {
 	}
 	var installedIdentity J
 	installedDigest := ""
+	previousDigest, err := streamHash(filepath.Join(u.Home, ".local", "bin", "nearprod"))
+	if err != nil {
+		return nil, err
+	}
+	agent, err := u.prepareAgentUpdate(ctx, plan.Latest)
+	if err != nil {
+		if agent != nil {
+			return nil, u.recoverUpdateAgent(agent, plan.Current, previousDigest, err)
+		}
+		return nil, err
+	}
+	defer agent.release()
 	record, err := installBinaryVersionVerified(u.Home, candidate, false, plan.Latest, func(installed string) error {
 		installedIdentity, err = verifyUpdateBinary(ctx, installed, plan.Latest, platform)
 		if err != nil {
@@ -534,21 +549,22 @@ func (u *Updater) Apply(ctx context.Context, plan updatePlan) (J, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, u.recoverUpdateAgent(agent, plan.Current, previousDigest, err)
 	}
 	installed := str(record["bin"])
-	return merge(plan.Summary, J{
+	result := merge(plan.Summary, J{
 		"status": "updated", "available": false, "canInstall": false, "installed": true,
 		"fromVersion": plan.Current, "currentVersion": plan.Latest,
 		"sha256": installedDigest, "identity": installedIdentity, "downloadIdentity": identity,
 		"bin": installed, "release": record["release"], "previous": record["previous"],
 		"temporaryFilesRemoved": true,
-		"note":                  "Binario actualizado y verificado. El agente que ya estaba ejecutándose no se reinició; en un momento sin tareas usa nearprod agent stop y nearprod ui.",
-	}), nil
+		"note":                  "Binario actualizado y verificado. No había un agente activo; se usará la nueva versión al abrir NearProd.",
+	})
+	return u.finishAgentUpdate(ctx, agent, installed, plan.Latest, result)
 }
 
 func confirmUpdate(input io.Reader, output io.Writer, current, latest string) (bool, error) {
-	fmt.Fprintf(output, "Actualizar NearProd %s -> %s? Se conservará una copia anterior y no se reiniciará el agente. [s/N]: ", current, latest)
+	fmt.Fprintf(output, "Actualizar NearProd %s -> %s? Se conservará una copia anterior y se activará la nueva versión automáticamente si el agente está en reposo. Los contenedores seguirán ejecutándose. [s/N]: ", current, latest)
 	line, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil && err != io.EOF {
 		return false, err

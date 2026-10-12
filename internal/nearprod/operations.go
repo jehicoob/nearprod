@@ -218,6 +218,26 @@ func (o *Operations) Stop() {
 	o.wg.Wait()
 }
 
+// Refuse new work atomically with the idle check. A failed preparation leaves
+// the agent usable; no operation is cancelled by a planned update.
+func (o *Operations) PrepareStop(prepare func() error) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed || o.ctx.Err() != nil {
+		return fail("AGENT_STOPPING", "El agente se está cerrando.", 409)
+	}
+	if len(o.active) != 0 {
+		return fail("OPERATION_CONFLICT", "Hay operaciones activas. Espera a que terminen antes de actualizar.", 409)
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return err
+		}
+	}
+	o.closed = true
+	return nil
+}
+
 // Bound serialized history, not only line counts: escaping/long build output must
 // never grow the metadata beyond the reader limit. Keep active operations.
 func boundHistory(ops A) A {
