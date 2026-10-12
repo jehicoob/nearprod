@@ -214,6 +214,14 @@ func streamAPI(ctx context.Context, info J, route string, query url.Values, emit
 				failure = fail(text(v["code"], "LOG_ERROR"), str(v["message"]), 422)
 			}
 			emit(event, v)
+			// A bounded consumer may cancel after this event. Do not scan again:
+			// closing the HTTP body can leave an incomplete buffered JSON token.
+			if err := ctx.Err(); err != nil {
+				if !errors.Is(err, context.Canceled) {
+					return err
+				}
+				break
+			}
 		}
 	}
 	if e = scan.Err(); e != nil && !errors.Is(e, context.Canceled) {

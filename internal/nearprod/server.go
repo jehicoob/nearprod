@@ -333,6 +333,10 @@ func (h *HTTP) post(ctx context.Context, p string, v J) (any, error) {
 		return s.Edit(str(v["target"]), obj(v["definition"]))
 	case "/api/stacks/remove":
 		return s.Remove(ctx, str(v["target"]), truth(v["confirm"]))
+	case "/api/stacks/purge-preview":
+		return s.PurgeStackPreview(ctx, str(v["target"]))
+	case "/api/stacks/purge":
+		return s.PurgeStack(v)
 	case "/api/stacks/archive-preview":
 		return s.ArchiveStackPreview(str(v["target"]))
 	case "/api/stacks/archive":

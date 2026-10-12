@@ -1,0 +1,44 @@
+/* Operational roles. Brand values are defined only in brand.css. */
+:root {
+  --bg: var(--brand-paper);
+  --panel: var(--brand-paper-bright);
+  --raised: #ffffff;
+  --surface-subtle: #edf0f4;
+  --surface-selected: var(--brand-accent-soft);
+  --text: var(--brand-ink);
+  --text-secondary: #46515f;
+  --muted: var(--brand-muted);
+  --line: var(--brand-line);
+  --border: var(--line);
+  --control-border: var(--brand-control-border);
+  --link: var(--brand-accent-hover);
+  --focus: var(--brand-accent);
+  --primary: var(--brand-accent);
+  --primary-hover: var(--brand-accent-hover);
+  --primary-text: var(--brand-on-accent);
+  --primary-border: var(--brand-accent);
+  --success-text: #245b3a;
+  --success-bg: #e6f0e5;
+  --success-line: #a6bdaa;
+  --warning-text: #775019;
+  --warning-bg: #f8eedb;
+  --warning-line: #bea476;
+  --danger-text: #963e32;
+  --danger-bg: #f8e9e2;
+  --danger-line: #c59487;
+  --info-text: #2a6255;
+  --info-bg: #eaf0ed;
+  --info-line: #a4bdb3;
+  --verify-text: #67518a;
+  --verify-bg: #ede9f5;
+  --verify-line: #b5a7cb;
+  --shell-bg: var(--brand-dark);
+  --shell-text: var(--brand-paper);
+  --shell-muted: var(--brand-dark-muted);
+  --shell-raised: var(--brand-dark-raised);
+  --backdrop: #242930a6;
+  --shell-success: #a6c8ae;
+  --shell-warning: #f4bf93;
+  --shell-line: var(--brand-dark-line);
+  --shadow: 0 18px 60px #2429301a;
+}

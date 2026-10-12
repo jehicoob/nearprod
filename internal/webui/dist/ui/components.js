@@ -1,5 +1,14 @@
+import { healthDescription } from './stack-state.js';
 import { api, message } from './api.js';
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useRef } = React;
+/** Shared product identity; operational cube icons retain their own meaning. */
+export function Brand() {
+    return React.createElement("span", { className: "brand-lockup" },
+        React.createElement("img", { className: "logo", src: "/icon.svg", width: "36", height: "36", alt: "" }),
+        React.createElement("span", { className: "brand-name" },
+            "nearprod",
+            React.createElement("span", { className: "brand-dot" }, ".")));
+}
 export function Icon({ name, size = 18 }) {
     const paths = {
         cube: React.createElement(React.Fragment, null,
@@ -42,15 +51,35 @@ export function Icon({ name, size = 18 }) {
     };
     return React.createElement("svg", { "aria-hidden": "true", width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round", strokeLinejoin: "round" }, paths[name] || paths.cube);
 }
-export function Badge({ value }) {
+export function DisclosureButton({ expanded, controls, label, onToggle, className = '' }) {
+    const action = expanded ? 'Compactar' : 'Expandir';
+    return React.createElement("button", { type: "button", className: `disclosure-toggle ${className}`, "aria-expanded": expanded, "aria-controls": controls, "aria-label": `${action} ${label}`, onClick: onToggle },
+        React.createElement("span", null, action),
+        React.createElement(Icon, { name: "chevron", size: 16 }));
+}
+export function Badge({ value, label, title }) {
     const labels = { running: 'En ejecución', healthy: 'Saludable', unhealthy: 'No saludable', unchecked: 'Salud sin comprobar', stopped: 'Detenido', 'not-created': 'No creado', archived: 'Archivada', unknown: 'Sin conexión', failed: 'Falló', succeeded: 'Completada', cancelled: 'Cancelada', interrupted: 'Interrumpida', partial: 'Parcial', restarting: 'Reiniciando', starting: 'Iniciando', paused: 'Pausado', off: 'Apagado', dev: 'Desarrollo', verify: 'Prueba de imagen' };
-    return React.createElement("span", { className: `badge badge-${value}` },
+    return React.createElement("span", { className: `badge badge-${value}`, title: title },
         React.createElement("span", { className: "dot" }),
-        labels[value] || value);
+        label || labels[value] || value);
+}
+export function HealthBadge({ value, containers }) {
+    return React.createElement(Badge, { value: value, ...healthDescription(value, containers) });
 }
 export function Modal({ title, subtitle, children, onClose, wide = false }) {
     const ref = useRef(null);
-    useEffect(() => { ref.current?.showModal(); }, []);
+    useLayoutEffect(() => {
+        const dialog = ref.current;
+        const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        dialog?.showModal();
+        return () => {
+            // Close before React removes the node so native focus restoration can run.
+            dialog?.close();
+            if (opener?.isConnected && !document.querySelector('dialog[open]')) {
+                opener.focus({ preventScroll: true });
+            }
+        };
+    }, []);
     return React.createElement("dialog", { ref: ref, className: wide ? 'modal wide' : 'modal', onCancel: e => { e.preventDefault(); onClose(); }, onClick: e => { if (e.target === ref.current) {
             const r = ref.current.getBoundingClientRect();
             if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)

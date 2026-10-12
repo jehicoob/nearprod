@@ -1,12 +1,16 @@
+import type { FocusEvent } from 'react';
+import {stackActions} from './stack-state.js';
+import {StackCard} from './StackCard.js';
+import {StackPurgeDialog, type StackPurgePreview} from './StackPurgeDialog.js';
 import { api, ApiError, humanBytes, message } from './api.js';
-import { Alert, Badge, Busy, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
+import { Alert, Badge, Brand, Busy, DisclosureButton, HealthBadge, Icon, ImageDialog, Modal, OperationsView, ReviewDialog, Skeleton } from './components.js';
 import { DiscoverDialog, RuntimeView, LogsDrawer, GroupDialog } from './views.js';
 import { StackEditor, BatchEditor } from './editor.js';
 import { ProxyView, RouteLinks } from './proxy.js';
 import {InfrastructureView} from './infrastructure.js';
 import {ToolsView} from './tools.js';
 import {McpAccessView} from './McpAccessView.js';
-import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container } from './types.js';
+import type { Group, Catalog, Stack, ArchivedStack, Status, Candidate, Operation, Observed, Container, Preview } from './types.js';
 const { useState, useEffect } = React;
 type Page = 'projects' | 'runtime' | 'activity' | 'proxy' | 'infra' | 'tools' | 'mcp';
 const EMPTY: Status = { connected: false, checkedAt: null, stacks: [] };
@@ -26,12 +30,25 @@ function CatalogLifecycleDialog({review,onClose,onApplied}: {review: LifecycleRe
     <div className="modal-actions"><button onClick={onClose}>Cancelar</button><button className={action === 'restore-stack' ? 'primary' : 'danger'} disabled={busy} onClick={() => {setBusy(true);setError('');void api(review.endpoint,{...review.body,confirm:true,fingerprint:review.value.fingerprint}).then(onApplied).catch(e => setError(message(e))).finally(() => setBusy(false));}}>{busy ? 'Aplicando…' : confirm}</button></div>
   </Modal>;
 }
+// Native focus may leave a partially visible item at the edge of the mobile rail.
+// Scroll only the rail, preserving the page's reading position.
+function revealNavigationFocus(event: FocusEvent<HTMLElement>) {
+  const nav = event.currentTarget;
+  if (nav.scrollWidth <= nav.clientWidth) return;
+  const item = event.target.getBoundingClientRect();
+  const viewport = nav.getBoundingClientRect();
+  const inset = 17;
+  if (item.left < viewport.left + inset) nav.scrollLeft -= viewport.left + inset - item.left;
+  else if (item.right > viewport.right - inset) nav.scrollLeft += item.right - viewport.right + inset;
+}
 function App() {
   const [catalog, setCatalog] = useState<Catalog | null>(null), [status, setStatus] = useState<Status>(EMPTY), [auth, setAuth] = useState<boolean | null>(null), [code, setCode] = useState(''), [loginError, setLoginError] = useState(''), [loadError, setLoadError] = useState('');
   const [page, setPage] = useState<Page>('projects'), [search, setSearch] = useState(''), [discover, setDiscover] = useState(false), [editor, setEditor] = useState<{candidate?: Candidate; stack?: Stack} | null>(null);
   const [review, setReview] = useState<{stack: Stack; mode: string} | null>(null), [logs, setLogs] = useState<Stack | null>(null), [image, setImage] = useState<Container | null>(null), [mode, setMode] = useState<Record<string,string>>({});
   const [notice, setNotice] = useState<{text: string; error: boolean} | null>(null), [working, setWorking] = useState(false), [adoption, setAdoption] = useState<{id: string; allowed: boolean; fingerprint: string; containers: Container[]; warning: string} | null>(null);
   const [batch,setBatch] = useState<Candidate[] | null>(null), [groupEditor,setGroupEditor] = useState<{group?: Group} | null>(null), [lifecycleReview,setLifecycleReview] = useState<LifecycleReview | null>(null);
+  const [purgeReview,setPurgeReview] = useState<StackPurgePreview | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const notify = (text: string, error = false) => setNotice({text, error});
   async function load() {
     setLoadError('');
@@ -63,7 +80,7 @@ function App() {
       if(event.type === 'operation' && event.operation) {
         const op = event.operation; setCatalog(c => c ? {...c, operations: [op, ...c.operations.filter(v => v.id !== op.id)].slice(0,80)} : c);
         if(op.state === 'failed') notify(`${op.action}: ${(Array.isArray(op.results) ? op.results : []).find(r => r.error)?.error?.message || op.error?.message || 'Operación fallida. Consulta Actividad.'}`, true);
-        if(op.state === 'succeeded') {notify(`${op.action}: operación completada. La salud de la aplicación se muestra por separado.`); void api<Catalog>('/catalog').then(setCatalog).catch(() => {});}
+        if(op.state === 'succeeded') {notify(op.action === 'purge-stack' ? 'Aplicación y recursos eliminados; limpieza verificada. Código conservado.' : `${op.action}: operación completada. La salud de la aplicación se muestra por separado.`); void api<Catalog>('/catalog').then(setCatalog).catch(() => {});}
       }
       if(event.type === 'operation-line' && event.line) {const line = event.line; setCatalog(c => c ? {...c, operations:c.operations.map(v => v.id === event.id ? {...v, lines:[...v.lines, line].slice(-100)} : v)} : c);}
       if(event.type === 'watch' && event.watch) {const watch = event.watch; setStatus(s => ({...s, stacks:s.stacks.map(v => v.id === event.id ? {...v, watch} : v)}));}
@@ -73,14 +90,21 @@ function App() {
   }, [auth]);
   async function work(task: () => Promise<void>) {setWorking(true); try {await task();} catch(e) {notify(message(e),true);} finally {setWorking(false);} }
   async function openLifecycle(previewEndpoint: string, endpoint: string, body: Record<string, unknown>) {await work(async () => setLifecycleReview({value:await api<Record<string,unknown>>(previewEndpoint,body),endpoint,body}));}
+  async function openPurge(target: string) {await work(async () => setPurgeReview(await api<StackPurgePreview>('/stacks/purge-preview',{target})));}
   async function action(stack: Stack, action: string) {
     const selectedMode = mode[stack.id] || stack.activeMode || 'dev';
     if (['up','rebuild'].includes(action) && stack.routes?.length && !catalog?.proxy?.enabled) {setPage('proxy');notify('Activa Traefik una vez para este catálogo; después revisa e inicia la aplicación.');return;}
-    if(['up','rebuild'].includes(action) && !stack.trust[selectedMode]) {setReview({stack, mode:selectedMode}); return;}
-    const confirmMode = !stack.activeMode || stack.activeMode === selectedMode || window.confirm('Cambiar de modo recrea los servicios y conserva los mismos datos/volúmenes. ¿Continuar con el stack completo?');
-    if(!confirmMode) return;
-    if(action === 'rebuild' && !window.confirm('¿Construir y recrear este stack? Puede consumir CPU/RAM y tardar varios minutos. Los volúmenes se conservan.')) return;
-    await work(async () => {await api('/actions', {target:stack.id, action, mode:selectedMode, confirmMode:true}); notify(`${action}: solicitud enviada. Consulta Actividad.`);});
+    await work(async () => {
+      if (['up','rebuild'].includes(action)) {
+        const preview = await api<Preview>('/preview', {target:stack.id, mode:selectedMode});
+        if (!preview.approved) {setReview({stack, mode:selectedMode});return;}
+        const confirmMode = !stack.activeMode || stack.activeMode === selectedMode || window.confirm('Cambiar de modo recrea los servicios y conserva los mismos datos/volúmenes. ¿Continuar con el stack completo?');
+        if (!confirmMode) return;
+      }
+      if (action === 'rebuild' && !window.confirm('¿Construir y recrear este stack? Puede consumir CPU/RAM y tardar varios minutos. Los volúmenes se conservan.')) return;
+      await api('/actions', {target:stack.id, action, mode:selectedMode, confirmMode:true});
+      notify(`${action}: solicitud enviada. Consulta Actividad.`);
+    });
   }
   async function groupAction(product: string, action: string) {
     if (action === 'up' && !catalog?.proxy?.enabled && catalog?.stacks.some(s => s.product === product && s.routes?.length)) {setPage('proxy');notify('Activa Traefik antes de iniciar este grupo con URLs.');return;}
@@ -90,7 +114,7 @@ function App() {
   const cancel = (id: string) => {if(window.confirm('Cancelar el cliente no garantiza que el Engine detenga el trabajo ya recibido. ¿Solicitar cancelación?')) void work(async () => {await api('/cancel',{id}); notify('Cancelación solicitada; revisa el estado real.');});};
   if(auth === null && loadError) return <div className="login-page"><section className="login-card"><h1>No se pudo abrir NearProd</h1><Alert error>{loadError}</Alert><button className="primary full" onClick={() => void load()}>Reintentar conexión local</button></section></div>;
   if(auth === null) return <div className="login-page"><div className="login-card"><h2>NearProd</h2><Skeleton label="Abriendo tu entorno local" rows={5}/></div></div>;
-  if(!auth) return <div className="login-page"><div className="login-brand"><div className="logo"><Icon name="cube" size={30}/></div><span>NearProd<span className="brand-dot">.</span></span></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
+  if(!auth) return <div className="login-page"><div className="login-brand"><Brand/></div><section className="login-card"><span className="eyebrow">TU ENTORNO. BAJO CONTROL.</span><h1>Conecta tu consola local</h1><p>Abre una terminal y ejecuta <code>nearprod ui</code>. Pega el código de acceso de un solo uso.</p><form onSubmit={e => {e.preventDefault(); setWorking(true); void api('/session', {code}).then(() => {setCode(''); return load();}).catch(e => setLoginError(message(e))).finally(() => setWorking(false));}}><label>Código de acceso<input autoFocus autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} placeholder="Código de la terminal"/></label>{loginError && <Alert error>{loginError}</Alert>}<button className="primary full" disabled={working}>{working ? 'Conectando…' : 'Abrir NearProd'}<Icon name="chevron"/></button></form><div className="login-footer"><span className="live-dot"/>Local · Solo loopback · Sin cuenta en la nube</div></section><p className="hint">El panel funciona aunque Docker esté detenido. No inicia tus contenedores automáticamente.</p></div>;
   if(!catalog) return <Busy/>;
   const running = status.stacks.filter(s => s.execution === 'running').length, totalContainers = status.stacks.reduce((n,s) => n+s.containers.length,0), active = catalog.operations.filter(o => o.state === 'running');
   const archivedStacks = catalog.archivedStacks || [];
@@ -103,18 +127,17 @@ function App() {
     <div className="shell">
       <aside className="sidebar">
         <a className="brand" href="/" aria-label="NearProd inicio">
-          <span className="logo">
-            <Icon name="cube" size={24} />
-          </span>
-          NearProd<span className="brand-dot">.</span>
+          <Brand/>
         </a>
         <span className="version-label">
           LOCAL CONTROL / v{catalog.version}
         </span>
         <div className="nav-caption">WORKSPACE</div>
-        <nav aria-label="Navegación principal">
+        <nav aria-label="Navegación principal" onFocusCapture={revealNavigationFocus}>
           <button
             className={page === "projects" ? "active" : ""}
+            aria-current={page === "projects" ? "page" : undefined}
+            title="Aplicaciones"
             onClick={() => setPage("projects")}
           >
             <Icon name="grid" />
@@ -122,6 +145,8 @@ function App() {
           </button>
           <button
             className={page === "proxy" ? "active" : ""}
+            aria-current={page === "proxy" ? "page" : undefined}
+            title="Accesos locales"
             onClick={() => setPage("proxy")}
           >
             <Icon name="link" />
@@ -129,6 +154,8 @@ function App() {
           </button>
           <button
             className={page === "infra" ? "active" : ""}
+            aria-current={page === "infra" ? "page" : undefined}
+            title="Infraestructura"
             onClick={() => setPage("infra")}
           >
             <Icon name="cube" />
@@ -136,6 +163,7 @@ function App() {
           </button>
           <button
             className={page === "tools" ? "active" : ""}
+            aria-current={page === "tools" ? "page" : undefined}
             title="Herramientas"
             onClick={() => setPage("tools")}
           >
@@ -144,6 +172,7 @@ function App() {
           </button>
           <button
             className={page === "mcp" ? "active" : ""}
+            aria-current={page === "mcp" ? "page" : undefined}
             title="Acceso MCP"
             onClick={() => setPage("mcp")}
           >
@@ -152,6 +181,8 @@ function App() {
           </button>
           <button
             className={page === "runtime" ? "active" : ""}
+            aria-current={page === "runtime" ? "page" : undefined}
+            title="Runtime y recursos"
             onClick={() => setPage("runtime")}
           >
             <Icon name="settings" />
@@ -159,6 +190,8 @@ function App() {
           </button>
           <button
             className={page === "activity" ? "active" : ""}
+            aria-current={page === "activity" ? "page" : undefined}
+            title="Actividad"
             onClick={() => setPage("activity")}
           >
             <Icon name="activity" />
@@ -192,12 +225,6 @@ function App() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <label className="mobile-navigation">
-            <span className="sr-only">Sección</span>
-            <select value={page} onChange={event => setPage(event.target.value as Page)} aria-label="Sección de NearProd">
-              <option value="projects">Aplicaciones</option><option value="proxy">Accesos locales</option><option value="infra">Infraestructura</option><option value="tools">Herramientas</option><option value="mcp">Acceso MCP</option><option value="runtime">Runtime y recursos</option><option value="activity">Actividad</option>
-            </select>
-          </label>
           <div className="breadcrumb">
             Workspace <Icon name="chevron" size={13} />
             <strong>
@@ -404,7 +431,7 @@ function App() {
                 </div>
               )}
               {groups.map((product) => (
-                <section className="product" key={product}>
+                <section className={`product${collapsedGroups[product] === true ? ' product-collapsed' : ''}`} key={product}>
                   <div className="product-heading">
                     <span className="product-icon">
                       <Icon name="folder" />
@@ -430,8 +457,9 @@ function App() {
                           working ||
                           !status.connected ||
                           active.length > 0 ||
-                          !catalog.stacks.some((s) => s.product === product)
+                          !catalog.stacks.some(s => s.product === product && !s.purgePending && stackActions(s, status.stacks.find(v => v.id === s.id), s.activeMode || 'dev').start)
                         }
+                        title="Iniciar las aplicaciones del grupo; disponible cuando alguna necesita iniciarse."
                         onClick={() => void groupAction(product, "up")}
                       >
                         Iniciar grupo
@@ -441,8 +469,9 @@ function App() {
                           working ||
                           !status.connected ||
                           active.length > 0 ||
-                          !catalog.stacks.some((s) => s.product === product)
+                          !catalog.stacks.some(s => s.product === product && !s.purgePending && stackActions(s, status.stacks.find(v => v.id === s.id), s.activeMode || 'dev').stop)
                         }
+                        title="Detener las aplicaciones del grupo; disponible cuando hay servicios en ejecución."
                         onClick={() => void groupAction(product, "stop")}
                       >
                         Detener grupo
@@ -453,8 +482,16 @@ function App() {
                         title={catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product) ? 'Archiva o mueve todas las aplicaciones antes de eliminar el grupo.' : 'Elimina únicamente el grupo vacío.'}
                         onClick={() => void openLifecycle('/groups/delete-preview','/groups/delete',{id:product})}
                       >Eliminar grupo</button>
+                      <DisclosureButton
+                        expanded={collapsedGroups[product] !== true}
+                        controls={`group-details-${product}`}
+                        label={`grupo ${groupName(product)}`}
+                        className="group-toggle"
+                        onToggle={() => setCollapsedGroups(current => ({...current, [product]: current[product] !== true}))}
+                      />
                     </div>
                   </div>
+                  <div className="product-details" id={`group-details-${product}`} role="region" aria-label={`Aplicaciones de ${groupName(product)}`} hidden={collapsedGroups[product] === true}>
                   {(catalog.stacks.some(s => s.product === product) || archivedStacks.some(s => s.product === product)) && <p className="hint lifecycle-hint">Eliminar grupo estará disponible cuando no contenga aplicaciones activas ni archivadas.</p>}
                   <div className="stacks">
                     {!catalog.stacks.some((s) => s.product === product) && !archivedStacks.some((s) => s.product === product) && (
@@ -477,36 +514,16 @@ function App() {
                         );
                         const selectedMode =
                           mode[s.id] || s.activeMode || "dev";
-                        const isBusy =
+                        const isBusy = s.purgePending ||
                           working ||
                           active.some(
                             (o) =>
                               !o.targets.length || o.targets.includes(s.id),
                           );
+                        const controls = stackActions(s, observed, selectedMode, !status.connected || isBusy);
                         return (
-                          <article className="stack" key={s.id}>
-                            <div className="stack-main">
-                              <div className="stack-symbol">
-                                <Icon name="cube" />
-                              </div>
-                              <div className="stack-description">
-                                <h3>
-                                  {s.name}
-                                  <span className="mono">{s.slug}</span>
-                                </h3>
-                                <p className="mono path" title={s.path}>
-                                  {s.path}
-                                </p>
-                                <div className="stack-meta">
-                                  <span className="mono">{s.projectName}</span>
-                                  <Badge
-                                    value={observed?.execution || "unknown"}
-                                  />
-                                  {observed?.execution === "running" && (
-                                    <Badge value={observed.health} />
-                                  )}
-                                </div>
-                              </div>
+                          <StackCard key={s.uid} stack={s} observed={observed}>
+                            <div className="stack-options">
                               <div className="stack-mode">
                                 <label>
                                   Modo
@@ -581,6 +598,7 @@ function App() {
                                 >
                                   Archivar del catálogo
                                 </button>
+                                <button className="danger" disabled={working || active.length > 0 || !status.connected} onClick={() => void openPurge(s.id)}>{s.purgePending ? 'Reintentar eliminación' : 'Eliminar aplicación y recursos'}</button>
                               </div>
                               <div className="stack-actions">
                                 <button
@@ -591,7 +609,7 @@ function App() {
                                   Logs
                                 </button>
                                 <button
-                                  disabled={!status.connected || isBusy}
+                                  disabled={!controls.restart}
                                   onClick={() => void action(s, "restart")}
                                   title="No aplica cambios del Compose ni variables"
                                 >
@@ -599,14 +617,23 @@ function App() {
                                   Reiniciar
                                 </button>
                                 <button
-                                  disabled={!status.connected || isBusy}
+                                  disabled={!controls.build}
+                                  title="Reconstruir las imágenes y recrear los servicios; puede consumir CPU y memoria."
                                   onClick={() => void action(s, "rebuild")}
                                 >
                                   Construir
                                 </button>
                                 <button
+                                  disabled={!controls.apply}
+                                  title="Aplicar la configuración y las variables del modo seleccionado. Puede recrear servicios; conserva los datos. Para reconstruir imágenes usa Construir."
+                                  onClick={() => void action(s, "up")}
+                                >
+                                  Aplicar cambios
+                                </button>
+                                <button
                                   className="start"
-                                  disabled={!status.connected || isBusy}
+                                  disabled={!controls.start}
+                                  title={controls.startTitle}
                                   onClick={() => void action(s, "up")}
                                 >
                                   <Icon name="play" size={13} />
@@ -614,7 +641,8 @@ function App() {
                                 </button>
                                 <button
                                   className="stop"
-                                  disabled={!status.connected || isBusy}
+                                  disabled={!controls.stop}
+                                  title={controls.stopTitle}
                                   onClick={() => void action(s, "stop")}
                                 >
                                   <Icon name="stop" size={13} />
@@ -658,7 +686,7 @@ function App() {
                                     <div className="container" key={c.id}>
                                       <span className="mono">{c.service}</span>
                                       <Badge value={c.state} />
-                                      <Badge value={c.health} />
+                                      <HealthBadge value={c.health} containers={[c]} />
                                       {!c.owned && (
                                         <span className="warning-text">
                                           Sin adoptar
@@ -765,10 +793,19 @@ function App() {
                                 </span>
                               )}
                             </div>
-                          </article>
+                          </StackCard>
                        );
                       })}
-                    {filteredArchived.filter(s => s.product === product).map((s: ArchivedStack) => <article className="stack archived-stack" key={s.uid}><div className="stack-main"><div className="stack-symbol"><Icon name="cube"/></div><div className="stack-description"><h3>{s.name}<span className="mono">{s.slug}</span></h3><p className="mono path" title={s.path}>{s.path}</p><div className="stack-meta"><span className="mono">{s.projectName}</span><Badge value="archived"/></div></div></div><div className="stack-bottom"><div className="stack-secondary"><span className="hint">Archivada {new Date(s.archivedAt).toLocaleString()} · {s.bindingCount} vinculaciones conservadas</span></div><div className="stack-actions"><button className="primary" disabled={working || active.length > 0} onClick={() => void openLifecycle('/stacks/restore-preview','/stacks/restore',{target:s.id})}>Restaurar en el catálogo</button></div></div></article>)}
+                    {filteredArchived.filter(s => s.product === product).map((s: ArchivedStack) => <StackCard key={s.uid} stack={s} archived>
+                      <div className="stack-bottom">
+                        <div className="stack-secondary"><span className="hint">Archivada {new Date(s.archivedAt).toLocaleString()} · {s.bindingCount} vinculaciones conservadas</span></div>
+                        <div className="stack-actions">
+                          <button className="primary" disabled={working || active.length > 0 || s.purgePending} onClick={() => void openLifecycle('/stacks/restore-preview','/stacks/restore',{target:s.id})}>Restaurar en el catálogo</button>
+                          <button className="danger" disabled={working || active.length > 0 || !status.connected} onClick={() => void openPurge(s.id)}>{s.purgePending ? 'Reintentar eliminación' : 'Eliminar aplicación y recursos'}</button>
+                        </div>
+                      </div>
+                    </StackCard>)}
+                  </div>
                   </div>
                 </section>
               ))}
@@ -905,6 +942,7 @@ function App() {
           }}
         />
       )}
+      {purgeReview && <StackPurgeDialog preview={purgeReview} onClose={() => {setPurgeReview(null);void load();}} onApplied={() => {setPurgeReview(null);void load();}}/>}
       {lifecycleReview && <CatalogLifecycleDialog review={lifecycleReview} onClose={() => setLifecycleReview(null)} onApplied={() => {setLifecycleReview(null);void load();notify('Ciclo de vida actualizado sin borrar recursos implícitamente.');}}/>}
       {review && (
         <ReviewDialog

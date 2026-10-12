@@ -1,6 +1,6 @@
 {
-  "platform": "macOS-15.8-arm64-arm-64bit-Mach-O",
-  "binarySha256": "df6334e9a052519ccc940ce0878c873331bb5ebe8144245caaaa3695117c5867",
+  "platform": "macOS-15.8.1-arm64-arm-64bit-Mach-O",
+  "binarySha256": "9f29c4266085c040e3bde966bf0085d6c2dc81fa007d24523b07939629fb83b9",
   "checks": [
     "Binario nativo sin Node en PATH",
     "Instalación nativa atómica real",
@@ -12,7 +12,7 @@
     "Backup original byte por byte y journal finalizado",
     "Agente nativo real y bootstrap local",
     "Assets React/TypeScript servidos por HTTP del binario",
-    "Servidor MCP stdio responde sin contaminar stdout",
+    "MCP stdio: instrucciones, herramientas, recursos, guía y esquemas embebidos sin credenciales",
     "CLI y HTTP conservan catálogo migrado sin Docker",
     "CLI elimina únicamente grupo vacío con preview firmado",
     "CLI retira raíz sin dependencias y conserva filesystem",

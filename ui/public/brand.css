@@ -1,0 +1,27 @@
+/* NearProd brand foundation v2 — graphite and muted steel. Canonical source: nearprod/ui/public/brand.css.
+ * Consumer copies are synchronized with scripts/sync-brand.mjs in the landing.
+ * Shared identity only; each surface owns its semantic and layout tokens. */
+:root {
+  --brand-paper: #f4f5f7;
+  --brand-paper-bright: #ffffff;
+  --brand-ink: #242930;
+  --brand-muted: #5b6573;
+  --brand-line: #d7dce3;
+  --brand-control-border: #7a8797;
+  --brand-accent: #526c8c;
+  --brand-accent-hover: #425a77;
+  --brand-on-accent: #ffffff;
+  --brand-accent-soft: #e2e8f0;
+  --brand-accent-on-dark: #adc0d8;
+  --brand-dark: #242930;
+  --brand-dark-line: #444e5b;
+  --brand-dark-raised: #333b46;
+  --brand-dark-muted: #b8c0ca;
+  --brand-sans: Arial, Helvetica, sans-serif;
+  --brand-serif: Georgia, "Times New Roman", serif;
+  --brand-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --brand-radius: 8px;
+  --brand-duration-feedback: 180ms;
+  --brand-duration-surface: 260ms;
+  --brand-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

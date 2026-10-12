@@ -14,6 +14,7 @@ vet:
 check:
 	npm run typecheck
 	npm run build:ui
+	node --test scripts/tests/stack-state.test.mjs
 	go vet ./...
 	go test ./... -count=1 -timeout=120s
 	go test -race ./... -count=1 -timeout=120s

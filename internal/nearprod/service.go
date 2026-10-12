@@ -86,7 +86,10 @@ func (s *Service) Catalog() J {
 	archived := A{}
 	for _, raw := range arr(d["archivedStacks"]) {
 		snapshot := obj(raw)
-		archived = append(archived, merge(stackSummary(obj(snapshot["stack"])), J{"archivedAt": snapshot["archivedAt"], "lifecycle": "archived", "bindingCount": len(arr(snapshot["bindings"]))}))
+		archived = append(archived, merge(stackSummary(obj(snapshot["stack"])), J{"archivedAt": snapshot["archivedAt"], "lifecycle": "archived", "bindingCount": len(arr(snapshot["bindings"])), "purgePending": stackPurgePending(d, str(at(snapshot, "stack", "uid")))}))
+	}
+	for _, raw := range arr(d["stacks"]) {
+		obj(raw)["purgePending"] = stackPurgePending(d, str(at(raw, "uid")))
 	}
 	return J{"version": Version, "runtimeLanguage": "Go", "host": s.Runtime.Capabilities(), "roots": d["roots"], "runtime": d["runtime"], "proxy": s.Proxy.Settings(), "groups": groups, "stacks": d["stacks"], "archivedStacks": archived, "operations": ops, "infrastructure": s.Infra.List(s.Observed()), "storage": configPaths(s.Store.Home)}
 }
@@ -889,6 +892,9 @@ func (s *Service) actOne(ctx context.Context, id, action string, req J, line fun
 }
 func (s *Service) InfraAction(req J) (J, error) {
 	action := str(req["action"])
+	if len(obj(s.Store.Get()["stackPurges"])) > 0 && !contains([]string{"start", "stop", "check", "check-binding", "logs", "backup"}, action) {
+		return nil, fail("STACK_PURGING", "Completa la eliminación pendiente antes de modificar bases o vinculaciones.", 409)
+	}
 	if !contains([]string{"create", "start", "stop", "database", "check", "bind", "unbind", "check-binding", "backup", "restore", "archive-instance", "restore-instance", "archive-database", "restore-database", "purge-database", "logs"}, action) {
 		return nil, fail("INFRA_ACTION", "Acción de infraestructura desconocida.", 400)
 	}

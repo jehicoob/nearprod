@@ -6,6 +6,14 @@ Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por 
 
 > **Toolchains de distribución:** las releases se construyen con las versiones exactas de `.go-version` y `.node-version`; el pipeline rechaza otras versiones y un checkout con cambios sin guardar. Los binarios históricos documentados en la auditoría no son publicables. Ver [COMPILAR](docs/COMPILAR.md). No se incluye firma Developer ID ni notarización Apple.
 
+El panel permite **Eliminar aplicación y recursos** tanto en aplicaciones activas como archivadas: muestra qué se borrará, exige confirmar el ID y conserva el código. Si la limpieza falla, mantiene el registro para reintentar. Consulta el [alcance y los límites de la eliminación](docs/APPLICATION_DELETION.md).
+
+Cada aplicación activa o archivada tiene un control **Compactar / Expandir**: oculta sus acciones y recursos mientras mantiene visibles el nombre, la ruta y el estado. Las tarjetas se pueden compactar de forma independiente. El encabezado de cada grupo también permite compactar todas sus aplicaciones; al expandirlo se conserva el estado de cada tarjeta.
+
+Los controles reflejan el estado observado: **Iniciar** se deshabilita si la aplicación ya está en ejecución en el mismo modo; **Detener** requiere servicios en ejecución. **Aplicar cambios** actualiza la configuración y las variables con Compose; **Construir** solicita reconstruir imágenes y recrear servicios. Una configuración modificada vuelve a requerir revisión.
+
+La salud se obtiene de los [healthchecks de Docker](https://docs.docker.com/reference/compose-file/services/#healthcheck). El panel distingue comprobaciones ausentes, cobertura incompleta y resultados de salud; estar en ejecución o responder por Traefik no sustituye estas pruebas. Cada proyecto define qué comprueba su healthcheck.
+
 ## Actualizar desde 0.6.1 sin registrar otra vez tus proyectos
 
 No borres `~/.nearprod`, tus volúmenes ni carpetas de bases. Usa el mismo `NEARPROD_HOME` que antes; cambiarlo abre deliberadamente otro catálogo.
