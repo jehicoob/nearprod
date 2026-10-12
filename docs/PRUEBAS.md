@@ -1,5 +1,9 @@
 # Pruebas y evidencia de NearProd
 
+## Cierre completo del agente — 0.9.6
+
+Se añadió una regresión que mantiene ocupado el bloqueo nativo con el socket ya cerrado. Antes de la corrección, la espera terminaba prematuramente; ahora conserva el estado pendiente hasta que el bloqueo queda libre. Se mantienen las comprobaciones del socket de agentes antiguos, la exclusión entre escritores y el timeout de cierre.
+
 ## Temas y tipografía — 0.9.5
 
 El panel incorpora los modos Sistema, Claro y Oscuro y una escala tipográfica compartida. La validación local incluye compilación TypeScript/UI y 39 comprobaciones de navegador contra el agente Go con catálogo temporal y Docker/Traefik simulados: preferencia persistente, cambio del sistema, sincronización entre pestañas, primer render, vista MCP en ambos temas, tamaños móviles y flujos operativos existentes. No equivale a repetir pruebas con contenedores reales. El pipeline de publicación verifica además Linux/macOS y los cuatro paquetes de distribución.

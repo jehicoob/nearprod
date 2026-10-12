@@ -247,8 +247,9 @@ func streamAPI(ctx context.Context, info J, route string, query url.Values, emit
 	return failure
 }
 
-// Wait for the shared legacy/native lock socket to close before an immediate
-// upgrade/migration. A successful HTTP response only acknowledges the request.
+// Wait for both the legacy socket and native guard before an immediate upgrade.
+// A successful HTTP response only acknowledges the request; closing the socket
+// and releasing the guard are separate operations during normal shutdown.
 func waitAgentStopped(ctx context.Context, home string) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -257,7 +258,17 @@ func waitAgentStopped(ctx context.Context, home string) error {
 		if e == nil {
 			conn.Close()
 		} else if errors.Is(e, os.ErrNotExist) || errors.Is(e, syscall.ECONNREFUSED) {
-			return nil
+			// Prove the catalog can be acquired instead of racing the old
+			// agent's remaining guard.Close(). A concurrent new owner keeps
+			// this wait pending; unsafe or uncertain locks still fail closed.
+			release, lockErr := AcquireAgentLock(home)
+			if lockErr == nil {
+				release()
+				return nil
+			}
+			if str(publicError(lockErr)["code"]) != "AGENT_RUNNING" {
+				return lockErr
+			}
 		} else {
 			return fail("AGENT_STOP_UNCERTAIN", "Se pidió el cierre pero no se pudo verificar el socket; revisa antes de actualizar.", 409)
 		}
