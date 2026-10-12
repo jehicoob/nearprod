@@ -121,6 +121,108 @@ func TestStableVersionComparison(t *testing.T) {
 	}
 }
 
+func TestUpdaterChecksPrereleasesAgainstStableRelease(t *testing.T) {
+	for _, platform := range []string{"darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64"} {
+		t.Run(platform, func(t *testing.T) {
+			archive := updateTestArchive(t, map[string][]byte{"nearprod": updateTestBinary("0.9.2", platform)})
+			server, _ := updateTestServer(t, "0.9.2", platform, archive, updateTestDigest(archive))
+			defer server.Close()
+			home := t.TempDir()
+			installed := filepath.Join(home, ".local", "bin", "nearprod")
+			must(t, os.MkdirAll(filepath.Dir(installed), 0700))
+			before := []byte(BinaryMarker)
+			must(t, os.WriteFile(installed, before, 0755))
+			parts := strings.Split(platform, "/")
+			u := &Updater{Client: server.Client(), APIURL: server.URL + "/latest", AssetBase: server.URL + "/download", Executable: installed, Home: home, OS: parts[0], Arch: parts[1], AllowedOrigins: map[string]bool{server.URL: true}}
+			for _, tc := range []struct {
+				current, status string
+				available       bool
+			}{
+				{"0.9.1", "available", true},
+				{"0.9.2", "up-to-date", false},
+				{"0.9.3", "newer-than-release", false},
+				{"0.9.2-dev.5-ui.2", "available", true},
+				{"0.9.2-rc.1", "available", true},
+				{"0.9.1-dev.8", "available", true},
+				{"0.10.0-dev.1", "newer-than-release", false},
+				{"0.9.2-dev.5-ui.2+build.01", "available", true},
+				{"0.9.2+build.01", "up-to-date", false},
+				{"0.9.1+build.01", "available", true},
+				{"dev", "development-build", false},
+				{"0.9.2-dev..1", "development-build", false},
+				{"0.9.2-dev.01", "development-build", false},
+				{"0.9.2-", "development-build", false},
+				{"0.9.2+", "development-build", false},
+				{"0.9.2+build..1", "development-build", false},
+				{"0.9.2+build+1", "development-build", false},
+				{"0.9.2-dev/1", "development-build", false},
+				{"00.9.2-dev.1", "development-build", false},
+				{"999999999999999999999.0.0-dev.1", "development-build", false},
+			} {
+				t.Run(tc.current, func(t *testing.T) {
+					previous := Version
+					Version = tc.current
+					t.Cleanup(func() { Version = previous })
+					plan, err := u.Check(context.Background())
+					must(t, err)
+					if plan.Available != tc.available || truth(plan.Summary["canInstall"]) != tc.available || str(plan.Summary["status"]) != tc.status {
+						t.Fatalf("current=%s: %v; want status=%s available=%v", tc.current, plan.Summary, tc.status, tc.available)
+					}
+					if tc.status == "development-build" && str(plan.Summary["instruction"]) == "nearprod update" {
+						t.Fatal("an uncomparable version suggests an update that cannot run")
+					}
+					if plan.Current != tc.current || plan.Latest != "0.9.2" || plan.Provider != "manual" {
+						t.Fatal(plan.Summary)
+					}
+					after, err := os.ReadFile(installed)
+					must(t, err)
+					if !bytes.Equal(before, after) {
+						t.Fatal("check changed the installed executable")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestUpdaterPrereleasePreservesProviderGuards(t *testing.T) {
+	previous := Version
+	Version = "0.9.2-dev.5-ui.2"
+	t.Cleanup(func() { Version = previous })
+	platform := runtimePlatform()
+	archive := updateTestArchive(t, map[string][]byte{"nearprod": updateTestBinary("0.9.2", platform)})
+	server, _ := updateTestServer(t, "0.9.2", platform, archive, updateTestDigest(archive))
+	defer server.Close()
+	for _, tc := range []struct{ provider, code string }{
+		{"homebrew", "PACKAGE_MANAGED"},
+		{"unmanaged", "UPDATE_INSTALL_REQUIRED"},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			home := t.TempDir()
+			executable := filepath.Join(home, "Downloads", "nearprod")
+			if tc.provider == "homebrew" {
+				executable = filepath.Join(home, "brew", "Cellar", "nearprod", Version, "bin", "nearprod")
+			}
+			must(t, os.MkdirAll(filepath.Dir(executable), 0700))
+			before := updateTestBinary(Version, platform)
+			must(t, os.WriteFile(executable, before, 0755))
+			u := &Updater{Client: server.Client(), APIURL: server.URL + "/latest", AssetBase: server.URL + "/download", Executable: executable, Home: home, OS: runtimeOS(), Arch: runtimeArch(), AllowedOrigins: map[string]bool{server.URL: true}}
+			plan, err := u.Check(context.Background())
+			must(t, err)
+			if !plan.Available || truth(plan.Summary["canInstall"]) || plan.Provider != tc.provider {
+				t.Fatal(plan.Summary)
+			}
+			_, err = u.Apply(context.Background(), plan)
+			expectCode(t, err, tc.code)
+			after, err := os.ReadFile(executable)
+			must(t, err)
+			if !bytes.Equal(before, after) {
+				t.Fatal("provider guard failed to preserve the executable")
+			}
+		})
+	}
+}
+
 func TestBinaryIdentityRemainsCompatibleAcrossSchemaChanges(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -264,54 +366,61 @@ func TestExtractUpdateBinaryRejectsUnsafeEntries(t *testing.T) {
 }
 
 func TestUpdaterDownloadsVerifiesInstallsAndCleans(t *testing.T) {
-	oldVersion := Version
-	Version = "1.0.0"
-	t.Cleanup(func() { Version = oldVersion })
-	platform := runtimePlatform()
-	archive := updateTestArchive(t, map[string][]byte{
-		"nearprod":               updateTestBinary("1.1.0", platform),
-		"LICENSE":                []byte("MIT\n"),
-		"THIRD_PARTY_NOTICES.md": []byte("notices\n"),
-	})
-	server, _ := updateTestServer(t, "1.1.0", platform, archive, updateTestDigest(archive))
-	defer server.Close()
+	for _, tc := range []struct{ current, latest string }{
+		{"1.0.0", "1.1.0"},
+		{"0.9.2-dev.5-ui.2", "0.9.2"},
+	} {
+		t.Run(tc.current, func(t *testing.T) {
+			oldVersion := Version
+			Version = tc.current
+			t.Cleanup(func() { Version = oldVersion })
+			platform := runtimePlatform()
+			archive := updateTestArchive(t, map[string][]byte{
+				"nearprod":               updateTestBinary(tc.latest, platform),
+				"LICENSE":                []byte("MIT\n"),
+				"THIRD_PARTY_NOTICES.md": []byte("notices\n"),
+			})
+			server, _ := updateTestServer(t, tc.latest, platform, archive, updateTestDigest(archive))
+			defer server.Close()
 
-	home := t.TempDir()
-	installed := filepath.Join(home, ".local", "bin", "nearprod")
-	must(t, os.MkdirAll(filepath.Dir(installed), 0700))
-	previous := updateTestBinary("1.0.0", platform)
-	must(t, os.WriteFile(installed, previous, 0755))
-	u := &Updater{Client: server.Client(), APIURL: server.URL + "/latest", AssetBase: server.URL + "/download", Executable: installed, Home: home, OS: runtimeOS(), Arch: runtimeArch(), AllowedOrigins: map[string]bool{server.URL: true}}
+			home := t.TempDir()
+			installed := filepath.Join(home, ".local", "bin", "nearprod")
+			must(t, os.MkdirAll(filepath.Dir(installed), 0700))
+			previous := updateTestBinary(tc.current, platform)
+			must(t, os.WriteFile(installed, previous, 0755))
+			u := &Updater{Client: server.Client(), APIURL: server.URL + "/latest", AssetBase: server.URL + "/download", Executable: installed, Home: home, OS: runtimeOS(), Arch: runtimeArch(), AllowedOrigins: map[string]bool{server.URL: true}}
 
-	plan, err := u.Check(context.Background())
-	must(t, err)
-	if !plan.Available || plan.Provider != "manual" || !truth(plan.Summary["canInstall"]) {
-		t.Fatal(plan.Summary)
-	}
-	result, err := u.Apply(context.Background(), plan)
-	must(t, err)
-	if str(result["status"]) != "updated" || str(result["currentVersion"]) != "1.1.0" || truth(result["canInstall"]) || !truth(result["temporaryFilesRemoved"]) {
-		t.Fatal(result)
-	}
-	identity, err := verifyUpdateBinary(context.Background(), installed, "1.1.0", platform)
-	must(t, err)
-	if str(identity["version"]) != "1.1.0" {
-		t.Fatal(identity)
-	}
-	backup, err := os.ReadFile(str(result["previous"]))
-	must(t, err)
-	if !bytes.Equal(backup, previous) {
-		t.Fatal("previous executable was not preserved exactly")
-	}
-	record, err := readJSON(filepath.Join(home, ".local", "share", "nearprod", "installation.json"), 1<<20)
-	must(t, err)
-	if str(record["version"]) != "1.1.0" || !strings.Contains(str(record["release"]), string(filepath.Separator)+"1.1.0-") {
-		t.Fatal(record)
-	}
-	residue, err := filepath.Glob(filepath.Join(home, ".local", "share", "nearprod", ".update-*"))
-	must(t, err)
-	if len(residue) != 0 {
-		t.Fatal("temporary update files remain", residue)
+			plan, err := u.Check(context.Background())
+			must(t, err)
+			if !plan.Available || plan.Provider != "manual" || !truth(plan.Summary["canInstall"]) {
+				t.Fatal(plan.Summary)
+			}
+			result, err := u.Apply(context.Background(), plan)
+			must(t, err)
+			if str(result["status"]) != "updated" || str(result["currentVersion"]) != tc.latest || truth(result["canInstall"]) || !truth(result["temporaryFilesRemoved"]) {
+				t.Fatal(result)
+			}
+			identity, err := verifyUpdateBinary(context.Background(), installed, tc.latest, platform)
+			must(t, err)
+			if str(identity["version"]) != tc.latest {
+				t.Fatal(identity)
+			}
+			backup, err := os.ReadFile(str(result["previous"]))
+			must(t, err)
+			if !bytes.Equal(backup, previous) {
+				t.Fatal("previous executable was not preserved exactly")
+			}
+			record, err := readJSON(filepath.Join(home, ".local", "share", "nearprod", "installation.json"), 1<<20)
+			must(t, err)
+			if str(record["version"]) != tc.latest || !strings.Contains(str(record["release"]), string(filepath.Separator)+tc.latest+"-") {
+				t.Fatal(record)
+			}
+			residue, err := filepath.Glob(filepath.Join(home, ".local", "share", "nearprod", ".update-*"))
+			must(t, err)
+			if len(residue) != 0 {
+				t.Fatal("temporary update files remain", residue)
+			}
+		})
 	}
 }
 

@@ -46,7 +46,11 @@ nearprod update --check
 nearprod update
 ```
 
-La comprobación consulta la última release estable sin descargar el ejecutable. La actualización muestra el cambio de versión y pide confirmación; `--yes` queda disponible para automatización explícita. Solo reemplaza el ejecutable estable `~/.local/bin/nearprod`: un binario ejecutado desde Descargas o desde un checkout debe instalarse primero.
+La comprobación consulta la última release estable sin descargar el ejecutable. La actualización muestra el cambio de versión y pide confirmación; `--yes` queda disponible para automatización explícita. Solo reemplaza el ejecutable de la instalación manual `~/.local/bin/nearprod`: un binario ejecutado desde Descargas o desde un checkout debe instalarse primero.
+
+A partir de `0.9.3`, el actualizador admite versiones de desarrollo identificadas, como `0.9.2-dev.5-ui.2`: puede pasar a `0.9.2` o a una estable posterior. Sigue la precedencia de [SemVer](https://semver.org/): una versión previa precede a su estable y los metadatos `+build` no cambian el orden. No realiza retrocesos; por ejemplo, `0.10.0-dev.1` no se reemplaza por `0.9.2`. Una compilación sin versión comparable, como `dev`, conserva `status: "development-build"` y no habilita la instalación automática.
+
+Esta capacidad requiere un ejecutable que incluya la corrección del actualizador. Los binarios anteriores que bloquean versiones de desarrollo necesitan reemplazarse una vez; publicar una release o cambiar de rama no modifica el código del ejecutable ya instalado.
 
 NearProd exige el asset exacto para macOS/Linux y ARM64/AMD64, compara el digest publicado por GitHub con `SHA256SUMS.txt`, rechaza rutas, enlaces y archivos especiales dentro del archive, ejecuta `--identity` antes y después de instalar, conserva la versión anterior bajo `~/.local/share/nearprod/releases` y elimina todos los temporales de la operación. En Linux/WSL2, la consulta HTTPS requiere el paquete de certificados CA del sistema. SHA-256 y TLS comprueban integridad respecto a GitHub, pero esta distribución sigue sin firma de código del editor.
 

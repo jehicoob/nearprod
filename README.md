@@ -63,7 +63,7 @@ Mac Intel: utiliza `bin/nearprod-darwin-amd64`. Linux x86_64: `bin/nearprod-linu
 
 El instalador guarda `~/.local/bin/nearprod` y copias de versiones bajo `~/.local/share/nearprod/releases`. Hace backup de `.zshrc` al añadir su función/ruta; no sustituye aliases ajenos, Node ni gestores de paquetes. No utiliza `sudo`.
 
-Para una instalación manual estable:
+Para una instalación manual:
 
 ```bash
 nearprod update --check
