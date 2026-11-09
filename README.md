@@ -1,4 +1,85 @@
-# NearProd — Go + React/TypeScript
+# NearProd
+
+<p align="center">
+  <img src="docs/assets/nearprod-social.png" alt="NearProd: más proyectos, misma máquina, menos caos" width="760">
+</p>
+
+<p align="center">
+  <a href="https://github.com/jehicoob/nearprod/releases/latest"><img alt="Última release" src="https://img.shields.io/github/v/release/jehicoob/nearprod"></a>
+  <a href="https://github.com/jehicoob/nearprod/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jehicoob/nearprod/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Go 1.23" src="https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-22%20herramientas-6E56CF">
+  <a href="LICENSE"><img alt="Licencia MIT" src="https://img.shields.io/badge/licencia-MIT-green"></a>
+</p>
+
+**Ejecuta tus aplicaciones Docker Compose en local como en producción y deja que tus agentes de IA las operen de forma segura.** NearProd reúne tus proyectos bajo URLs `proyecto.localhost` con Traefik, comparte PostgreSQL, MySQL y Redis entre ellos y expone todo por un panel web, un CLI y un servidor MCP. Es un único binario de Go, sin Node en tiempo de ejecución.
+
+[Landing](https://nearprod.j6b.dev) · [Descargar](https://github.com/jehicoob/nearprod/releases/latest) · [Inicio rápido](docs/INICIO-RAPIDO.md) · [MCP](docs/MCP.md) · [Arquitectura](docs/SPEC-0.7.0.md)
+
+<details>
+<summary><strong>English summary</strong></summary>
+
+NearProd is an open-source (MIT) local control plane for Docker Compose apps. It gives every project a production-like setup on your machine: `.localhost` URLs through Traefik, shared PostgreSQL/MySQL/Redis instances, health checks, and logs. Everything is shipped as a single Go binary with an embedded React/TypeScript dashboard.
+
+It is built for **AI-assisted development**. A local **MCP server with 22 tools** (official Go SDK, stdio transport) lets coding agents such as Claude Code or Codex discover, configure, review, start, and debug applications. Every agent call goes through the same domain rules as the UI: read-only and destructive annotations, previews with fingerprints, explicit confirmations for data loss, and a single loopback agent as the only writer. Agents never get credentials or direct Docker/SQL access.
+
+Releases are reproducible for macOS and Linux (amd64/arm64), with SHA-256 checksums and a verified self-update with rollback. CI runs `go vet`, the Go test suite with the race detector, and the UI type check on Ubuntu and macOS.
+</details>
+
+## IA: un entorno local que los agentes pueden operar
+
+`nearprod mcp serve` levanta un servidor [MCP](https://modelcontextprotocol.io) por `stdio`, construido con el SDK oficial de Go. Un asistente de código puede operar tu entorno local con las mismas reglas que el panel:
+
+- **22 herramientas MCP:** resumen del entorno, descubrimiento de proyectos Compose, configuración, revisión y aprobación, acciones de ciclo de vida, logs acotados, infraestructura y diagnóstico.
+- **Guardrails en el dominio, no en el prompt:** cada herramienta declara si es de solo lectura o destructiva. Las operaciones peligrosas devuelven primero un *preview* con *fingerprint*, y purgar datos exige el ID escrito y `acknowledgeDataLoss`.
+- **Un solo escritor:** MCP no toca el catálogo, Docker ni SQL de forma directa. Todo pasa por el agente local en loopback, que valida y serializa las operaciones. El cliente nunca recibe credenciales.
+- **Pensado para agentes:** `nearprod_guide` explica el flujo inspeccionar → explicar → editar → validar → aplicar → verificar, y `nearprod_capabilities` publica cada operación con su esquema exacto.
+
+```json
+{
+  "mcpServers": {
+    "nearprod": { "command": "/ruta/a/nearprod", "args": ["mcp", "serve"] }
+  }
+}
+```
+
+El panel genera este bloque con la ruta real del binario en **Acceso MCP**. Detalles y límites en [docs/MCP.md](docs/MCP.md).
+
+## Capturas
+
+| Aplicaciones | Infraestructura compartida |
+|---|---|
+| <img src="docs/assets/product-projects.webp" alt="Panel de aplicaciones con grupos, estado, acceso por Traefik y actividad reciente" width="420"> | <img src="docs/assets/product-infrastructure.webp" alt="Instancia PostgreSQL compartida con bases, usuarios y vinculaciones por proyecto" width="420"> |
+
+<p align="center">
+  <img src="docs/assets/product-settings.webp" alt="Herramientas del equipo: Docker CLI, Compose, Buildx y Colima detectados, configuración persistente e inicio en macOS" width="640">
+</p>
+
+## Arquitectura
+
+```mermaid
+flowchart LR
+    UI["Panel web<br/>React/TypeScript embebido"] -->|HTTP + SSE loopback| AG
+    CLI["CLI nearprod"] -->|socket local| AG
+    MCP["nearprod mcp serve<br/>22 herramientas"] -->|HTTP loopback| AG
+    LLM["Agente de IA<br/>Claude Code, Codex…"] -->|stdio| MCP
+    AG["Agente Go<br/>único escritor"] --> CAT[("Catálogo<br/>~/.nearprod")]
+    AG --> DC["Docker Compose"]
+    DC --> TR["Traefik<br/>*.localhost"]
+    DC --> DB[("PostgreSQL · MySQL · Redis")]
+```
+
+## Ingeniería destacada
+
+- **Un binario, cero dependencias de ejecución:** el CLI, el agente y el panel compilado viven en el mismo ejecutable de Go.
+- **Autoactualización verificada:** comprueba el *digest* de GitHub, `SHA256SUMS.txt`, el contenido del archive y la identidad del binario antes y después de instalar. Conserva la versión anterior para hacer *rollback* y reinicia el agente sin cortar la sesión de la UI.
+- **Ciclo de vida seguro:** archivar, restaurar y purgar tienen *preview*, confirmación específica y revalidación. La migración del catálogo hace backup exacto y falla de forma cerrada.
+- **Releases reproducibles:** toolchains exactos de Go y Node, cuatro plataformas, verificación del binario empaquetado y *draft* completo antes de publicar.
+- **Calidad:** `go vet`, pruebas con *race detector* y *typecheck* de la UI en Ubuntu y macOS. `nearprod self-test` ejecuta pruebas de aceptación contra tu Docker real y limpia solo sus recursos.
+
+**Stack:** Go 1.23 · MCP Go SDK · React + TypeScript · Docker Compose · Traefik · Colima · PostgreSQL · MySQL · Redis · GitHub Actions · GitHub Releases.
+
+## Cómo funciona
 
 Controlador local de aplicaciones Docker Compose, URLs `proyecto.localhost` por Traefik e infraestructura PostgreSQL/MySQL/Redis. El CLI y el agente están implementados en Go; el panel React/TypeScript compilado se incluye dentro del binario. **No inicia Node ni necesita npm para funcionar.**
 
