@@ -47,12 +47,14 @@ El panel genera este bloque con la ruta real del binario en **Acceso MCP**. Deta
 
 ## Capturas
 
+Panel de la versión 0.9.6.
+
 | Aplicaciones | Infraestructura compartida |
 |---|---|
-| <img src="docs/assets/product-projects.webp" alt="Panel de aplicaciones con grupos, estado, acceso por Traefik y actividad reciente" width="420"> | <img src="docs/assets/product-infrastructure.webp" alt="Instancia PostgreSQL compartida con bases, usuarios y vinculaciones por proyecto" width="420"> |
+| <img src="docs/assets/product-projects.webp" alt="Panel de aplicaciones: un grupo con su API en ejecución y saludable, modo de desarrollo, acciones y acceso local por Traefik" width="420"> | <img src="docs/assets/product-infrastructure.webp" alt="Instancias compartidas de PostgreSQL y MySQL con persistencia, conexión dentro de Docker y una base y un usuario por proyecto" width="420"> |
 
 <p align="center">
-  <img src="docs/assets/product-settings.webp" alt="Herramientas del equipo: Docker CLI, Compose, Buildx y Colima detectados, configuración persistente e inicio en macOS" width="640">
+  <img src="docs/assets/product-mcp.webp" alt="Acceso MCP: servidor listo por stdio, sin cuentas ni nube, con la configuración del cliente lista para copiar" width="640">
 </p>
 
 ## Arquitectura
